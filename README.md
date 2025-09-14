@@ -91,8 +91,21 @@ completion = client.chat.completions.create(
 print(completion.choices[0].message.content)
 ```
 
+### Example with JetBrains AI Assistant
+
+To use the proxy with your JetBrains IDE's AI Assistant, you need to configure its base URL. This allows the AI Assistant to send requests to your local Gemini proxy instead of the default OpenAI endpoints.
+
+1.  **Open JetBrains IDE Settings:** Go to `File` > `Settings` (Windows/Linux) or `PhpStorm` > `Settings` (macOS).
+2.  **Navigate to AI Assistant Settings:** In the settings dialog, search for `AI Assistant` or find it under `Tools` > `AI Assistant`.
+3.  **Configure On-Premise Server:**
+    *   Enable the `Use On-Premise Server` option (if available and applicable for your version/plugin).
+    *   Set the **"Server URL"** or **"Endpoint URL"** (the exact naming might vary) to:
+        ```
+        http://localhost:8080/v1beta/openai
+        ```
+
+Your JetBrains AI Assistant should now route its requests through your local Gemini API proxy.
+
 ## 🛠️ Modifying the Configuration
 
 If you need to change the proxy's behavior (e.g., add new endpoints or headers), you can edit the `nginx.conf.template` file.
-
-After making changes, simply restart the container to apply them:
