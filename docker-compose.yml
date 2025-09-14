@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  nginx-proxy:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    env_file:
+      - .env
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    restart: unless-stopped
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.default.disable_ipv6=1
+
