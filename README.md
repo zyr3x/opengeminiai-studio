@@ -96,5 +96,3 @@ print(completion.choices[0].message.content)
 If you need to change the proxy's behavior (e.g., add new endpoints or headers), you can edit the `nginx.conf.template` file.
 
 After making changes, simply restart the container to apply them:
-
-```bash
