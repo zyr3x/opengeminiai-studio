@@ -9,18 +9,25 @@ server {
     proxy_set_header Authorization "Bearer ${API_KEY}";
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_connect_timeout 5s;
-    proxy_send_timeout    5s;
-    proxy_read_timeout    360s;
+    proxy_connect_timeout 18000;
+    proxy_send_timeout    18000s;
+    proxy_read_timeout    18000s;
     proxy_ssl_server_name on;
 
+    # the buffers size
+    proxy_buffers 32 256k;
+    proxy_buffer_size 128k;
+    proxy_busy_buffers_size 256k;
+    proxy_temp_file_write_size 256k;
+
     # Explicitly set a DNS resolver to resolve hostnames
-    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver 8.8.8.8 8.8.4.4 valid=300s ipv6=off;
     resolver_timeout 5s;
 
     # A single location to forward all requests under /v1beta/openai/
     # The $request_uri variable contains the full original URI (e.g., /v1beta/openai/models)
     location /v1beta/openai/ {
+        fastcgi_read_timeout    3600;
         proxy_pass ${UPSTREAM_URL}$request_uri;
     }
 }
