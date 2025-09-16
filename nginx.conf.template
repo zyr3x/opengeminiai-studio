@@ -1,5 +1,8 @@
 # This template defines a single server block. The official Nginx image
 # will process it and include the final config inside the main http block.
+
+proxy_cache_path /var/cache/nginx/openai levels=1:2 keys_zone=openai_cache:10m inactive=60m;
+
 server {
     listen 80;
     server_name localhost;
@@ -14,15 +17,20 @@ server {
     proxy_read_timeout    3600s;
     proxy_ssl_server_name on;
 
-    # the buffers size
-    proxy_buffers 32 256k;
-    proxy_buffer_size 128k;
-    proxy_busy_buffers_size 1m;
-    proxy_temp_file_write_size 256k;
+    # the buffers
+    proxy_buffering off;
 
     # Explicitly set a DNS resolver to resolve hostnames
-    resolver 8.8.8.8 8.8.4.4 valid=300s ipv6=off;
+    resolver 8.8.8.8 8.8.4.4 valid=350s ipv6=off;
     resolver_timeout 5s;
+
+   # Location for caching /models endpoint
+    location /v1beta/openai/models {
+        proxy_cache openai_cache;
+        proxy_cache_valid 200 30m;
+        add_header X-Proxy-Cache $upstream_cache_status;
+        proxy_pass ${UPSTREAM_URL}$request_uri;
+    }
 
     # A single location to forward all requests under /v1beta/openai/
     # The $request_uri variable contains the full original URI (e.g., /v1beta/openai/models)
