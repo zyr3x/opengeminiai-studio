@@ -9,6 +9,7 @@ services:
       - .env
     volumes:
       - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./models.json:/etc/nginx/static/models.json:ro
       - nginx_cache:/var/cache/nginx
     restart: unless-stopped
     sysctls:

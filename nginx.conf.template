@@ -26,10 +26,8 @@ server {
 
    # Location for caching /models endpoint
     location /v1beta/openai/models {
-        proxy_cache openai_cache;
-        proxy_cache_valid 200 30m;
-        add_header X-Proxy-Cache $upstream_cache_status;
-        proxy_pass ${UPSTREAM_URL}$request_uri;
+        default_type application/json;
+        alias /etc/nginx/static/models.json;
     }
 
     # A single location to forward all requests under /v1beta/openai/
