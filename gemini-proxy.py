@@ -115,6 +115,80 @@ def truncate_contents(contents: list, limit: int) -> list:
 
 
 # --- API Endpoints ---
+@app.route('/', methods=['GET'])
+def index():
+    """
+    Serves a simple documentation page in English.
+    """
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Gemini to OpenAI Proxy</title>
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 2em; max-width: 800px; margin: auto; color: #333; background-color: #f9f9f9; }
+            h1, h2 { color: #1a73e8; }
+            code { background-color: #e0e0e0; padding: 2px 6px; border-radius: 4px; font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; }
+            pre { background-color: #e0e0e0; padding: 1em; border-radius: 4px; overflow-x: auto; }
+            .container { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+            .footer { margin-top: 2em; text-align: center; font-size: 0.9em; color: #777; }
+            li { margin-bottom: 0.5em; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Gemini to OpenAI Proxy</h1>
+            <p>This is a lightweight proxy server that translates requests from an OpenAI-compatible client (like JetBrains AI Assistant) to Google's Gemini API.</p>
+
+            <h2>What It Does</h2>
+            <ul>
+                <li>Accepts requests on OpenAI-like endpoints: <code>/v1beta/openai/chat/completions</code> and <code>/v1beta/openai/models</code>.</li>
+                <li>Transforms the request format from OpenAI's structure to Gemini's structure.</li>
+                <li>Handles streaming responses for chat completions.</li>
+                <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
+                <li>Caches model lists to reduce upstream API calls.</li>
+                <li>Supports multimodal requests (text and images).</li>
+            </ul>
+
+            <h2>How to Use</h2>
+
+            <h3>1. Setup and Run</h3>
+            <p>Before running the server, you need to set two environment variables:</p>
+            <pre><code>export API_KEY="YOUR_GEMINI_API_KEY"
+export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
+            <p>Then, run the server:</p>
+            <pre><code>python gemini-proxy.py</code></pre>
+            <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
+
+            <h3>2. Configure JetBrains AI Assistant</h3>
+            <p>To use this proxy with JetBrains IDEs:</p>
+            <ol>
+                <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code>).</li>
+                <li>Select the "Custom" service.</li>
+                <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1beta/openai</code></li>
+                <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
+            </ol>
+            <p><b>Note:</b> The path must end with <code>/v1beta/openai</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
+
+            <h2>Available Endpoints</h2>
+            <ul>
+                <li><code>GET /</code>: This documentation page.</li>
+                <li><code>GET /v1beta/openai/models</code>: Lists available Gemini models in OpenAI format.</li>
+                <li><code>POST /v1beta/openai/chat/completions</code>: The main endpoint for chat completions. Supports streaming.</li>
+            </ul>
+
+            <div class="footer">
+                <p>Proxy server is running and ready to serve requests.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return html_content
+
+
 @app.route('/v1beta/openai/chat/completions', methods=['POST'])
 def chat_completions():
     """
