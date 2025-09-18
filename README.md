@@ -110,4 +110,4 @@ Your JetBrains AI Assistant should now route its requests through your local Gem
 
 ## 🛠️ Modifying the Configuration
 
-If you need to change the proxy's behavior (e.g., add new endpoints or headers), you can edit the `proxy.py` file.
+If you need to change the proxy's behavior (e.g., add new endpoints or headers), you can edit the `gemini-proxy.py` file.
