@@ -25,10 +25,10 @@ def chat_completions():
     Handles chat completion requests using the 'requests' library with streaming.
     """
     try:
-        llm_studio_request = request.json
-        print(f"Incoming LLM Studio Request: {json.dumps(llm_studio_request, indent=2)}")
-        messages = llm_studio_request.get('messages', [])
-        COMPLETION_MODEL = llm_studio_request.get('model', 'gemini-2.0-flash')
+        openai_request = request.json
+        print(f"Incoming JetBrains AI Assist Request: {json.dumps(openai_request, indent=2)}")
+        messages = openai_request.get('messages', [])
+        COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
 
         # Consolidate all messages into a single user message
         combined_text = ""
@@ -222,7 +222,7 @@ def chat_completions():
 def list_models():
     """
     Fetches the list of available models from the Gemini API, caches the response,
-    and formats it for the LLM Studio/OpenAI API.
+    and formats it for the JetBrains AI Assist/OpenAI API.
     """
     global cached_models_response
 
@@ -237,7 +237,7 @@ def list_models():
 
         gemini_models_data = response.json()
 
-        # Transform the Gemini model list to the OpenAI/LLM Studio format
+        # Transform the Gemini model list to the OpenAI/JetBrains AI Assist format
         openai_models_list = []
         for model in gemini_models_data.get("models", []):
             # Only include models that support content generation
