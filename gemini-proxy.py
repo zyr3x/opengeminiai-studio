@@ -26,7 +26,7 @@ def chat_completions():
     """
     try:
         openai_request = request.json
-        print(f"Incoming JetBrains AI Assist Request: {json.dumps(openai_request, indent=2)}")
+        print(f"Incoming JetBrains AI Assist Request: {pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
 
@@ -49,7 +49,7 @@ def chat_completions():
         }
 
         print(f"Outgoing Gemini Request URL: {GEMINI_STREAMING_URL}")
-        print(f"Outgoing Gemini Request Data: {json.dumps(request_data, indent=2)}")
+        print(f"Outgoing Gemini Request Data: {pretty_json(request_data)}")
 
         # Use a generator function to handle the streaming response
         def generate():
@@ -132,7 +132,7 @@ def chat_completions():
                                             }
                                         ]
                                     }
-                                    print(f"Formatted Proxy Response Chunk: {json.dumps(chunk_response, indent=2)}")
+                                    print(f"Formatted Proxy Response Chunk: {pretty_json(chunk_response)}")
                                     yield f"data: {json.dumps(chunk_response)}\n\n"
                                     buffer = ""
                                 except (json.JSONDecodeError, KeyError) as e:
@@ -155,7 +155,7 @@ def chat_completions():
                     ]
                 }
                 yield f"data: {json.dumps(final_chunk)}\n\n"
-                print(f"Final Proxy Response Chunk: {json.dumps(final_chunk, indent=2)}")
+                print(f"Final Proxy Response Chunk: {pretty_json(final_chunk)}")
                 yield "data: [DONE]\n\n"
                 return
             else:
@@ -187,7 +187,7 @@ def chat_completions():
                                             }
                                         ]
                                     }
-                                    print(f"Formatted Proxy Response Chunk: {json.dumps(chunk_response, indent=2)}")
+                                    print(f"Formatted Proxy Response Chunk: {pretty_json(chunk_response)}")
                                     yield f"data: {json.dumps(chunk_response)}\n\n"
                                     buffer = ""
                                 except (json.JSONDecodeError, KeyError) as e:
@@ -211,7 +211,7 @@ def chat_completions():
                     ]
                 }
                 yield f"data: {json.dumps(final_chunk)}\n\n"
-                print(f"Final Proxy Response Chunk: {json.dumps(final_chunk, indent=2)}")
+                print(f"Final Proxy Response Chunk: {pretty_json(final_chunk)}")
                 yield "data: [DONE]\n\n"
 
         return Response(generate(), mimetype='text/event-stream')
@@ -280,6 +280,8 @@ def list_models():
         error_response = {"error": f"Internal server error: {e}"}
         return jsonify(error_response), 500
 
+def pretty_json(data):
+    return json.dumps(data, indent=2, ensure_ascii=False)
 
 if __name__ == '__main__':
     print("Starting proxy server on http://localhost:8081...")
