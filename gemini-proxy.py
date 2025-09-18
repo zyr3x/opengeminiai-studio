@@ -4,6 +4,8 @@ from flask import Flask, request, jsonify, Response
 import time
 import json
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
+import base64
+import re
 
 app = Flask(__name__)
 API_KEY = os.getenv("API_KEY")
@@ -14,9 +16,43 @@ UPSTREAM_URL = os.getenv("UPSTREAM_URL")
 if not UPSTREAM_URL:
     raise ValueError("UPSTREAM_URL environment variable not set")
 
+
 cached_models_response = None
 model_info_cache = {}
 TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95  # Use 95% of the model's capacity
+
+
+# --- Helper Functions for Multimodal Support ---
+
+def _process_image_url(image_url: dict) -> dict | None:
+    """
+    Processes an OpenAI image_url object and converts it to a Gemini inline_data part.
+    Supports both web URLs and Base64 data URIs.
+    """
+    url = image_url.get("url")
+    if not url:
+        return None
+
+    try:
+        if url.startswith("data:"):
+            # Handle Base64 data URI
+            match = re.match(r"data:(image/.+);base64,(.+)", url)
+            if not match:
+                print(f"Warning: Could not parse data URI.")
+                return None
+            mime_type, base64_data = match.groups()
+            return {"inline_data": {"mime_type": mime_type, "data": base64_data}}
+        else:
+            # Handle web URL
+            print(f"Downloading image from URL: {url}")
+            response = requests.get(url, timeout=20)
+            response.raise_for_status()
+            mime_type = response.headers.get("Content-Type", "image/jpeg")
+            base64_data = base64.b64encode(response.content).decode('utf-8')
+            return {"inline_data": {"mime_type": mime_type, "data": base64_data}}
+    except Exception as e:
+        print(f"Error processing image URL {url}: {e}")
+        return None
 
 
 # --- Helper Functions for Token Management ---
@@ -50,7 +86,8 @@ def estimate_token_count(contents: list) -> int:
     total_chars = 0
     for item in contents:
         for part in item.get("parts", []):
-            total_chars += len(part.get("text", ""))
+            if "text" in part:
+                total_chars += len(part.get("text", ""))
     return total_chars // 4
 
 
@@ -96,16 +133,37 @@ def chat_completions():
             mapped_messages = []
             for message in messages:
                 role = "model" if message.get("role") == "assistant" else "user"
-                content = message.get("content", "")
-                if content:  # Don't add empty messages
-                    mapped_messages.append({"role": role, "parts": [{"text": content}]})
+                content = message.get("content")
+
+                gemini_parts = []
+                # Content can be a string or a list of parts (for multimodal)
+                if isinstance(content, str):
+                    if content:  # Don't add empty messages
+                        gemini_parts.append({"text": content})
+                elif isinstance(content, list):
+                    text_parts = []
+                    for part in content:
+                        if part.get("type") == "text":
+                            text_parts.append(part.get("text", ""))
+                        elif part.get("type") == "image_url":
+                            image_part = _process_image_url(part.get("image_url", {}))
+                            if image_part:
+                                gemini_parts.append(image_part)
+
+                    # Combine all text parts into a single text part for Gemini
+                    if text_parts:
+                        gemini_parts.insert(0, {"text": "\n".join(text_parts)})
+
+                if gemini_parts:
+                    mapped_messages.append({"role": role, "parts": gemini_parts})
 
             # Merge consecutive messages with the same role, as Gemini requires alternating roles
             if mapped_messages:
                 gemini_contents.append(mapped_messages[0])
                 for i in range(1, len(mapped_messages)):
                     if mapped_messages[i]['role'] == gemini_contents[-1]['role']:
-                        gemini_contents[-1]['parts'][0]['text'] += "\n\n" + mapped_messages[i]['parts'][0]['text']
+                        # Append parts instead of just text to handle images correctly
+                        gemini_contents[-1]['parts'].extend(mapped_messages[i]['parts'])
                     else:
                         gemini_contents.append(mapped_messages[i])
 
@@ -205,7 +263,7 @@ def chat_completions():
                                 print(f"Formatted Proxy Response Chunk: {pretty_json(chunk_response)}")
                                 yield f"data: {json.dumps(chunk_response)}\n\n"
                                 buffer = ""
-                            except (json.JSONDecodeError, KeyError):
+                            except (json.JSONDecodeError, KeyError, IndexError):
                                 # Incomplete JSON or unexpected structure, continue buffering
                                 continue
                     except Exception as e:
@@ -273,7 +331,7 @@ def list_models():
                 openai_models_list.append({
                     "id": model["name"].split("/")[-1],
                     "object": "model",
-                    "created": int(time.time()),
+                    "created": 1677649553,
                     "owned_by": "google",
                     "permission": []
                 })
@@ -300,5 +358,5 @@ def pretty_json(data):
 
 
 if __name__ == '__main__':
-    print("Starting proxy server on http://localhost:8080...")
+    print("Starting proxy server on http://0.0.0.0:8080...")
     app.run(host='0.0.0.0', port=8080)
