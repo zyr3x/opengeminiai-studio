@@ -28,7 +28,7 @@ def chat_completions():
         llm_studio_request = request.json
         print(f"Incoming LLM Studio Request: {json.dumps(llm_studio_request, indent=2)}")
         messages = llm_studio_request.get('messages', [])
-        COMPLETION_MODEL = llm_studio_request.get('model', 'gemini-1.5-flash')
+        COMPLETION_MODEL = llm_studio_request.get('model', 'gemini-2.0-flash')
 
         # Consolidate all messages into a single user message
         combined_text = ""
@@ -173,30 +173,48 @@ def chat_completions():
         return Response(generate(), mimetype='text/event-stream')
 
     except Exception as e:
-        error_message = f"An error occurred: {str(e)}"
-        print(f"An error occurred during chat completion: {error_message}")  # Log the error
-        error_response = {
-            "id": "error-id",
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": "error-model",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": f"ERROR: {error_message}",
-                    },
-                    "finish_reason": "error"
+            error_message = f"An error occurred: {str(e)}"
+            print(f"An error occurred during chat completion: {error_message}")  # Log the error
+
+            def error_generator(message, model_name="error-model"):
+                chunk_size = 50  # Adjust chunk size as needed
+                for i in range(0, len(message), chunk_size):
+                    chunk = message[i:i + chunk_size]
+                    chunk_response = {
+                        "id": f"chatcmpl-error-{os.urandom(12).hex()}",
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model_name,
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": {
+                                    "content": chunk
+                                },
+                                "finish_reason": None
+                            }
+                        ]
+                    }
+                    yield f"data: {json.dumps(chunk_response)}\n\n"
+
+                # Final chunk to signal completion
+                final_chunk = {
+                    "id": f"chatcmpl-error-{os.urandom(12).hex()}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {},
+                            "finish_reason": "stop"
+                        }
+                    ]
                 }
-            ],
-            "usage": {
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "total_tokens": 0
-            }
-        }
-        return jsonify(error_response)
+                yield f"data: {json.dumps(final_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+
+            return Response(error_generator(error_message), mimetype='text/event-stream')
 
 
 # The /v1/models endpoint remains the same
