@@ -1,6 +1,6 @@
 # Gemini API to OpenAI Proxy
 
-This project provides a simple and efficient Nginx proxy that allows you to use Google's Gemini API (Generative Language API) with clients originally designed for the OpenAI API.
+This project provides a simple and efficient Python proxy that allows you to use Google's Gemini API (Generative Language API) with clients originally designed for the OpenAI API.
 
 It forwards requests from OpenAI-compatible endpoints (e.g., `/v1beta/openai/chat/completions`) to the corresponding Google API endpoints, automatically injecting your API key.
 
@@ -9,8 +9,8 @@ It forwards requests from OpenAI-compatible endpoints (e.g., `/v1beta/openai/cha
 -   **OpenAI Compatibility:** Use your favorite OpenAI-native tools and libraries to access Google Gemini models.
 -   **Easy Deployment:** Runs with a single command using Docker and Docker Compose.
 -   **Flexible Configuration:** All settings (API key, upstream URL) are managed in a `.env` file.
--   **Rapid Development:** Nginx configuration changes are applied by simply restarting the container, no image rebuild required.
--   **Lightweight:** Uses the official `nginx:alpine` image for a minimal resource footprint.
+-   **Rapid Development:** Python configuration changes are applied by simply restarting the container, no image rebuild required.
+-   **Lightweight:** Uses the official `Python:3.11` image for a minimal resource footprint.
 
 ## ⚙️ Prerequisites
 
@@ -53,7 +53,7 @@ Execute the following command in your terminal:
 ```bash
 docker-compose up -d
 ```
-This command will pull the Nginx image (if you don't have it) and start the container in the background. The proxy will be available at `http://localhost:8080`.
+This command will pull the Python image (if you don't have it) and start the container in the background. The proxy will be available at `http://localhost:8080`.
 
 ## 💻 How to Use the Proxy
 
@@ -83,7 +83,7 @@ for model in models:
 
 # Example chat request
 completion = client.chat.completions.create(
-    model="gemini-pro",
+    model="gemini-1.5-flash",
     messages=[
         {"role": "user", "content": "Write a short story about a friendly robot."},
     ],
@@ -110,4 +110,4 @@ Your JetBrains AI Assistant should now route its requests through your local Gem
 
 ## 🛠️ Modifying the Configuration
 
-If you need to change the proxy's behavior (e.g., add new endpoints or headers), you can edit the `nginx.conf.template` file.
+If you need to change the proxy's behavior (e.g., add new endpoints or headers), you can edit the `proxy.py` file.
