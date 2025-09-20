@@ -17,17 +17,20 @@
 """
 import os
 import requests
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, redirect, url_for
 import time
 import json
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 import base64
 import re
+from dotenv import load_dotenv, set_key
 
 app = Flask(__name__)
+
+# Load environment variables from .env file at startup
+load_dotenv()
+
 API_KEY = os.getenv("API_KEY")
-if not API_KEY:
-    raise ValueError("API_KEY environment variable not set")
 
 UPSTREAM_URL = os.getenv("UPSTREAM_URL")
 if not UPSTREAM_URL:
@@ -132,12 +135,35 @@ def truncate_contents(contents: list, limit: int) -> list:
 
 
 # --- API Endpoints ---
+@app.route('/set_api_key', methods=['POST'])
+def set_api_key():
+    """
+    Sets the API_KEY from a web form and saves it to the .env file for persistence.
+    """
+    global API_KEY, cached_models_response, model_info_cache
+    new_key = request.form.get('api_key')
+    if new_key:
+        # Update the key in the current session
+        API_KEY = new_key
+
+        # Save the key to the .env file for persistence across restarts
+        set_key('.env', 'API_KEY', new_key)
+        print("API Key has been updated via web interface and saved to .env file.")
+
+        # Clear model cache if key changes
+        cached_models_response = None
+        model_info_cache = {}
+        print("Caches cleared due to API key change.")
+    return redirect(url_for('index'))
+
+
 @app.route('/', methods=['GET'])
 def index():
     """
     Serves a simple documentation page in English.
     """
-    html_content = """
+    api_key_status = "Set" if API_KEY else "Not Set"
+    html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -145,13 +171,15 @@ def index():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Gemini to OpenAI Proxy</title>
         <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 2em; max-width: 800px; margin: auto; color: #333; background-color: #f9f9f9; }
-            h1, h2 { color: #1a73e8; }
-            code { background-color: #e0e0e0; padding: 2px 6px; border-radius: 4px; font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; }
-            pre { background-color: #e0e0e0; padding: 1em; border-radius: 4px; overflow-x: auto; }
-            .container { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-            .footer { margin-top: 2em; text-align: center; font-size: 0.9em; color: #777; }
-            li { margin-bottom: 0.5em; }
+            body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 2em; max-width: 800px; margin: auto; color: #333; background-color: #f9f9f9; }}
+            h1, h2 {{ color: #1a73e8; }}
+            code {{ background-color: #e0e0e0; padding: 2px 6px; border-radius: 4px; font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; }}
+            pre {{ background-color: #e0e0e0; padding: 1em; border-radius: 4px; overflow-x: auto; }}
+            .container {{ background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
+            .footer {{ margin-top: 2em; text-align: center; font-size: 0.9em; color: #777; }}
+            li {{ margin-bottom: 0.5em; }}
+            input[type="text"] {{ padding: 8px; width: 70%; border-radius: 4px; border: 1px solid #ccc; }}
+            input[type="submit"] {{ padding: 8px 16px; border-radius: 4px; border: none; background-color: #1a73e8; color: white; cursor: pointer; }}
         </style>
     </head>
     <body>
@@ -159,9 +187,19 @@ def index():
             <h1>Gemini to OpenAI Proxy</h1>
             <p>This is a lightweight proxy server that translates requests from an OpenAI-compatible client (like JetBrains AI Assistant) to Google's Gemini API.</p>
 
+            <h2>API Key Setup</h2>
+            <p>You can set your Gemini API Key using the form below. The key is stored in memory and will be reset when the server restarts. You can also set it permanently using the <code>API_KEY</code> environment variable.</p>
+            <form action="/set_api_key" method="POST">
+                <label for="api_key"><b>Gemini API Key:</b></label><br>
+                <input type="text" id="api_key" name="api_key" placeholder="Enter your Gemini API key" size="60" value="{API_KEY or ''}">
+                <input type="submit" value="Save Key">
+            </form>
+            <p><b>Current Status:</b> The API Key is currently <strong>{api_key_status}</strong>.</p>
+
+
             <h2>What It Does</h2>
             <ul>
-                <li>Accepts requests on OpenAI-like endpoints: <code>/v1beta/openai/chat/completions</code> and <code>/v1beta/openai/models</code>.</li>
+                <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/openai/models</code>.</li>
                 <li>Transforms the request format from OpenAI's structure to Gemini's structure.</li>
                 <li>Handles streaming responses for chat completions.</li>
                 <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
@@ -172,7 +210,7 @@ def index():
             <h2>How to Use</h2>
 
             <h3>1. Setup and Run</h3>
-            <p>Before running the server, you need to set two environment variables:</p>
+            <p>Before running the server, you need to set one environment variable (or use the form above for the API Key):</p>
             <pre><code>export API_KEY="YOUR_GEMINI_API_KEY"
 export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
             <p>Then, run the server:</p>
@@ -184,16 +222,16 @@ export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
             <ol>
                 <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code>).</li>
                 <li>Select the "Custom" service.</li>
-                <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1beta/openai</code></li>
+                <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1/openai</code></li>
                 <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
             </ol>
-            <p><b>Note:</b> The path must end with <code>/v1beta/openai</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
+            <p><b>Note:</b> The path must end with <code>/v1/openai</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
 
             <h2>Available Endpoints</h2>
             <ul>
-                <li><code>GET /</code>: This documentation page.</li>
-                <li><code>GET /v1beta/openai/models</code>: Lists available Gemini models in OpenAI format.</li>
-                <li><code>POST /v1beta/openai/chat/completions</code>: The main endpoint for chat completions. Supports streaming.</li>
+                <li><code>GET /</code>: This documentation and setup page.</li>
+                <li><code>GET /v1/models</code>: Lists available Gemini models in OpenAI format.</li>
+                <li><code>POST /v1/chat/completions</code>: The main endpoint for chat completions. Supports streaming.</li>
             </ul>
 
             <div class="footer">
@@ -206,11 +244,13 @@ export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
     return html_content
 
 
-@app.route('/v1beta/openai/chat/completions', methods=['POST'])
+@app.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
     """
     Handles chat completion requests using the 'requests' library with streaming.
     """
+    if not API_KEY:
+        return jsonify({"error": {"message": "API key not configured. Please set it on the root page.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:
         openai_request = request.json
         print(f"Incoming JetBrains AI Assist Request: {pretty_json(openai_request)}")
@@ -395,12 +435,15 @@ def chat_completions():
 
 
 # The /v1/models endpoint remains the same
-@app.route('/v1beta/openai/models', methods=['GET'])
+@app.route('/v1/models', methods=['GET'])
 def list_models():
     """
     Fetches the list of available models from the Gemini API, caches the response,
     and formats it for the JetBrains AI Assist/OpenAI API.
     """
+    if not API_KEY:
+        return jsonify({"error": {"message": "API key not configured. Please set it on the root page.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
+
     global cached_models_response
 
     try:
