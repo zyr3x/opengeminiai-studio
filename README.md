@@ -2,7 +2,7 @@
 
 This project provides a simple and efficient Python proxy that allows you to use Google's Gemini API (Generative Language API) with clients originally designed for the OpenAI API.
 
-It forwards requests from OpenAI-compatible endpoints (e.g., `/v1beta/openai/chat/completions`) to the corresponding Google API endpoints, automatically injecting your API key.
+It forwards requests from OpenAI-compatible endpoints (e.g., `/v1/chat/completions`) to the corresponding Google API endpoints, automatically injecting your API key.
 
 ## ✨ Features
 
@@ -59,12 +59,12 @@ This command will pull the Python image (if you don't have it) and start the con
 
 You can now configure your OpenAI clients to point to this proxy.
 
--   **Base URL:** `http://localhost:8080/v1beta/openai`
+-   **Base URL:** `http://localhost:8080/v1`
 
 ### Example with `curl`
 
 ```bash
-curl http://localhost:8080/v1beta/openai/models 
+curl http://localhost:8080/v1/models 
 ```
 
 ### Example with the OpenAI Python Client
@@ -73,7 +73,7 @@ curl http://localhost:8080/v1beta/openai/models
 import openai
 
 client = openai.OpenAI(
-    base_url="http://localhost:8080/v1beta/openai"
+    base_url="http://localhost:8080/v1"
 )
 
 # List available models
@@ -103,7 +103,7 @@ To use the proxy with your JetBrains IDE's AI Assistant, you need to configure i
     *   Enable the `offline mode`.
     *   Set the **"URL"** to:
         ```
-        http://localhost:8080/v1beta/openai
+        http://localhost:8080/v1
         ```
 
 Your JetBrains AI Assistant should now route its requests through your local Gemini API proxy.

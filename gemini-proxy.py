@@ -199,7 +199,7 @@ def index():
 
             <h2>What It Does</h2>
             <ul>
-                <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/openai/models</code>.</li>
+                <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/models</code>.</li>
                 <li>Transforms the request format from OpenAI's structure to Gemini's structure.</li>
                 <li>Handles streaming responses for chat completions.</li>
                 <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
@@ -225,7 +225,7 @@ export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
                 <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1/openai</code></li>
                 <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
             </ol>
-            <p><b>Note:</b> The path must end with <code>/v1/openai</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
+            <p><b>Note:</b> The path must end with <code>/v1/</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
 
             <h2>Available Endpoints</h2>
             <ul>
