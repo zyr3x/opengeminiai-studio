@@ -932,6 +932,7 @@ def chat_completions():
                 buffer = ""
                 tool_calls = []
                 model_response_parts = []
+                decoder = json.JSONDecoder()
 
                 for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
                     if isinstance(chunk, str):
@@ -940,65 +941,53 @@ def chat_completions():
                     buffer += chunk
 
                     while True:
-                        brace_level = 0
+                        # Find the start of a JSON object
                         start_index = buffer.find('{')
                         if start_index == -1:
                             # No start of object in buffer, wait for more data
+                            # prevent unbounded growth on malformed input
+                            if len(buffer) > 65536:
+                                buffer = buffer[-32768:]
                             break
 
-                        end_index = -1
-                        # Find the corresponding closing brace for the first opening brace
-                        for i in range(start_index, len(buffer)):
-                            if buffer[i] == '{':
-                                brace_level += 1
-                            elif buffer[i] == '}':
-                                brace_level -= 1
+                        # Drop any non-JSON prefix (SSE noise, commas, brackets, newlines)
+                        if start_index > 0:
+                            buffer = buffer[start_index:]
 
-                            if brace_level == 0:
-                                end_index = i
-                                break
+                        # Try to decode a full JSON object from the current buffer
+                        try:
+                            json_data, end_index = decoder.raw_decode(buffer)
+                        except json.JSONDecodeError:
+                            # Need more data
+                            break
 
-                        if end_index != -1:
-                            # We have a complete potential JSON object
-                            obj_str = buffer[start_index : end_index + 1]
-                            try:
-                                json_data = json.loads(obj_str)
+                        # Advance the buffer to the remainder after the parsed object
+                        buffer = buffer[end_index:]
 
-                                # Process the valid JSON object
-                                parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+                        # Process the valid JSON object
+                        parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
 
-                                # Handle metadata-only chunks gracefully
-                                if not parts and 'usageMetadata' in json_data:
-                                    pass
-                                else:
-                                    model_response_parts.extend(parts)
-                                    text_content = ""
-                                    for part in parts:
-                                        if 'text' in part:
-                                            text_content += part['text']
-                                        if 'functionCall' in part:
-                                            tool_calls.append(part['functionCall'])
-
-                                    if text_content:
-                                        chunk_response = {
-                                            "id": f"chatcmpl-{os.urandom(12).hex()}",
-                                            "object": "chat.completion.chunk",
-                                            "created": int(time.time()),
-                                            "model": COMPLETION_MODEL,
-                                            "choices": [{"index": 0, "delta": {"content": text_content}, "finish_reason": None}]
-                                        }
-                                        yield f"data: {json.dumps(chunk_response)}\n\n"
-
-                                # Remove processed object from buffer and check for more
-                                buffer = buffer[end_index + 1:]
-
-                            except (json.JSONDecodeError, KeyError, IndexError) as e:
-                                print(f"Could not process potential JSON object: '{obj_str}'. Error: {e}. Discarding and continuing.")
-                                # Discard the malformed part to avoid an infinite loop
-                                buffer = buffer[end_index + 1:]
+                        # Handle metadata-only chunks gracefully
+                        if not parts and 'usageMetadata' in json_data:
+                            pass
                         else:
-                            # Incomplete object in buffer, wait for more data
-                            break
+                            model_response_parts.extend(parts)
+                            text_content = ""
+                            for part in parts:
+                                if 'text' in part:
+                                    text_content += part['text']
+                                if 'functionCall' in part:
+                                    tool_calls.append(part['functionCall'])
+
+                            if text_content:
+                                chunk_response = {
+                                    "id": f"chatcmpl-{os.urandom(12).hex()}",
+                                    "object": "chat.completion.chunk",
+                                    "created": int(time.time()),
+                                    "model": COMPLETION_MODEL,
+                                    "choices": [{"index": 0, "delta": {"content": text_content}, "finish_reason": None}]
+                                }
+                                yield f"data: {json.dumps(chunk_response)}\n\n"
 
                 if not tool_calls:
                     # No tool calls, conversation is finished
