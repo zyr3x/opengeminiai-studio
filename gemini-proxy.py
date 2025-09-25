@@ -25,6 +25,8 @@ import base64
 import re
 from dotenv import load_dotenv, set_key
 import subprocess
+import shlex
+import select
 
 app = Flask(__name__)
 
@@ -36,9 +38,11 @@ mcp_config = {}
 MCP_CONFIG_FILE = 'mcp_config.json'
 mcp_function_declarations = []  # A flat list of all function declarations from all tools
 mcp_function_to_tool_map = {}   # Maps a function name to its parent tool name (from mcpServers)
+mcp_function_input_schema_map = {}  # Maps a function name to its inputSchema from MCP
 
 def get_declarations_from_tool(tool_name, tool_info):
     """Fetches function declaration schema(s) from an MCP tool using MCP protocol."""
+    global mcp_function_input_schema_map
     command = [tool_info["command"]] + tool_info.get("args", [])
     env = os.environ.copy()
     if "env" in tool_info:
@@ -112,22 +116,34 @@ def get_declarations_from_tool(tool_name, tool_info):
                             "name": tool["name"],
                             "description": tool.get("description", f"Execute {tool['name']} tool")
                         }
+                        # Cache original inputSchema for later argument coercion
+                        mcp_function_input_schema_map[tool["name"]] = tool.get("inputSchema")
 
                         # Convert MCP input schema to Gemini parameters format
                         if "inputSchema" in tool:
                             schema = tool["inputSchema"]
                             if schema.get("type") == "object":
-                                # Use JSON Schema types as expected by Gemini (lowercase)
+                                # Use Gemini function schema types (uppercase)
                                 declaration["parameters"] = {
-                                    "type": "object",
+                                    "type": "OBJECT",
                                     "properties": {}
                                 }
 
                                 for prop_name, prop_def in schema.get("properties", {}).items():
-                                    # Normalize to valid JSON Schema types
-                                    param_type = str(prop_def.get("type", "string")).lower()
-                                    if param_type not in {"string", "number", "integer", "boolean", "array", "object"}:
-                                        param_type = "string"
+                                    # Map common JSON Schema types to Gemini types
+                                    t = str(prop_def.get("type", "string")).lower()
+                                    if t in ("string",):
+                                        param_type = "STRING"
+                                    elif t in ("number", "integer"):
+                                        param_type = "NUMBER"
+                                    elif t in ("boolean",):
+                                        param_type = "BOOLEAN"
+                                    elif t in ("array",):
+                                        param_type = "ARRAY"
+                                    elif t in ("object",):
+                                        param_type = "OBJECT"
+                                    else:
+                                        param_type = "STRING"
 
                                     declaration["parameters"]["properties"][prop_name] = {
                                         "type": param_type,
@@ -157,9 +173,10 @@ def get_declarations_from_tool(tool_name, tool_info):
 
 def load_mcp_config():
     """Loads MCP tool configuration from file and fetches schemas for all configured tools."""
-    global mcp_config, mcp_function_declarations, mcp_function_to_tool_map
+    global mcp_config, mcp_function_declarations, mcp_function_to_tool_map, mcp_function_input_schema_map
     mcp_function_declarations = []
     mcp_function_to_tool_map = {}
+    mcp_function_input_schema_map = {}
 
     if os.path.exists(MCP_CONFIG_FILE):
         try:
@@ -464,6 +481,137 @@ def create_tool_declarations():
         return None
     return [{"functionDeclarations": mcp_function_declarations}]
 
+def _parse_kwargs_string(s: str) -> dict:
+    """
+    Parses a simple key=value string (supports quoted values) into a dict.
+    Example: 'issue_id="ACS-611" limit=10' -> {'issue_id': 'ACS-611', 'limit': '10'}
+    """
+    result = {}
+    try:
+        tokens = shlex.split(s)
+        for tok in tokens:
+            if '=' in tok:
+                k, v = tok.split('=', 1)
+                result[k.strip()] = v.strip()
+    except Exception as e:
+        print(f"Warning: failed to parse kwargs string '{s}': {e}")
+    return result
+
+
+def _normalize_mcp_args(args) -> dict:
+    """
+    Normalizes functionCall args from Gemini into a JSON object suitable for MCP tools/call.
+    Handles:
+      - dict with 'kwargs' field containing string or dict
+      - plain string (JSON or key=value pairs)
+      - already-correct dict
+    """
+    if args is None:
+        return {}
+    # If already a dict without wrapper keys
+    if isinstance(args, dict) and "kwargs" not in args and "args" not in args:
+        return args
+    # If dict with kwargs wrapper
+    if isinstance(args, dict):
+        kwargs_val = args.get("kwargs")
+        if isinstance(kwargs_val, dict):
+            return kwargs_val
+        if isinstance(kwargs_val, str):
+            # Try JSON first
+            try:
+                parsed = json.loads(kwargs_val)
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+            # Fallback to key=value parsing
+            parsed_kv = _parse_kwargs_string(kwargs_val)
+            if parsed_kv:
+                return parsed_kv
+        # If 'args' is a JSON string with object, try it
+        args_val = args.get("args")
+        if isinstance(args_val, str):
+            try:
+                parsed_args = json.loads(args_val)
+                if isinstance(parsed_args, dict):
+                    return parsed_args
+            except json.JSONDecodeError:
+                pass
+        return {}
+    # If a raw string
+    if isinstance(args, str):
+        try:
+            parsed = json.loads(args)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        return _parse_kwargs_string(args)
+    # Unknown type
+    return {}
+
+
+def _ensure_dict(value):
+    """
+    Ensures the value is a dict. If a string, try JSON then key=value parsing.
+    """
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            return _parse_kwargs_string(value)
+    return {}
+
+
+def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
+    """
+    Coerces normalized arguments into the structure required by input_schema.
+    If schema expects 'args'/'kwargs', wrap values accordingly.
+    """
+    if not isinstance(input_schema, dict):
+        return normalized_args
+
+    props = input_schema.get("properties", {}) or {}
+    required = set(input_schema.get("required", []) or [])
+
+    expects_wrapped = ("args" in props) or ("kwargs" in props) or ("args" in required) or ("kwargs" in required)
+
+    if not expects_wrapped:
+        # Pass through normalized args as the flat parameter object
+        return normalized_args
+
+    # Build wrapped structure
+    result = {}
+
+    # Handle kwargs
+    if "kwargs" in props or "kwargs" in required:
+        if "kwargs" in normalized_args:
+            result["kwargs"] = _ensure_dict(normalized_args.get("kwargs"))
+        else:
+            # Use entire flat normalized_args as kwargs if non-empty
+            result["kwargs"] = normalized_args if isinstance(normalized_args, dict) else {}
+
+    # Handle args
+    if "args" in props or "args" in required:
+        raw_args = normalized_args.get("args") if isinstance(normalized_args, dict) else None
+        if isinstance(raw_args, str):
+            try:
+                parsed = json.loads(raw_args)
+                result["args"] = parsed if isinstance(parsed, list) else []
+            except json.JSONDecodeError:
+                result["args"] = []
+        elif isinstance(raw_args, list):
+            result["args"] = raw_args
+        else:
+            result["args"] = []
+
+    return result
+
+
 
 def execute_mcp_tool(function_name, tool_args):
     """Executes an MCP tool function using MCP protocol and returns its output."""
@@ -496,71 +644,152 @@ def execute_mcp_tool(function_name, tool_args):
             }
         }
 
+        normalized_args = _normalize_mcp_args(tool_args)
+        # Coerce arguments to match the MCP tool's input schema if available
+        input_schema = mcp_function_input_schema_map.get(function_name) or {}
+        arguments_for_call = _coerce_args_to_schema(normalized_args, input_schema)
+
         mcp_call_request = {
             "jsonrpc": "2.0",
             "id": 1,
             "method": "tools/call",
             "params": {
                 "name": function_name,
-                "arguments": tool_args if tool_args is not None else {}
+                "arguments": arguments_for_call
             }
         }
 
-        # Send initialize -> notifications/initialized -> tools/call in a single stdio session
-        initialized_notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
-        input_data = (
-            json.dumps(mcp_init_request) + "\n" +
-            json.dumps(initialized_notification) + "\n" +
-            json.dumps(mcp_call_request) + "\n"
-        )
-
-        process = subprocess.run(
+        # Keep stdio session open while waiting for the response to avoid server-side ClosedResourceError
+        process = subprocess.Popen(
             command,
-            input=input_data,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            capture_output=True,
-            check=False,
-            env=env,
-            timeout=120
+            env=env
         )
 
-        if process.returncode != 0:
-            error_message = f"Error executing function '{function_name}': Command failed with exit code {process.returncode}.\nStdout: {process.stdout}\nStderr: {process.stderr}"
-            print(error_message)
-            return error_message
+        result_to_return = None
+        try:
+            # Write initialize
+            process.stdin.write(json.dumps(mcp_init_request) + "\n")
+            process.stdin.flush()
+            time.sleep(0.05)
 
-        # Parse MCP response - look for tools/call response (id == 1)
-        lines = process.stdout.strip().split('\n')
+            # Write notifications/initialized
+            initialized_notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+            process.stdin.write(json.dumps(initialized_notification) + "\n")
+            process.stdin.flush()
+            time.sleep(0.05)
 
-        for line in lines:
-            if not line.strip():
-                continue
+            # Write tools/call
+            process.stdin.write(json.dumps(mcp_call_request) + "\n")
+            process.stdin.flush()
+
+            # Read stdout until we get id == 1 response or timeout
+            deadline = time.time() + 120
+            buffer = ""
+            while time.time() < deadline:
+                # Wait until stdout is ready or process exits
+                ready, _, _ = select.select([process.stdout], [], [], 0.5)
+                if ready:
+                    line = process.stdout.readline()
+                    if not line:
+                        # EOF
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        if line.startswith('\ufeff'):
+                            line = line.lstrip('\ufeff')
+                        response = json.loads(line)
+                        if response.get("id") == 1:
+                            if "result" in response:
+                                content = response["result"].get("content", [])
+                                if content:
+                                    # Extract text content from MCP response
+                                    result_text = ""
+                                    for item in content:
+                                        if item.get("type") == "text":
+                                            result_text += item.get("text", "")
+                                    result_to_return = result_text if result_text else str(response["result"])
+                                else:
+                                    result_to_return = str(response["result"])
+                                break
+                            elif "error" in response:
+                                result_to_return = f"MCP Error: {response['error'].get('message', 'Unknown error')}"
+                                break
+                    except json.JSONDecodeError:
+                        continue
+                # If process exited, stop waiting
+                if process.poll() is not None:
+                    break
+
+            # If no parsed result yet, try to consume remaining buffered stdout
+            if result_to_return is None:
+                try:
+                    remaining = process.stdout.read() or ""
+                except Exception:
+                    remaining = ""
+                if remaining:
+                    # Try to parse last meaningful line
+                    for raw in remaining.strip().splitlines()[::-1]:
+                        raw = raw.strip()
+                        if not raw:
+                            continue
+                        try:
+                            if raw.startswith('\ufeff'):
+                                raw = raw.lstrip('\ufeff')
+                            r = json.loads(raw)
+                            if r.get("id") == 1:
+                                if "result" in r:
+                                    content = r["result"].get("content", [])
+                                    if content:
+                                        rt = ""
+                                        for it in content:
+                                            if it.get("type") == "text":
+                                                rt += it.get("text", "")
+                                        result_to_return = rt if rt else str(r["result"])
+                                    else:
+                                        result_to_return = str(r["result"])
+                                elif "error" in r:
+                                    result_to_return = f"MCP Error: {r['error'].get('message', 'Unknown error')}"
+                                break
+                        except json.JSONDecodeError:
+                            continue
+
+        finally:
+            # Close stdin after we've read the response to let server exit cleanly
             try:
-                if line.startswith('\ufeff'):
-                    line = line.lstrip('\ufeff')
-                response = json.loads(line)
-                if response.get("id") == 1:
-                    if "result" in response:
-                        content = response["result"].get("content", [])
-                        if content:
-                            # Extract text content from MCP response
-                            result_text = ""
-                            for item in content:
-                                if item.get("type") == "text":
-                                    result_text += item.get("text", "")
-                            return result_text if result_text else str(response["result"])
-                        else:
-                            return str(response["result"])
-                    elif "error" in response:
-                        return f"MCP Error: {response['error'].get('message', 'Unknown error')}"
-            except json.JSONDecodeError:
-                continue
+                if process.stdin and not process.stdin.closed:
+                    process.stdin.close()
+            except Exception:
+                pass
+            # Give the process a moment to exit
+            try:
+                process.wait(timeout=2)
+            except Exception:
+                try:
+                    process.terminate()
+                except Exception:
+                    pass
 
-        # Fallback: return raw stdout if no proper MCP response found
-        print(f"Function '{function_name}' stdout: {process.stdout}")
-        if process.stderr:
-            print(f"Function '{function_name}' stderr: {process.stderr}")
-        return process.stdout
+        # Prefer the parsed result; otherwise, return raw stdout/stderr info
+        if result_to_return is not None:
+            return result_to_return
+
+        # Fallback: emit captured output if available
+        try:
+            stdout_tail = process.stdout.read() if process.stdout else ""
+            stderr_tail = process.stderr.read() if process.stderr else ""
+        except Exception:
+            stdout_tail = ""
+            stderr_tail = ""
+        if stderr_tail:
+            print(f"Function '{function_name}' stderr: {stderr_tail}")
+        print(f"Function '{function_name}' stdout: {stdout_tail}")
+        return stdout_tail or (f"Error executing function '{function_name}' (no response parsed)." + (f" Stderr: {stderr_tail}" if stderr_tail else ""))
 
     except subprocess.TimeoutExpired:
         error_message = f"Error: Function '{function_name}' timed out after 120 seconds."
