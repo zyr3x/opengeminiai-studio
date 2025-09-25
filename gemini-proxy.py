@@ -1126,7 +1126,7 @@ def list_models():
 
 
 def pretty_json(data):
-    return json.dumps(data, indent=2, ensure_ascii=False)
+    return json.dumps(data, ensure_ascii=False)
 
 
 if __name__ == '__main__':
