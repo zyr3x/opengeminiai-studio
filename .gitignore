@@ -1,3 +1,4 @@
 /.idea/
 .env
 /venv/
+/mcp_config.json
