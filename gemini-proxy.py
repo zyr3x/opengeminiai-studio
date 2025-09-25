@@ -24,11 +24,186 @@ from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestExce
 import base64
 import re
 from dotenv import load_dotenv, set_key
+import subprocess
+import shlex
+import select
 
 app = Flask(__name__)
 
 # Load environment variables from .env file at startup
 load_dotenv()
+
+# --- MCP Tool Configuration ---
+mcp_config = {}
+MCP_CONFIG_FILE = 'mcp_config.json'
+mcp_function_declarations = []  # A flat list of all function declarations from all tools
+mcp_function_to_tool_map = {}   # Maps a function name to its parent tool name (from mcpServers)
+mcp_function_input_schema_map = {}  # Maps a function name to its inputSchema from MCP
+
+def get_declarations_from_tool(tool_name, tool_info):
+    """Fetches function declaration schema(s) from an MCP tool using MCP protocol."""
+    global mcp_function_input_schema_map
+    command = [tool_info["command"]] + tool_info.get("args", [])
+    env = os.environ.copy()
+    if "env" in tool_info:
+        env.update(tool_info["env"])
+
+    try:
+        print(f"Fetching schema for tool '{tool_name}'...")
+
+        # Send MCP initialization and tools/list request
+        mcp_init_request = {
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "gemini-proxy", "version": "1.0.0"}
+            }
+        }
+
+        tools_list_request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": {}
+        }
+
+        # Send initialize -> notifications/initialized -> tools/list in a single stdio session
+        initialized_notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+        input_data = (
+            json.dumps(mcp_init_request) + "\n" +
+            json.dumps(initialized_notification) + "\n" +
+            json.dumps(tools_list_request) + "\n"
+        )
+
+        process = subprocess.run(
+            command,
+            input=input_data,
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            timeout=30
+        )
+
+        if process.returncode != 0:
+            print(f"MCP tool '{tool_name}' failed with exit code {process.returncode}")
+            if process.stderr:
+                print(f"Stderr: {process.stderr}")
+            return []
+
+        # Parse MCP response - look for tools/list response (id == 1)
+        lines = process.stdout.strip().split('\n')
+        tools = []
+
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                if line.startswith('\ufeff'):
+                    line = line.lstrip('\ufeff')
+                response = json.loads(line)
+                if (response.get("id") == 1 and 
+                    "result" in response and 
+                    "tools" in response["result"]):
+                    mcp_tools = response["result"]["tools"]
+
+                    # Convert MCP tool format to Gemini function declarations
+                    for tool in mcp_tools:
+                        declaration = {
+                            "name": tool["name"],
+                            "description": tool.get("description", f"Execute {tool['name']} tool")
+                        }
+                        # Cache original inputSchema for later argument coercion
+                        mcp_function_input_schema_map[tool["name"]] = tool.get("inputSchema")
+
+                        # Convert MCP input schema to Gemini parameters format
+                        if "inputSchema" in tool:
+                            schema = tool["inputSchema"]
+                            if schema.get("type") == "object":
+                                # Use Gemini function schema types (uppercase)
+                                declaration["parameters"] = {
+                                    "type": "OBJECT",
+                                    "properties": {}
+                                }
+
+                                for prop_name, prop_def in schema.get("properties", {}).items():
+                                    # Map common JSON Schema types to Gemini types
+                                    t = str(prop_def.get("type", "string")).lower()
+                                    if t in ("string",):
+                                        param_type = "STRING"
+                                    elif t in ("number", "integer"):
+                                        param_type = "NUMBER"
+                                    elif t in ("boolean",):
+                                        param_type = "BOOLEAN"
+                                    elif t in ("array",):
+                                        param_type = "ARRAY"
+                                    elif t in ("object",):
+                                        param_type = "OBJECT"
+                                    else:
+                                        param_type = "STRING"
+
+                                    declaration["parameters"]["properties"][prop_name] = {
+                                        "type": param_type,
+                                        "description": prop_def.get("description", f"Parameter {prop_name}")
+                                    }
+
+                                if "required" in schema:
+                                    declaration["parameters"]["required"] = schema["required"]
+
+                        tools.append(declaration)
+                    break
+            except json.JSONDecodeError:
+                continue
+
+        if process.stderr:
+            print(f"Stderr: {process.stderr}")
+
+        print(f"Successfully fetched {len(tools)} function declaration(s) for tool '{tool_name}'.")
+        return tools
+
+    except subprocess.TimeoutExpired:
+        print(f"Error: Timeout while fetching schema for tool '{tool_name}'.")
+    except Exception as e:
+        print(f"An unexpected error occurred while fetching schema for tool '{tool_name}': {e}")
+
+    return []
+
+def load_mcp_config():
+    """Loads MCP tool configuration from file and fetches schemas for all configured tools."""
+    global mcp_config, mcp_function_declarations, mcp_function_to_tool_map, mcp_function_input_schema_map
+    mcp_function_declarations = []
+    mcp_function_to_tool_map = {}
+    mcp_function_input_schema_map = {}
+
+    if os.path.exists(MCP_CONFIG_FILE):
+        try:
+            with open(MCP_CONFIG_FILE, 'r') as f:
+                mcp_config = json.load(f)
+            print(f"MCP config loaded from {MCP_CONFIG_FILE}.")
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Error loading MCP config: {e}")
+            mcp_config = {}
+            return
+    else:
+        mcp_config = {}
+        print("No MCP config file found, MCP tools disabled.")
+        return
+
+    if mcp_config.get("mcpServers"):
+        for tool_name, tool_info in mcp_config["mcpServers"].items():
+            declarations = get_declarations_from_tool(tool_name, tool_info)
+            mcp_function_declarations.extend(declarations)
+            for decl in declarations:
+                if 'name' in decl:
+                    mcp_function_to_tool_map[decl['name']] = tool_name
+        print(f"Total function declarations loaded: {len(mcp_function_declarations)}")
+
+
+load_mcp_config()
+# --- End MCP Config ---
 
 API_KEY = os.getenv("API_KEY")
 
@@ -156,6 +331,30 @@ def set_api_key():
         print("Caches cleared due to API key change.")
     return redirect(url_for('index'))
 
+@app.route('/set_mcp_config', methods=['POST'])
+def set_mcp_config():
+    """Saves MCP tool configuration from web form to a JSON file and reloads it."""
+    config_str = request.form.get('mcp_config')
+    if config_str:
+        try:
+            # Validate JSON before writing
+            json.loads(config_str.strip())
+            with open(MCP_CONFIG_FILE, 'w') as f:
+                f.write(config_str.strip())
+            print(f"MCP config updated and saved to {MCP_CONFIG_FILE}.")
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in MCP config: {e}")
+            # Don't reload config if JSON is invalid
+            return redirect(url_for('index'))
+    elif os.path.exists(MCP_CONFIG_FILE):
+        # Handle empty submission: clear the config
+        os.remove(MCP_CONFIG_FILE)
+        print("MCP config cleared.")
+
+    load_mcp_config()  # Reload config and fetch new schemas
+    return redirect(url_for('index'))
+
+
 
 @app.route('/', methods=['GET'])
 def index():
@@ -163,6 +362,30 @@ def index():
     Serves a simple documentation page in English.
     """
     api_key_status = "Set" if API_KEY else "Not Set"
+
+    current_mcp_config_str = ""
+    if os.path.exists(MCP_CONFIG_FILE):
+        with open(MCP_CONFIG_FILE, 'r') as f:
+            current_mcp_config_str = f.read()
+
+    default_mcp_config = {
+      "mcpServers": {
+        "youtrack": {
+          "command": "docker",
+          "args": [
+            "run", "--rm", "-i",
+            "-e", "YOUTRACK_API_TOKEN",
+            "-e", "YOUTRACK_URL",
+            "tonyzorin/youtrack-mcp:latest"
+          ],
+          "env": {
+            "YOUTRACK_API_TOKEN": "perm-your-token-here",
+            "YOUTRACK_URL": "https://youtrack.example.com/"
+          }
+        }
+      }
+    }
+
     html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -180,6 +403,7 @@ def index():
             li {{ margin-bottom: 0.5em; }}
             input[type="text"] {{ padding: 8px; width: 70%; border-radius: 4px; border: 1px solid #ccc; }}
             input[type="submit"] {{ padding: 8px 16px; border-radius: 4px; border: none; background-color: #1a73e8; color: white; cursor: pointer; }}
+            textarea {{ padding: 8px; border-radius: 4px; border: 1px solid #ccc; width: 95%; font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; }}
         </style>
     </head>
     <body>
@@ -196,6 +420,13 @@ def index():
             </form>
             <p><b>Current Status:</b> The API Key is currently <strong>{api_key_status}</strong>.</p>
 
+            <h2>MCP Tools Configuration</h2>
+            <p>Configure MCP tools by providing a JSON configuration. This will be saved to <code>mcp_config.json</code>.</p>
+            <form action="/set_mcp_config" method="POST">
+                <label for="mcp_config"><b>MCP JSON Config:</b></label><br>
+                <textarea id="mcp_config" name="mcp_config" rows="15">{current_mcp_config_str or pretty_json(default_mcp_config)}</textarea><br><br>
+                <input type="submit" value="Save MCP Config">
+            </form>
 
             <h2>What It Does</h2>
             <ul>
@@ -205,6 +436,7 @@ def index():
                 <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
                 <li>Caches model lists to reduce upstream API calls.</li>
                 <li>Supports multimodal requests (text and images).</li>
+                <li>Supports MCP tools for function calling.</li>
             </ul>
 
             <h2>How to Use</h2>
@@ -243,19 +475,346 @@ export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
     """
     return html_content
 
+def create_tool_declarations():
+    """Returns the cached tool declarations in the format expected by the Gemini API."""
+    if not mcp_function_declarations:
+        return None
+    return [{"functionDeclarations": mcp_function_declarations}]
+
+def _parse_kwargs_string(s: str) -> dict:
+    """
+    Parses a simple key=value string (supports quoted values) into a dict.
+    Example: 'issue_id="ACS-611" limit=10' -> {'issue_id': 'ACS-611', 'limit': '10'}
+    """
+    result = {}
+    try:
+        tokens = shlex.split(s)
+        for tok in tokens:
+            if '=' in tok:
+                k, v = tok.split('=', 1)
+                result[k.strip()] = v.strip()
+    except Exception as e:
+        print(f"Warning: failed to parse kwargs string '{s}': {e}")
+    return result
+
+
+def _normalize_mcp_args(args) -> dict:
+    """
+    Normalizes functionCall args from Gemini into a JSON object suitable for MCP tools/call.
+    Handles:
+      - dict with 'kwargs' field containing string or dict
+      - plain string (JSON or key=value pairs)
+      - already-correct dict
+    """
+    if args is None:
+        return {}
+    # If already a dict without wrapper keys
+    if isinstance(args, dict) and "kwargs" not in args and "args" not in args:
+        return args
+    # If dict with kwargs wrapper
+    if isinstance(args, dict):
+        kwargs_val = args.get("kwargs")
+        if isinstance(kwargs_val, dict):
+            return kwargs_val
+        if isinstance(kwargs_val, str):
+            # Try JSON first
+            try:
+                parsed = json.loads(kwargs_val)
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+            # Fallback to key=value parsing
+            parsed_kv = _parse_kwargs_string(kwargs_val)
+            if parsed_kv:
+                return parsed_kv
+        # If 'args' is a JSON string with object, try it
+        args_val = args.get("args")
+        if isinstance(args_val, str):
+            try:
+                parsed_args = json.loads(args_val)
+                if isinstance(parsed_args, dict):
+                    return parsed_args
+            except json.JSONDecodeError:
+                pass
+        return {}
+    # If a raw string
+    if isinstance(args, str):
+        try:
+            parsed = json.loads(args)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        return _parse_kwargs_string(args)
+    # Unknown type
+    return {}
+
+
+def _ensure_dict(value):
+    """
+    Ensures the value is a dict. If a string, try JSON then key=value parsing.
+    """
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            return _parse_kwargs_string(value)
+    return {}
+
+
+def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
+    """
+    Coerces normalized arguments into the structure required by input_schema.
+    If schema expects 'args'/'kwargs', wrap values accordingly.
+    """
+    if not isinstance(input_schema, dict):
+        return normalized_args
+
+    props = input_schema.get("properties", {}) or {}
+    required = set(input_schema.get("required", []) or [])
+
+    expects_wrapped = ("args" in props) or ("kwargs" in props) or ("args" in required) or ("kwargs" in required)
+
+    if not expects_wrapped:
+        # Pass through normalized args as the flat parameter object
+        return normalized_args
+
+    # Build wrapped structure
+    result = {}
+
+    # Handle kwargs
+    if "kwargs" in props or "kwargs" in required:
+        if "kwargs" in normalized_args:
+            result["kwargs"] = _ensure_dict(normalized_args.get("kwargs"))
+        else:
+            # Use entire flat normalized_args as kwargs if non-empty
+            result["kwargs"] = normalized_args if isinstance(normalized_args, dict) else {}
+
+    # Handle args
+    if "args" in props or "args" in required:
+        raw_args = normalized_args.get("args") if isinstance(normalized_args, dict) else None
+        if isinstance(raw_args, str):
+            try:
+                parsed = json.loads(raw_args)
+                result["args"] = parsed if isinstance(parsed, list) else []
+            except json.JSONDecodeError:
+                result["args"] = []
+        elif isinstance(raw_args, list):
+            result["args"] = raw_args
+        else:
+            result["args"] = []
+
+    return result
+
+
+
+def execute_mcp_tool(function_name, tool_args):
+    """Executes an MCP tool function using MCP protocol and returns its output."""
+    print(f"Executing MCP function: {function_name} with args: {tool_args}")
+
+    tool_name = mcp_function_to_tool_map.get(function_name)
+    if not tool_name:
+        return f"Error: Function '{function_name}' not found in any configured MCP tool."
+
+    tool_info = mcp_config.get("mcpServers", {}).get(tool_name)
+    if not tool_info:
+        return f"Error: Tool '{tool_name}' for function '{function_name}' not found in mcpServers config."
+
+    command = [tool_info["command"]] + tool_info.get("args", [])
+
+    env = os.environ.copy()
+    if "env" in tool_info:
+        env.update(tool_info["env"])
+
+    try:
+        # Send MCP initialization and tool call request
+        mcp_init_request = {
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "gemini-proxy", "version": "1.0.0"}
+            }
+        }
+
+        normalized_args = _normalize_mcp_args(tool_args)
+        # Coerce arguments to match the MCP tool's input schema if available
+        input_schema = mcp_function_input_schema_map.get(function_name) or {}
+        arguments_for_call = _coerce_args_to_schema(normalized_args, input_schema)
+
+        mcp_call_request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": function_name,
+                "arguments": arguments_for_call
+            }
+        }
+
+        # Keep stdio session open while waiting for the response to avoid server-side ClosedResourceError
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env
+        )
+
+        result_to_return = None
+        try:
+            # Write initialize
+            process.stdin.write(json.dumps(mcp_init_request) + "\n")
+            process.stdin.flush()
+            time.sleep(0.05)
+
+            # Write notifications/initialized
+            initialized_notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+            process.stdin.write(json.dumps(initialized_notification) + "\n")
+            process.stdin.flush()
+            time.sleep(0.05)
+
+            # Write tools/call
+            process.stdin.write(json.dumps(mcp_call_request) + "\n")
+            process.stdin.flush()
+
+            # Read stdout until we get id == 1 response or timeout
+            deadline = time.time() + 120
+            buffer = ""
+            while time.time() < deadline:
+                # Wait until stdout is ready or process exits
+                ready, _, _ = select.select([process.stdout], [], [], 0.5)
+                if ready:
+                    line = process.stdout.readline()
+                    if not line:
+                        # EOF
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        if line.startswith('\ufeff'):
+                            line = line.lstrip('\ufeff')
+                        response = json.loads(line)
+                        if response.get("id") == 1:
+                            if "result" in response:
+                                content = response["result"].get("content", [])
+                                if content:
+                                    # Extract text content from MCP response
+                                    result_text = ""
+                                    for item in content:
+                                        if item.get("type") == "text":
+                                            result_text += item.get("text", "")
+                                    result_to_return = result_text if result_text else str(response["result"])
+                                else:
+                                    result_to_return = str(response["result"])
+                                break
+                            elif "error" in response:
+                                result_to_return = f"MCP Error: {response['error'].get('message', 'Unknown error')}"
+                                break
+                    except json.JSONDecodeError:
+                        continue
+                # If process exited, stop waiting
+                if process.poll() is not None:
+                    break
+
+            # If no parsed result yet, try to consume remaining buffered stdout
+            if result_to_return is None:
+                try:
+                    remaining = process.stdout.read() or ""
+                except Exception:
+                    remaining = ""
+                if remaining:
+                    # Try to parse last meaningful line
+                    for raw in remaining.strip().splitlines()[::-1]:
+                        raw = raw.strip()
+                        if not raw:
+                            continue
+                        try:
+                            if raw.startswith('\ufeff'):
+                                raw = raw.lstrip('\ufeff')
+                            r = json.loads(raw)
+                            if r.get("id") == 1:
+                                if "result" in r:
+                                    content = r["result"].get("content", [])
+                                    if content:
+                                        rt = ""
+                                        for it in content:
+                                            if it.get("type") == "text":
+                                                rt += it.get("text", "")
+                                        result_to_return = rt if rt else str(r["result"])
+                                    else:
+                                        result_to_return = str(r["result"])
+                                elif "error" in r:
+                                    result_to_return = f"MCP Error: {r['error'].get('message', 'Unknown error')}"
+                                break
+                        except json.JSONDecodeError:
+                            continue
+
+        finally:
+            # Close stdin after we've read the response to let server exit cleanly
+            try:
+                if process.stdin and not process.stdin.closed:
+                    process.stdin.close()
+            except Exception:
+                pass
+            # Give the process a moment to exit
+            try:
+                process.wait(timeout=2)
+            except Exception:
+                try:
+                    process.terminate()
+                except Exception:
+                    pass
+
+        # Prefer the parsed result; otherwise, return raw stdout/stderr info
+        if result_to_return is not None:
+            return result_to_return
+
+        # Fallback: emit captured output if available
+        try:
+            stdout_tail = process.stdout.read() if process.stdout else ""
+            stderr_tail = process.stderr.read() if process.stderr else ""
+        except Exception:
+            stdout_tail = ""
+            stderr_tail = ""
+        if stderr_tail:
+            print(f"Function '{function_name}' stderr: {stderr_tail}")
+        print(f"Function '{function_name}' stdout: {stdout_tail}")
+        return stdout_tail or (f"Error executing function '{function_name}' (no response parsed)." + (f" Stderr: {stderr_tail}" if stderr_tail else ""))
+
+    except subprocess.TimeoutExpired:
+        error_message = f"Error: Function '{function_name}' timed out after 120 seconds."
+        print(error_message)
+        return error_message
+    except Exception as e:
+        error_message = f"An unexpected error occurred while executing function '{function_name}': {e}"
+        print(error_message)
+        return error_message
+
+
 
 @app.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
     """
-    Handles chat completion requests using the 'requests' library with streaming.
+    Handles chat completion requests, including tool calls for MCP servers.
     """
     if not API_KEY:
         return jsonify({"error": {"message": "API key not configured. Please set it on the root page.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:
         openai_request = request.json
-        print(f"Incoming JetBrains AI Assist Request: {pretty_json(openai_request)}")
+        print(f"Incoming Request: {pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
+        system_instruction_text = None
 
         # Transform messages to Gemini format, merging consecutive messages of the same role
         gemini_contents = []
@@ -288,6 +847,14 @@ def chat_completions():
                 if gemini_parts:
                     mapped_messages.append({"role": role, "parts": gemini_parts})
 
+            # Prepare system instruction to be sent via systemInstruction if tools are configured
+            if mcp_function_declarations:
+                system_instruction_text = (
+                    "You are a helpful assistant with access to tools. When a user's request requires using a tool, "
+                    "you MUST use the functionCall feature to invoke the appropriate tool. Do not simulate tool calls "
+                    "or generate tool output as plain text. Always use the structured functionCall mechanism."
+                )
+
             # Merge consecutive messages with the same role, as Gemini requires alternating roles
             if mapped_messages:
                 gemini_contents.append(mapped_messages[0])
@@ -309,97 +876,168 @@ def chat_completions():
         if len(truncated_gemini_contents) < original_message_count:
             print(f"Truncated conversation from {original_message_count} to {len(truncated_gemini_contents)} messages.")
 
-        request_data = {
-            "contents": truncated_gemini_contents
-        }
-
-        GEMINI_STREAMING_URL = f"{UPSTREAM_URL}/v1beta/models/{COMPLETION_MODEL}:streamGenerateContent"
-
-        headers = {
-            'Content-Type': 'application/json',
-            'X-goog-api-key': API_KEY
-        }
-
-        print(f"Outgoing Gemini Request URL: {GEMINI_STREAMING_URL}")
-        print(f"Outgoing Gemini Request Data: {pretty_json(request_data)}")
-
-        # Use a generator function to handle the streaming response
+        # Use a generator function to handle the streaming response and tool calls
         def generate():
-            response = None
-            try:
-                response = requests.post(
-                    GEMINI_STREAMING_URL,
-                    headers=headers,
-                    json=request_data,
-                    stream=True,
-                    timeout=300
-                )
-                response.raise_for_status()
-            except (HTTPError, ConnectionError, Timeout, RequestException) as e:
-                error_message = f"Error from upstream Gemini API: {e}"
-                print(error_message)
+            current_contents = truncated_gemini_contents.copy()
 
-                # Yield a single error chunk to the client
-                error_chunk = {
-                    "id": f"chatcmpl-{os.urandom(12).hex()}",
-                    "object": "chat.completion.chunk",
-                    "created": int(time.time()),
-                    "model": COMPLETION_MODEL,
-                    "choices": [{
-                        "index": 0,
-                        "delta": {"content": error_message},
-                        "finish_reason": None
-                    }]
+            while True:  # Loop to handle sequential tool calls
+                request_data = {
+                    "contents": current_contents
                 }
-                yield f"data: {json.dumps(error_chunk)}\n\n"
 
-                # Yield the final chunk to signal the end
-                final_chunk = {
-                    "id": f"chatcmpl-{os.urandom(12).hex()}",
-                    "object": "chat.completion.chunk",
-                    "created": int(time.time()),
-                    "model": COMPLETION_MODEL,
-                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
+                # Add tool declarations if MCP tools are configured
+                tools = create_tool_declarations()
+                if tools:
+                    request_data["tools"] = tools
+                    request_data["tool_config"] = {
+                        "function_calling_config": {
+                            "mode": "AUTO"
+                        }
+                    }
+
+                GEMINI_STREAMING_URL = f"{UPSTREAM_URL}/v1beta/models/{COMPLETION_MODEL}:streamGenerateContent"
+                headers = {
+                    'Content-Type': 'application/json',
+                    'X-goog-api-key': API_KEY
                 }
-                yield f"data: {json.dumps(final_chunk)}\n\n"
-                yield "data: [DONE]\n\n"
-                return
 
-            # Process the successful streaming response
-            buffer = ""
-            for chunk in response.iter_lines(decode_unicode=True):
-                if chunk:
+                print(f"Outgoing Gemini Request URL: {GEMINI_STREAMING_URL}")
+                print(f"Outgoing Gemini Request Data: {pretty_json(request_data)}")
+
+                response = None
+                try:
+                    response = requests.post(
+                        GEMINI_STREAMING_URL,
+                        headers=headers,
+                        json=request_data,
+                        stream=True,
+                        timeout=300
+                    )
+                    response.raise_for_status()
+                except (HTTPError, ConnectionError, Timeout, RequestException) as e:
+                    error_message = f"Error from upstream Gemini API: {e}"
+                    print(error_message)
+                    error_chunk = {
+                        "id": f"chatcmpl-{os.urandom(12).hex()}",
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": COMPLETION_MODEL,
+                        "choices": [{"index": 0, "delta": {"content": error_message}, "finish_reason": "stop"}]
+                    }
+                    yield f"data: {json.dumps(error_chunk)}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                # Process the successful streaming response
+                buffer = ""
+                tool_calls = []
+                model_response_parts = []
+
+                for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
+                    if isinstance(chunk, str):
+                        # Strip Server-Sent Events 'data: ' prefix to keep buffer JSON-clean
+                        chunk = "\n".join(line[6:] if line.startswith("data: ") else line for line in chunk.splitlines())
                     buffer += chunk
-                    try:
-                        clean_buffer = buffer.strip(',[] \n')
-                        if not clean_buffer:
-                            continue
 
-                        if clean_buffer.endswith('}') or clean_buffer.endswith(']'):
+                    while True:
+                        brace_level = 0
+                        start_index = buffer.find('{')
+                        if start_index == -1:
+                            # No start of object in buffer, wait for more data
+                            break
+
+                        end_index = -1
+                        # Find the corresponding closing brace for the first opening brace
+                        for i in range(start_index, len(buffer)):
+                            if buffer[i] == '{':
+                                brace_level += 1
+                            elif buffer[i] == '}':
+                                brace_level -= 1
+
+                            if brace_level == 0:
+                                end_index = i
+                                break
+
+                        if end_index != -1:
+                            # We have a complete potential JSON object
+                            obj_str = buffer[start_index : end_index + 1]
                             try:
-                                json_data = json.loads(clean_buffer)
-                                text_part = json_data['candidates'][0]['content']['parts'][0]['text']
+                                json_data = json.loads(obj_str)
 
-                                chunk_response = {
-                                    "id": f"chatcmpl-{os.urandom(12).hex()}",
-                                    "object": "chat.completion.chunk",
-                                    "created": int(time.time()),
-                                    "model": COMPLETION_MODEL,
-                                    "choices": [{
-                                        "index": 0,
-                                        "delta": {"content": text_part},
-                                        "finish_reason": None
-                                    }]
-                                }
-                                print(f"Formatted Proxy Response Chunk: {pretty_json(chunk_response)}")
-                                yield f"data: {json.dumps(chunk_response)}\n\n"
-                                buffer = ""
-                            except (json.JSONDecodeError, KeyError, IndexError):
-                                # Incomplete JSON or unexpected structure, continue buffering
-                                continue
-                    except Exception as e:
-                        print(f"Error processing chunk: {e}")
-                        continue
+                                # Process the valid JSON object
+                                parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+
+                                # Handle metadata-only chunks gracefully
+                                if not parts and 'usageMetadata' in json_data:
+                                    pass
+                                else:
+                                    model_response_parts.extend(parts)
+                                    text_content = ""
+                                    for part in parts:
+                                        if 'text' in part:
+                                            text_content += part['text']
+                                        if 'functionCall' in part:
+                                            tool_calls.append(part['functionCall'])
+
+                                    if text_content:
+                                        chunk_response = {
+                                            "id": f"chatcmpl-{os.urandom(12).hex()}",
+                                            "object": "chat.completion.chunk",
+                                            "created": int(time.time()),
+                                            "model": COMPLETION_MODEL,
+                                            "choices": [{"index": 0, "delta": {"content": text_content}, "finish_reason": None}]
+                                        }
+                                        yield f"data: {json.dumps(chunk_response)}\n\n"
+
+                                # Remove processed object from buffer and check for more
+                                buffer = buffer[end_index + 1:]
+
+                            except (json.JSONDecodeError, KeyError, IndexError) as e:
+                                print(f"Could not process potential JSON object: '{obj_str}'. Error: {e}. Discarding and continuing.")
+                                # Discard the malformed part to avoid an infinite loop
+                                buffer = buffer[end_index + 1:]
+                        else:
+                            # Incomplete object in buffer, wait for more data
+                            break
+
+                if not tool_calls:
+                    # No tool calls, conversation is finished
+                    break
+
+                # --- Tool Call Execution ---
+                print(f"Detected tool calls: {pretty_json(tool_calls)}")
+                current_contents.append({
+                    "role": "model",
+                    "parts": model_response_parts
+                })
+
+                tool_response_parts = []
+                for tool_call in tool_calls:
+                    function_name = tool_call.get("name")
+                    tool_args = tool_call.get("args")
+                    output = execute_mcp_tool(function_name, tool_args)
+                    # Try to parse tool output as JSON for structured responses; fall back to text
+                    response_payload = None
+                    if isinstance(output, str):
+                        try:
+                            response_payload = json.loads(output)
+                        except json.JSONDecodeError:
+                            response_payload = {"text": output}
+                    else:
+                        response_payload = output if output is not None else {"text": ""}
+
+                    tool_response_parts.append({
+                        "functionResponse": {
+                            "name": function_name,
+                            "response": response_payload
+                        }
+                    })
+
+                current_contents.append({
+                    "role": "tool",
+                    "parts": tool_response_parts
+                })
+                # Loop will continue to call Gemini with tool results
 
             # Send the final chunk after the stream is finished
             final_chunk = {
@@ -488,7 +1126,7 @@ def list_models():
 
 
 def pretty_json(data):
-    return json.dumps(data, indent=2, ensure_ascii=False)
+    return json.dumps(data, ensure_ascii=False)
 
 
 if __name__ == '__main__':
