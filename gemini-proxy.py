@@ -129,26 +129,57 @@ def get_declarations_from_tool(tool_name, tool_info):
                                     "properties": {}
                                 }
 
-                                for prop_name, prop_def in schema.get("properties", {}).items():
-                                    # Map common JSON Schema types to Gemini types
+                                def convert_property_to_gemini(prop_def):
+                                    """Convert a JSON Schema property to Gemini function parameter format."""
                                     t = str(prop_def.get("type", "string")).lower()
-                                    if t in ("string",):
-                                        param_type = "STRING"
-                                    elif t in ("number", "integer"):
-                                        param_type = "NUMBER"
-                                    elif t in ("boolean",):
-                                        param_type = "BOOLEAN"
-                                    elif t in ("array",):
-                                        param_type = "ARRAY"
-                                    elif t in ("object",):
-                                        param_type = "OBJECT"
-                                    else:
-                                        param_type = "STRING"
 
-                                    declaration["parameters"]["properties"][prop_name] = {
-                                        "type": param_type,
-                                        "description": prop_def.get("description", f"Parameter {prop_name}")
-                                    }
+                                    if t == "string":
+                                        return {
+                                            "type": "STRING",
+                                            "description": prop_def.get("description", "String parameter")
+                                        }
+                                    elif t in ("number", "integer"):
+                                        return {
+                                            "type": "NUMBER", 
+                                            "description": prop_def.get("description", "Number parameter")
+                                        }
+                                    elif t == "boolean":
+                                        return {
+                                            "type": "BOOLEAN",
+                                            "description": prop_def.get("description", "Boolean parameter")
+                                        }
+                                    elif t == "array":
+                                        param = {
+                                            "type": "ARRAY",
+                                            "description": prop_def.get("description", "Array parameter")
+                                        }
+                                        # Handle array items - required for Gemini API
+                                        items = prop_def.get("items", {})
+                                        if items:
+                                            param["items"] = convert_property_to_gemini(items)
+                                        else:
+                                            # Default to string items if not specified
+                                            param["items"] = {"type": "STRING"}
+                                        return param
+                                    elif t == "object":
+                                        param = {
+                                            "type": "OBJECT",
+                                            "description": prop_def.get("description", "Object parameter")
+                                        }
+                                        # Handle nested object properties
+                                        if "properties" in prop_def:
+                                            param["properties"] = {}
+                                            for nested_name, nested_def in prop_def["properties"].items():
+                                                param["properties"][nested_name] = convert_property_to_gemini(nested_def)
+                                        return param
+                                    else:
+                                        return {
+                                            "type": "STRING",
+                                            "description": prop_def.get("description", "String parameter")
+                                        }
+
+                                for prop_name, prop_def in schema.get("properties", {}).items():
+                                    declaration["parameters"]["properties"][prop_name] = convert_property_to_gemini(prop_def)
 
                                 if "required" in schema:
                                     declaration["parameters"]["required"] = schema["required"]
