@@ -7,10 +7,12 @@ It forwards requests from OpenAI-compatible endpoints (e.g., `/v1/chat/completio
 ## ✨ Features
 
 -   **OpenAI Compatibility:** Use your favorite OpenAI-native tools and libraries to access Google Gemini models.
+-   **Web-based Configuration Interface:** Easily configure your API key and MCP tools via a simple web UI.
+-   **MCP (Multi-Tool Communication Protocol) Tools Support:** Enables advanced function calling capabilities with Gemini models.
 -   **Easy Deployment:** Runs with a single command using Docker and Docker Compose.
--   **Flexible Configuration:** All settings (API key, upstream URL) are managed in a `.env` file.
+-   **Flexible Configuration:** All settings (API key, upstream URL, MCP config) can be managed via the web UI or environment variables/files.
 -   **Rapid Development:** Python configuration changes are applied by simply restarting the container, no image rebuild required.
--   **Lightweight:** Uses the official `Python:3.11` image for a minimal resource footprint.
+-   **Lightweight:** Uses the official `Python:3.12` image for a minimal resource footprint.
 
 ## ⚙️ Prerequisites
 
@@ -98,8 +100,7 @@ To use the proxy with your JetBrains IDE's AI Assistant, you need to configure i
 1.  **Open JetBrains IDE Settings:** Go to `File` > `Settings` (Windows/Linux) or `PhpStorm` > `Settings` (macOS).
 2.  **Navigate to AI Assistant Settings:** In the settings dialog, search for `AI Assistant` or find it under `Tools` > `AI Assistant`.
 3.  **Configure Models:**
-4. Models:
-    *   Select Provider OpenAI API.
+    *   Select Provider **OpenAI API**.
     *   Enable the `offline mode`.
     *   Set the **"URL"** to:
         ```
@@ -108,6 +109,19 @@ To use the proxy with your JetBrains IDE's AI Assistant, you need to configure i
 
 Your JetBrains AI Assistant should now route its requests through your local Gemini API proxy.
 
+## 🌐 Web Interface
+
+The proxy provides a simple web interface at the root URL (`http://localhost:8080`) for easy configuration:
+
+-   **API Key Setup:** Enter your Google Gemini API key. This will update the key for the current session and save it to your `.env` file for persistence.
+-   **MCP Tools Configuration:** Provide a JSON configuration for MCP tools. This will be saved to `mcp_config.json` and reloaded automatically.
+
 ## 🛠️ Modifying the Configuration
 
 If you need to change the proxy's behavior (e.g., add new endpoints or headers), you can edit the `gemini-proxy.py` file.
+
+## 🔗 Available Endpoints
+
+-   <code>GET /</code>: The web interface for documentation and setup.
+-   <code>GET /v1/models</code>: Lists available Gemini models in OpenAI format.
+-   <code>POST /v1/chat/completions</code>: The main endpoint for chat completions. Supports streaming and function calling.
