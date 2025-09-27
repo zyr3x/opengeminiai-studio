@@ -15,86 +15,143 @@
         input[type="text"] { padding: 8px; width: 70%; border-radius: 4px; border: 1px solid #ccc; }
         input[type="submit"] { padding: 8px 16px; border-radius: 4px; border: none; background-color: #1a73e8; color: white; cursor: pointer; }
         textarea { padding: 8px; border-radius: 4px; border: 1px solid #ccc; width: 95%; font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; }
+        .nav-menu { margin-bottom: 2em; font-size: 1.1em; }
+        .nav-menu a { text-decoration: none; color: #1a73e8; font-weight: 500; padding: 0 5px; }
+        .nav-menu a.active { text-decoration: underline; font-weight: 700; }
+        .content-section { display: none; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Gemini to OpenAI Proxy</h1>
-        <p>This is a lightweight proxy server that translates requests from an OpenAI-compatible client (like JetBrains AI Assistant) to Google's Gemini API.</p>
+        <div class="nav-menu">
+            <a href="#home" class="active">Home</a> /
+            <a href="#configuration">Configuration</a> /
+            <a href="#prompts">Prompts</a> /
+            <a href="#mcp">MCP</a>
+        </div>
 
-        <h2>API Key Setup</h2>
-        <p>You can set your Gemini API Key using the form below. The key is stored in memory and will be reset when the server restarts. You can also set it permanently using the <code>API_KEY</code> environment variable.</p>
-        <form action="/set_api_key" method="POST">
-            <label for="api_key"><b>Gemini API Key:</b></label><br>
-            <input type="text" id="api_key" name="api_key" placeholder="Enter your Gemini API key" size="60" value="{{ API_KEY or '' }}">
-            <input type="submit" value="Save Key">
-        </form>
-        <p><b>Current Status:</b> The API Key is currently <strong>{{ api_key_status }}</strong>.</p>
+        <div id="home" class="content-section">
+            <p>This is a lightweight proxy server that translates requests from an OpenAI-compatible client (like JetBrains AI Assistant) to Google's Gemini API.</p>
 
-        <h2>MCP Tools Configuration</h2>
-        <p>Configure MCP tools by providing a JSON configuration. This will be saved to <code>mcp_config.json</code>.</p>
-        <p>You can also use keywords in your prompt to control tool usage: <code>--nocmds</code> to disable them for a single request.</p>
-        <form action="/set_mcp_config" method="POST">
-            <label for="mcp_config"><b>MCP JSON Config:</b></label><br>
-            <textarea id="mcp_config" name="mcp_config" rows="15">{{ current_mcp_config_str or default_mcp_config_json }}</textarea><br><br>
-            <input type="submit" value="Save MCP Config">
-        </form>
+            <h2>What It Does</h2>
+            <ul>
+                <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/models</code>.</li>
+                <li>Transforms the request format from OpenAI's structure to Gemini's structure.</li>
+                <li>Handles streaming responses for chat completions.</li>
+                <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
+                <li>Caches model lists to reduce upstream API calls.</li>
+                <li>Supports multimodal requests (text and images).</li>
+                <li>Supports MCP tools for function calling.</li>
+            </ul>
 
-        <h2>Prompt Engineering</h2>
-        <p>Define different profiles for prompt overrides. Each profile has a name, a list of 'triggers' to activate it, and an 'overrides' dictionary for replacements. The proxy will check incoming messages for trigger phrases and apply the overrides from the first matching profile. This is useful for handling different contexts, like regular chat vs. commit message generation.</p>
-        <form action="/set_prompt_config" method="POST">
-            <label for="prompt_overrides"><b>Prompt Overrides (JSON):</b></label><br>
-            <textarea id="prompt_overrides" name="prompt_overrides" rows="10">{{ current_prompt_overrides_str or default_prompt_overrides_json }}</textarea><br><br>
-            <input type="submit" value="Save Prompt Overrides">
-        </form>
+            <h2>How to Use</h2>
 
-        <h2>What It Does</h2>
-        <ul>
-            <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/models</code>.</li>
-            <li>Transforms the request format from OpenAI's structure to Gemini's structure.</li>
-            <li>Handles streaming responses for chat completions.</li>
-            <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
-            <li>Caches model lists to reduce upstream API calls.</li>
-            <li>Supports multimodal requests (text and images).</li>
-            <li>Supports MCP tools for function calling.</li>
-        </ul>
-
-        <h2>How to Use</h2>
-
-        <h3>1. Setup and Run</h3>
-        <p>Before running the server, you need to set one environment variable (or use the form above for the API Key):</p>
-        <pre><code> export API_KEY="YOUR_GEMINI_API_KEY"
- export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
-        <p>Then, run the server:</p>
-        <pre><code> python3.12 -m venv
- source venv/bin/activate
- pip install -r requirements.txt
- python3.12 gemini-proxy.py</code></pre>
-        <p>or Docker Version</p>
-        <pre><code>docker-composer up -d</code></pre>
-        <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
+            <h3>1. Setup and Run</h3>
+            <p>Before running the server, you need to set one environment variable (or use the form above for the API Key):</p>
+            <pre><code> export API_KEY="YOUR_GEMINI_API_KEY"
+     export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
+            <p>Then, run the server:</p>
+            <pre><code> python3.12 -m venv
+     source venv/bin/activate
+     pip install -r requirements.txt
+     python3.12 gemini-proxy.py</code></pre>
+            <p>or Docker Version</p>
+            <pre><code>docker-composer up -d</code></pre>
+            <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
 
 
-        <h3>2. Configure JetBrains AI Assistant</h3>
-        <p>To use this proxy with JetBrains IDEs:</p>
-        <ol>
-            <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code> > <code>Models</code>).</li>
-            <li>Select the "OpenAI API" service.</li>
-            <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1/</code></li>
-            <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
-        </ol>
-        <p><b>Note:</b> The path must end with <code>/v1/</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
+            <h3>2. Configure JetBrains AI Assistant</h3>
+            <p>To use this proxy with JetBrains IDEs:</p>
+            <ol>
+                <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code> > <code>Models</code>).</li>
+                <li>Select the "OpenAI API" service.</li>
+                <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1/</code></li>
+                <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
+            </ol>
+            <p><b>Note:</b> The path must end with <code>/v1/</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
 
-        <h2>Available Endpoints</h2>
-        <ul>
-            <li><code>GET /</code>: This documentation and setup page.</li>
-            <li><code>GET /v1/models</code>: Lists available Gemini models in OpenAI format.</li>
-            <li><code>POST /v1/chat/completions</code>: The main endpoint for chat completions. Supports streaming.</li>
-        </ul>
+            <h2>Available Endpoints</h2>
+            <ul>
+                <li><code>GET /</code>: This documentation and setup page.</li>
+                <li><code>GET /v1/models</code>: Lists available Gemini models in OpenAI format.</li>
+                <li><code>POST /v1/chat/completions</code>: The main endpoint for chat completions. Supports streaming.</li>
+            </ul>
+        </div>
+
+        <div id="configuration" class="content-section">
+            <h2>API Key Setup</h2>
+            <p>You can set your Gemini API Key using the form below. The key is stored in memory and will be reset when the server restarts. You can also set it permanently using the <code>API_KEY</code> environment variable.</p>
+            <form action="/set_api_key" method="POST">
+                <label for="api_key"><b>Gemini API Key:</b></label><br>
+                <input type="text" id="api_key" name="api_key" placeholder="Enter your Gemini API key" size="60" value="{{ API_KEY or '' }}">
+                <input type="submit" value="Save Key">
+            </form>
+            <p><b>Current Status:</b> The API Key is currently <strong>{{ api_key_status }}</strong>.</p>
+        </div>
+
+        <div id="mcp" class="content-section">
+            <h2>MCP Tools Configuration</h2>
+            <p>Configure MCP tools by providing a JSON configuration. This will be saved to <code>mcp_config.json</code>.</p>
+            <p>You can also use keywords in your prompt to control tool usage: <code>--nocmds</code> to disable them for a single request.</p>
+            <form action="/set_mcp_config" method="POST">
+                <label for="mcp_config"><b>MCP JSON Config:</b></label><br>
+                <textarea id="mcp_config" name="mcp_config" rows="15">{{ current_mcp_config_str or default_mcp_config_json }}</textarea><br><br>
+                <input type="submit" value="Save MCP Config">
+            </form>
+        </div>
+
+        <div id="prompts" class="content-section">
+            <h2>Prompt Engineering</h2>
+            <p>Define different profiles for prompt overrides. Each profile has a name, a list of 'triggers' to activate it, and an 'overrides' dictionary for replacements. The proxy will check incoming messages for trigger phrases and apply the overrides from the first matching profile. This is useful for handling different contexts, like regular chat vs. commit message generation.</p>
+            <form action="/set_prompt_config" method="POST">
+                <label for="prompt_overrides"><b>Prompt Overrides (JSON):</b></label><br>
+                <textarea id="prompt_overrides" name="prompt_overrides" rows="10">{{ current_prompt_overrides_str or default_prompt_overrides_json }}</textarea><br><br>
+                <input type="submit" value="Save Prompt Overrides">
+            </form>
+        </div>
 
         <div class="footer">
             <p>Proxy server is running and ready to serve requests.</p>
         </div>
     </div>
+    <script>
+        function showSectionBasedOnHash() {
+            var hash = window.location.hash || '#home';
+            var sectionId = hash.substring(1);
+
+            // Hide all sections
+            var sections = document.querySelectorAll('.content-section');
+            sections.forEach(function(section) {
+                section.style.display = 'none';
+            });
+
+            // Show the target section
+            var targetSection = document.getElementById(sectionId);
+            if (targetSection) {
+                targetSection.style.display = 'block';
+            } else {
+                // Fallback to home if hash is invalid
+                document.getElementById('home').style.display = 'block';
+                hash = '#home';
+            }
+
+            // Update active link
+            var navLinks = document.querySelectorAll('.nav-menu a');
+            navLinks.forEach(function(link) {
+                if (link.getAttribute('href') === hash) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+        }
+
+        // Run on page load
+        window.addEventListener('load', showSectionBasedOnHash);
+
+        // Run on hash change
+        window.addEventListener('hashchange', showSectionBasedOnHash);
+    </script>
 </body>
 </html>
