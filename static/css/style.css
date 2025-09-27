@@ -55,7 +55,7 @@
     --bs-body-bg: #202124; /* Dark grey background */
     --bs-body-color: #e8eaed; /* Light grey text */
     --bs-tertiary-bg: #3c4043; /* Darker grey for code blocks, accordion buttons, etc. */
-    --bs-border-color: #5f6368;
+    --bs-border-color: #fff;
     --bs-border-color-translucent: rgba(255, 255, 255, 0.15);
     --bs-heading-color: #e8eaed;
     --bs-link-color: #8ab4f8;
@@ -64,8 +64,8 @@
 
     /* Custom variables for theme consistency in dark mode */
     --navbar-bg: #2d2d2d; /* Darker navbar */
-    --navbar-brand-color: #e8eaed;
-    --nav-link-color: #bdc1c6; /* Lighter grey for nav links */
+    --navbar-brand-color: #ffffff;
+    --nav-link-color: #ffffff; /* Lighter grey for nav links */
     --nav-link-hover-color: #8ab4f8; /* Google blue for dark mode */
     --footer-bg: #2d2d2d;
     --footer-text: #bdc1c6;
@@ -118,17 +118,18 @@ body {
     display: flex;
     align-items: center;
     font-weight: 500;
-    color: var(--navbar-brand-color);
+    color: var(--navbar-brand-color) !important;
 }
 
 .nav-link {
     display: flex;
     align-items: center;
     gap: 8px; /* Space between icon and text */
-    color: var(--nav-link-color); /* Google's grey text color */
+    color: var(--nav-link-color) !important; /* Google's grey text color */
     font-size: 0.9rem;
     font-weight: 500;
 }
+
 
 .nav-link .material-icons {
     font-size: 20px; /* Adjust icon size */
