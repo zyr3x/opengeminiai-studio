@@ -236,6 +236,27 @@ def load_mcp_config():
 load_mcp_config()
 # --- End MCP Config ---
 
+# --- Prompt Engineering Config ---
+PROMPT_OVERRIDES_FILE = 'prompt_config.json'
+prompt_overrides = {}
+
+def load_prompt_config():
+    """Loads prompt overrides from JSON file into the global prompt_overrides dict."""
+    global prompt_overrides
+    if os.path.exists(PROMPT_OVERRIDES_FILE):
+        try:
+            with open(PROMPT_OVERRIDES_FILE, 'r') as f:
+                prompt_overrides = json.load(f)
+            print(f"Prompt overrides loaded from {PROMPT_OVERRIDES_FILE}.")
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Error loading prompt overrides: {e}")
+            prompt_overrides = {}
+    else:
+        prompt_overrides = {}
+
+# Load prompt overrides at startup
+load_prompt_config()
+
 API_KEY = os.getenv("API_KEY")
 
 UPSTREAM_URL = os.getenv("UPSTREAM_URL")
@@ -385,6 +406,29 @@ def set_mcp_config():
     load_mcp_config()  # Reload config and fetch new schemas
     return redirect(url_for('index'))
 
+@app.route('/set_prompt_config', methods=['POST'])
+def set_prompt_config():
+    """Saves prompt override configuration from web form to a JSON file and reloads it."""
+    config_str = request.form.get('prompt_overrides')
+    if config_str:
+        try:
+            # Validate JSON before writing
+            json.loads(config_str.strip())
+            with open(PROMPT_OVERRIDES_FILE, 'w') as f:
+                f.write(config_str.strip())
+            print(f"Prompt overrides updated and saved to {PROMPT_OVERRIDES_FILE}.")
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in prompt overrides: {e}")
+            # Don't reload config if JSON is invalid
+            return redirect(url_for('index'))
+    elif os.path.exists(PROMPT_OVERRIDES_FILE):
+        # Handle empty submission: clear the config
+        os.remove(PROMPT_OVERRIDES_FILE)
+        print("Prompt overrides config cleared.")
+
+    load_prompt_config()
+    return redirect(url_for('index'))
+
 
 
 @app.route('/', methods=['GET'])
@@ -398,6 +442,26 @@ def index():
     if os.path.exists(MCP_CONFIG_FILE):
         with open(MCP_CONFIG_FILE, 'r') as f:
             current_mcp_config_str = f.read()
+
+    current_prompt_overrides_str = ""
+    if os.path.exists(PROMPT_OVERRIDES_FILE):
+        with open(PROMPT_OVERRIDES_FILE, 'r') as f:
+            current_prompt_overrides_str = f.read()
+
+    default_prompt_overrides = {
+      "default_chat": {
+        "triggers": ["You are a JetBrains AI Assistant for code development."],
+        "overrides": {
+          "Follow the user's requirements carefully & to the letter.": ""
+        }
+      },
+      "commit_message": {
+        "triggers": ["Follow the style of the author's recent commit messages"],
+        "overrides": {
+          "Generate a concise commit message in the imperative mood for the following Git diff.": "Write a short and professional commit message for the following changes:"
+        }
+      }
+    }
 
     default_mcp_config = {
       "mcpServers": {
@@ -458,6 +522,15 @@ def index():
                 <textarea id="mcp_config" name="mcp_config" rows="15">{current_mcp_config_str or pretty_json(default_mcp_config)}</textarea><br><br>
                 <input type="submit" value="Save MCP Config">
             </form>
+
+            <h2>Prompt Engineering</h2>
+            <p>Define different profiles for prompt overrides. Each profile has a name, a list of 'triggers' to activate it, and an 'overrides' dictionary for replacements. The proxy will check incoming messages for trigger phrases and apply the overrides from the first matching profile. This is useful for handling different contexts, like regular chat vs. commit message generation.</p>
+            <form action="/set_prompt_config" method="POST">
+                <label for="prompt_overrides"><b>Prompt Overrides (JSON):</b></label><br>
+                <textarea id="prompt_overrides" name="prompt_overrides" rows="10">{current_prompt_overrides_str or pretty_json(default_prompt_overrides)}</textarea><br><br>
+                <input type="submit" value="Save Prompt Overrides">
+            </form>
+            <p>You can also use keywords in your prompt to control tool usage: <code>--nocmds</code> to disable them for a single request.</p>
 
             <h2>What It Does</h2>
             <ul>
@@ -844,6 +917,52 @@ def chat_completions():
         openai_request = request.json
         print(f"Incoming Request: {pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
+
+        # --- Prompt Engineering & Tool Control ---
+        force_tools_enabled = True  # None: default, True: force, False: disable
+
+        if messages:
+            active_overrides = {}
+            active_profile_name = None
+            # Identify prompt profile by checking for triggers in the combined text of all messages
+            full_prompt_text = " ".join(
+                [m.get('content') for m in messages if isinstance(m.get('content'), str)]
+            )
+
+            if prompt_overrides:
+                for profile_name, profile_data in prompt_overrides.items():
+                    if isinstance(profile_data, dict):
+                        for trigger in profile_data.get('triggers', []):
+                            if trigger in full_prompt_text:
+                                active_profile_name = profile_name
+                                active_overrides = profile_data.get('overrides', {})
+                                # If it's a commit message profile, do not send tools
+                                if active_profile_name == "commit_message":
+                                    force_tools_enabled = False
+                                print(f"Prompt profile matched: '{profile_name}'")
+                                break
+                        if active_overrides:
+                            break
+
+            # Process all messages: apply overrides and check for tool keywords in the last message
+            for i, message in enumerate(messages):
+                content = message.get('content')
+                if isinstance(content, str):
+                    # Apply overrides from the matched profile
+                    if active_overrides:
+                        for find, replace in active_overrides.items():
+                            if find in content:
+                                content = content.replace(find, replace)
+
+                    # Check for tool keywords only in the last message
+                    if i == len(messages) - 1:
+                        if '--nocmds' in content:
+                            force_tools_enabled = False
+                            content = content.replace('--nocmds', '').strip()
+
+                    message['content'] = content
+        # --- End Prompt Engineering ---
+
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
         system_instruction_text = None
 
@@ -916,9 +1035,9 @@ def chat_completions():
                     "contents": current_contents
                 }
 
-                # Add tool declarations if MCP tools are configured
+                # Add tool declarations if MCP tools are configured and enabled for this request
                 tools = create_tool_declarations()
-                if tools:
+                if tools and force_tools_enabled:
                     request_data["tools"] = tools
                     request_data["tool_config"] = {
                         "function_calling_config": {
