@@ -1161,15 +1161,27 @@ def chat_completions():
                     function_name = tool_call.get("name")
                     tool_args = tool_call.get("args")
                     output = execute_mcp_tool(function_name, tool_args)
-                    # Try to parse tool output as JSON for structured responses; fall back to text
+                    # Try to parse tool output as JSON for structured responses; ensure response is an object
                     response_payload = None
                     if isinstance(output, str):
                         try:
-                            response_payload = json.loads(output)
+                            parsed_output = json.loads(output)
+                            # Ensure object; wrap non-dicts
+                            if isinstance(parsed_output, dict):
+                                response_payload = parsed_output
+                            else:
+                                response_payload = {"content": parsed_output}
                         except json.JSONDecodeError:
+                            # Not JSON -> treat as plain text
                             response_payload = {"text": output}
                     else:
-                        response_payload = output if output is not None else {"text": ""}
+                        # Non-string output
+                        if isinstance(output, dict):
+                            response_payload = output
+                        elif output is None:
+                            response_payload = {"text": ""}
+                        else:
+                            response_payload = {"content": output}
 
                     tool_response_parts.append({
                         "functionResponse": {
