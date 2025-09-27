@@ -1,7 +1,72 @@
-/* Small adjustment for the fixed Bootstrap navbar */
-body { padding-top: 5rem; }
-/* Custom styles for code blocks to fit Bootstrap's aesthetic */
-code { background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; }
-pre { background-color: #e9ecef; padding: 1em; border-radius: 4px; overflow-x: auto; }
-/* Ensure content sections are hidden by default, as before */
-.content-section { display: none; }
+/* Google Cloud inspired theme */
+body {
+    padding-top: 5rem;
+    font-family: 'Roboto', sans-serif;
+    background-color: #f8f9fa; /* Light grey background */
+}
+
+/* Navbar customization */
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+    color: #5f6368;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Space between icon and text */
+    color: #5f6368; /* Google's grey text color */
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.nav-link .material-icons {
+    font-size: 20px; /* Adjust icon size */
+}
+
+.nav-link.active,
+.nav-link:hover {
+    color: #1a73e8 !important; /* Google's blue for active/hover state */
+}
+
+.navbar-toggler {
+    border: none;
+}
+.navbar-toggler:focus {
+    box-shadow: none;
+}
+
+/* Main content adjustments */
+main h1 {
+    color: #202124;
+}
+
+/* Custom styles for code blocks */
+code {
+    background-color: #e8eaed; /* Lighter grey for code blocks */
+    padding: 0.2em 0.4em;
+    margin: 0;
+    font-size: 85%;
+    border-radius: 6px;
+    font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace;
+    color: #202124;
+}
+
+pre {
+    background-color: #e8eaed;
+    padding: 1em;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+
+/* Content section visibility */
+.content-section {
+    display: none;
+}
+
+.card {
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+}
