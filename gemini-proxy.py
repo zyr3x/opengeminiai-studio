@@ -135,7 +135,7 @@ def index():
         }
       },
       "commit_message": {
-        "triggers": ["Follow the style of the author's recent commit messages"],
+        "triggers": ["[Diff]"],
         "overrides": {
           "Write a short and professional commit message for the following changes:": "Write a short and professional commit message for the following changes:"
         }
@@ -218,12 +218,6 @@ def chat_completions():
                             if find in content:
                                 content = content.replace(find, replace)
 
-                    # Check for tool keywords only in the last message
-                    if i == len(messages) - 1:
-                        if '--nocmds' in content:
-                            force_tools_enabled = False
-                            content = content.replace('--nocmds', '').strip()
-
                     message['content'] = content
         # --- End Prompt Engineering ---
 
@@ -289,17 +283,17 @@ def chat_completions():
         token_limit = utils.get_model_input_limit(COMPLETION_MODEL, API_KEY, UPSTREAM_URL)
         safe_limit = int(token_limit * utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
 
-        # Truncate messages if they exceed the safe limit
-        original_message_count = len(gemini_contents)
-        truncated_gemini_contents = utils.truncate_contents(gemini_contents, safe_limit)
-        if len(truncated_gemini_contents) < original_message_count:
-            print(f"Truncated conversation from {original_message_count} to {len(truncated_gemini_contents)} messages.")
-
         # Use a generator function to handle the streaming response and tool calls
         def generate():
-            current_contents = truncated_gemini_contents.copy()
+            current_contents = gemini_contents.copy()
 
             while True:  # Loop to handle sequential tool calls
+                # Truncate messages before each call to ensure they fit within the token limit
+                original_message_count = len(current_contents)
+                current_contents = utils.truncate_contents(current_contents, safe_limit)
+                if len(current_contents) < original_message_count:
+                    print(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages to fit context window.")
+
                 request_data = {
                     "contents": current_contents
                 }
@@ -356,9 +350,6 @@ def chat_completions():
                 decoder = json.JSONDecoder()
 
                 for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
-                    if isinstance(chunk, str):
-                        # Strip Server-Sent Events 'data: ' prefix to keep buffer JSON-clean
-                        chunk = "\n".join(line[6:] if line.startswith("data: ") else line for line in chunk.splitlines())
                     buffer += chunk
 
                     while True:
