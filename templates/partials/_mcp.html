@@ -14,9 +14,9 @@
             <div id="mcp-servers-container" class="accordion mb-3">
                 {% if mcp_config.mcpServers %}
                 {% for server_name, server_details in mcp_config.mcpServers.items() %}
-                <div class="accordion-item" data-server-name="{{ server_name }}">
+                <div class="accordion-item rounded mb-3 shadow-sm" data-server-name="{{ server_name }}">
                     <h2 class="accordion-header" id="mcp-heading-{{ loop.index }}">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mcp-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="mcp-collapse-{{ loop.index }}">
+                        <button class="accordion-button collapsed bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#mcp-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="mcp-collapse-{{ loop.index }}">
                             {{ server_name }}
                         </button>
                     </h2>

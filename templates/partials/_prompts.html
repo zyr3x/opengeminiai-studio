@@ -14,9 +14,9 @@
         <div id="user-friendly-editor">
             <div id="prompt-profiles-container" class="accordion mb-3">
                 {% for profile_name, profile in prompt_profiles.items() %}
-                <div class="accordion-item" data-profile-name="{{ profile_name }}">
+                <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="{{ profile_name }}">
                     <h2 class="accordion-header" id="heading-{{ loop.index }}">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-{{ loop.index }}">
+                        <button class="accordion-button collapsed bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-{{ loop.index }}">
                             {{ profile_name }}
                         </button>
                     </h2>
