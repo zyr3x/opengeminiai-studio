@@ -70,3 +70,112 @@ pre {
     border: 1px solid #dadce0;
     border-radius: 8px;
 }
+
+/* Material Design Buttons */
+.btn {
+    border-radius: 4px;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    text-transform: none;
+    transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, border-color 0.15s ease-in-out;
+    border: 1px solid transparent;
+    vertical-align: middle;
+    line-height: 1.5;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+}
+
+.btn:focus, .btn.focus {
+    outline: 0;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1a73e8;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+/* Primary Button Style */
+.btn-primary, .btn-success {
+    background-color: #1a73e8;
+    color: #fff;
+    border-color: #1a73e8;
+}
+
+.btn-primary:hover, .btn-success:hover {
+    background-color: #186bd6;
+    border-color: #186bd6;
+    color: #fff;
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+}
+
+.btn-primary.active, .btn-primary:active, .btn-success.active, .btn-success:active {
+    background-color: #1765c7 !important;
+    border-color: #1765c7 !important;
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
+}
+
+
+/* Danger Button Style */
+.btn-danger {
+    background-color: #d93025;
+    color: #fff;
+    border-color: #d93025;
+}
+
+.btn-danger:hover {
+    background-color: #c5221f;
+    border-color: #c5221f;
+    color: #fff;
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+}
+
+.btn-danger.active, .btn-danger:active {
+    background-color: #b9201a !important;
+    border-color: #b9201a !important;
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
+}
+
+
+/* Secondary/Outline Button Style */
+.btn-outline-secondary {
+    color: #1a73e8;
+    background-color: transparent;
+    border-color: #dadce0;
+}
+
+.btn-outline-secondary:hover {
+    background-color: rgba(26, 115, 232, 0.04);
+    color: #1a73e8;
+    border-color: #dadce0;
+}
+
+/* Outline Danger for small remove buttons */
+.btn-outline-danger {
+    color: #d93025;
+    background-color: transparent;
+    border: none;
+    line-height: 1;
+    padding: .375rem; /* for icon buttons */
+    gap: 0;
+}
+
+.btn-outline-danger:hover {
+    background-color: rgba(217, 48, 37, 0.04);
+    color: #d93025;
+}
+
+.btn .material-icons {
+    vertical-align: middle;
+    font-size: 20px;
+    line-height: 1;
+    /* remove margin if it's the only child */
+    margin: 0;
+}

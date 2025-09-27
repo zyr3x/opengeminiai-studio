@@ -37,7 +37,7 @@
                                     {% for arg in server_details.args %}
                                     <div class="input-group mb-2">
                                         <input type="text" class="form-control mcp-arg-input" value="{{ arg }}">
-                                        <button class="btn btn-outline-danger mcp-remove-item-btn" type="button">✖</button>
+                                        <button class="btn btn-outline-danger mcp-remove-item-btn" type="button"><span class="material-icons">close</span></button>
                                     </div>
                                     {% endfor %}
                                     {% endif %}
@@ -53,7 +53,7 @@
                                         <input type="text" class="form-control mcp-env-key-input" placeholder="Key" value="{{ key }}">
                                         <span class="input-group-text">=</span>
                                         <input type="text" class="form-control mcp-env-value-input" placeholder="Value" value="{{ value }}">
-                                        <button class="btn btn-outline-danger mcp-remove-item-btn" type="button">✖</button>
+                                        <button class="btn btn-outline-danger mcp-remove-item-btn" type="button"><span class="material-icons">close</span></button>
                                     </div>
                                     {% endfor %}
                                     {% endif %}
@@ -67,7 +67,7 @@
                 {% endfor %}
                 {% endif %}
             </div>
-            <button type="button" class="btn btn-success mb-3" id="mcp-add-server-btn">➕ Add New Server</button>
+            <button type="button" class="btn btn-success mb-3" id="mcp-add-server-btn"><span class="material-icons">add</span> Add New Server</button>
         </div>
 
         <!-- Advanced Editor -->
@@ -76,6 +76,6 @@
         </div>
 
         <hr>
-        <button type="submit" class="btn btn-primary btn-lg">💾 Save MCP Config</button>
+        <button type="submit" class="btn btn-primary btn-lg"><span class="material-icons">save</span> Save MCP Config</button>
     </form>
 </div>
