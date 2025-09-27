@@ -178,11 +178,23 @@ def index():
       }
     }
 
+    mcp_config = default_mcp_config  # start with default
+    if current_mcp_config_str.strip():
+        try:
+            loaded_mcp_config = json.loads(current_mcp_config_str)
+            # Basic validation to ensure it has the expected structure
+            if "mcpServers" in loaded_mcp_config and isinstance(loaded_mcp_config.get("mcpServers"), dict):
+                mcp_config = loaded_mcp_config
+        except json.JSONDecodeError:
+            # Keep default config if the file is corrupt
+            pass
+
     return render_template(
         'index.html',
         API_KEY=API_KEY,
         api_key_status=api_key_status,
         current_mcp_config_str=current_mcp_config_str,
+        mcp_config=mcp_config,
         default_mcp_config_json=utils.pretty_json(default_mcp_config),
         prompt_profiles=prompt_profiles,
         current_prompt_overrides_str=current_prompt_overrides_str,
