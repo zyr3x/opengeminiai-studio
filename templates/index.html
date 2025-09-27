@@ -1,128 +1,162 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gemini to OpenAI Proxy</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 2em; max-width: 800px; margin: auto; color: #333; background-color: #f9f9f9; }
-        h1, h2 { color: #1a73e8; }
-        code { background-color: #e0e0e0; padding: 2px 6px; border-radius: 4px; font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; }
-        pre { background-color: #e0e0e0; padding: 1em; border-radius: 4px; overflow-x: auto; }
-        .container { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        .footer { margin-top: 2em; text-align: center; font-size: 0.9em; color: #777; }
-        li { margin-bottom: 0.5em; }
-        input[type="text"] { padding: 8px; width: 70%; border-radius: 4px; border: 1px solid #ccc; }
-        input[type="submit"] { padding: 8px 16px; border-radius: 4px; border: none; background-color: #1a73e8; color: white; cursor: pointer; }
-        textarea { padding: 8px; border-radius: 4px; border: 1px solid #ccc; width: 95%; font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; }
-        .nav-menu { margin-bottom: 2em; font-size: 1.1em; }
-        .nav-menu a { text-decoration: none; color: #1a73e8; font-weight: 500; padding: 0 5px; }
-        .nav-menu a.active { text-decoration: underline; font-weight: 700; }
+        /* Small adjustment for the fixed Bootstrap navbar */
+        body { padding-top: 5rem; }
+        /* Custom styles for code blocks to fit Bootstrap's aesthetic */
+        code { background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; }
+        pre { background-color: #e9ecef; padding: 1em; border-radius: 4px; overflow-x: auto; }
+        /* Ensure content sections are hidden by default, as before */
         .content-section { display: none; }
     </style>
 </head>
 <body>
+<!-- Bootstrap Navbar -->
+<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
     <div class="container">
-        <h1>Gemini to OpenAI Proxy</h1>
-        <div class="nav-menu">
-            <a href="#home" class="active">Home</a> /
-            <a href="#configuration">Configuration</a> /
-            <a href="#prompts">Prompts</a> /
-            <a href="#mcp">MCP</a>
-        </div>
-
-        <div id="home" class="content-section">
-            <p>This is a lightweight proxy server that translates requests from an OpenAI-compatible client (like JetBrains AI Assistant) to Google's Gemini API.</p>
-
-            <h2>What It Does</h2>
-            <ul>
-                <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/models</code>.</li>
-                <li>Transforms the request format from OpenAI's structure to Gemini's structure.</li>
-                <li>Handles streaming responses for chat completions.</li>
-                <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
-                <li>Caches model lists to reduce upstream API calls.</li>
-                <li>Supports multimodal requests (text and images).</li>
-                <li>Supports MCP tools for function calling.</li>
+        <a class="navbar-brand" href="#">Gemini to OpenAI Proxy</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link active" aria-current="page" href="#home">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#configuration">Configuration</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#prompts">Prompts</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#mcp">MCP</a>
+                </li>
             </ul>
-
-            <h2>How to Use</h2>
-
-            <h3>1. Setup and Run</h3>
-            <p>Before running the server, you need to set one environment variable (or use the form above for the API Key):</p>
-            <pre><code> export API_KEY="YOUR_GEMINI_API_KEY"
-     export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
-            <p>Then, run the server:</p>
-            <pre><code> python3.12 -m venv
-     source venv/bin/activate
-     pip install -r requirements.txt
-     python3.12 gemini-proxy.py</code></pre>
-            <p>or Docker Version</p>
-            <pre><code>docker-composer up -d</code></pre>
-            <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
-
-
-            <h3>2. Configure JetBrains AI Assistant</h3>
-            <p>To use this proxy with JetBrains IDEs:</p>
-            <ol>
-                <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code> > <code>Models</code>).</li>
-                <li>Select the "OpenAI API" service.</li>
-                <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1/</code></li>
-                <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
-            </ol>
-            <p><b>Note:</b> The path must end with <code>/v1/</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
-
-            <h2>Available Endpoints</h2>
-            <ul>
-                <li><code>GET /</code>: This documentation and setup page.</li>
-                <li><code>GET /v1/models</code>: Lists available Gemini models in OpenAI format.</li>
-                <li><code>POST /v1/chat/completions</code>: The main endpoint for chat completions. Supports streaming.</li>
-            </ul>
-        </div>
-
-        <div id="configuration" class="content-section">
-            <h2>API Key Setup</h2>
-            <p>You can set your Gemini API Key using the form below. The key is stored in memory and will be reset when the server restarts. You can also set it permanently using the <code>API_KEY</code> environment variable.</p>
-            <form action="/set_api_key" method="POST">
-                <label for="api_key"><b>Gemini API Key:</b></label><br>
-                <input type="text" id="api_key" name="api_key" placeholder="Enter your Gemini API key" size="60" value="{{ API_KEY or '' }}">
-                <input type="submit" value="Save Key">
-            </form>
-            <p><b>Current Status:</b> The API Key is currently <strong>{{ api_key_status }}</strong>.</p>
-        </div>
-
-        <div id="mcp" class="content-section">
-            <h2>MCP Tools Configuration</h2>
-            <p>Configure MCP tools by providing a JSON configuration. This will be saved to <code>mcp_config.json</code>.</p>
-            <p>You can also use keywords in your prompt to control tool usage: <code>--nocmds</code> to disable them for a single request.</p>
-            <form action="/set_mcp_config" method="POST">
-                <label for="mcp_config"><b>MCP JSON Config:</b></label><br>
-                <textarea id="mcp_config" name="mcp_config" rows="15">{{ current_mcp_config_str or default_mcp_config_json }}</textarea><br><br>
-                <input type="submit" value="Save MCP Config">
-            </form>
-        </div>
-
-        <div id="prompts" class="content-section">
-            <h2>Prompt Engineering</h2>
-            <p>Define different profiles for prompt overrides. Each profile has a name, a list of 'triggers' to activate it, and an 'overrides' dictionary for replacements. The proxy will check incoming messages for trigger phrases and apply the overrides from the first matching profile. This is useful for handling different contexts, like regular chat vs. commit message generation.</p>
-            <form action="/set_prompt_config" method="POST">
-                <label for="prompt_overrides"><b>Prompt Overrides (JSON):</b></label><br>
-                <textarea id="prompt_overrides" name="prompt_overrides" rows="10">{{ current_prompt_overrides_str or default_prompt_overrides_json }}</textarea><br><br>
-                <input type="submit" value="Save Prompt Overrides">
-            </form>
-        </div>
-
-        <div class="footer">
-            <p>Proxy server is running and ready to serve requests.</p>
         </div>
     </div>
-    <script>
+</nav>
+
+<!-- Main Content Container -->
+<div class="container">
+    <h1 class="my-4">Gemini to OpenAI Proxy</h1>
+
+    <!-- Home Section -->
+    <div id="home" class="content-section">
+        <p class="lead">This is a lightweight proxy server that translates requests from an OpenAI-compatible client (like JetBrains AI Assistant) to Google's Gemini API.</p>
+
+        <h2 class="mt-4">What It Does</h2>
+        <ul>
+            <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/models</code>.</li>
+            <li>Transforms the request format from OpenAI's structure to Gemini's structure.</li>
+            <li>Handles streaming responses for chat completions.</li>
+            <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
+            <li>Caches model lists to reduce upstream API calls.</li>
+            <li>Supports multimodal requests (text and images).</li>
+            <li>Supports MCP tools for function calling.</li>
+        </ul>
+
+        <h2 class="mt-4">How to Use</h2>
+
+        <h3>1. Setup and Run</h3>
+        <p>Before running the server, you need to set one environment variable (or use the form above for the API Key):</p>
+        <pre><code class="language-bash"> export API_KEY="YOUR_GEMINI_API_KEY"
+ export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
+        <p>Then, run the server:</p>
+        <pre><code class="language-bash"> python3.12 -m venv
+ source venv/bin/activate
+ pip install -r requirements.txt
+ python3.12 gemini-proxy.py</code></pre>
+        <p>or Docker Version</p>
+        <pre><code class="language-bash">docker-composer up -d</code></pre>
+        <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
+
+
+        <h3 class="mt-4">2. Configure JetBrains AI Assistant</h3>
+        <p>To use this proxy with JetBrains IDEs:</p>
+        <ol>
+            <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code> > <code>Models</code>).</li>
+            <li>Select the "OpenAI API" service.</li>
+            <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1/</code></li>
+            <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
+        </ol>
+        <p class="alert alert-info"><b>Note:</b> The path must end with <code>/v1/</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
+
+        <h2 class="mt-4">Available Endpoints</h2>
+        <ul>
+            <li><code>GET /</code>: This documentation and setup page.</li>
+            <li><code>GET /v1/models</code>: Lists available Gemini models in OpenAI format.</li>
+            <li><code>POST /v1/chat/completions</code>: The main endpoint for chat completions. Supports streaming.</li>
+        </ul>
+    </div>
+
+    <!-- Configuration Section -->
+    <div id="configuration" class="content-section">
+        <h2 class="mt-4">API Key Setup</h2>
+        <p>You can set your Gemini API Key using the form below. The key is stored in memory and will be reset when the server restarts. You can also set it permanently using the <code>API_KEY</code> environment variable.</p>
+        <form action="/set_api_key" method="POST">
+            <div class="mb-3">
+                <label for="api_key" class="form-label"><b>Gemini API Key:</b></label>
+                <input type="text" class="form-control" id="api_key" name="api_key" placeholder="Enter your Gemini API key" value="{{ API_KEY or '' }}">
+            </div>
+            <button type="submit" class="btn btn-primary">Save Key</button>
+        </form>
+        <p class="mt-3"><b>Current Status:</b> The API Key is currently <strong class="text-{{ 'success' if API_KEY else 'danger' }}">{{ api_key_status }}</strong>.</p>
+    </div>
+
+    <!-- MCP Tools Section -->
+    <div id="mcp" class="content-section">
+        <h2 class="mt-4">MCP Tools Configuration</h2>
+        <p>Configure MCP tools by providing a JSON configuration. This will be saved to <code>mcp_config.json</code>.</p>
+        <p>You can also use keywords in your prompt to control tool usage: <code>--nocmds</code> to disable them for a single request.</p>
+        <form action="/set_mcp_config" method="POST">
+            <div class="mb-3">
+                <label for="mcp_config" class="form-label"><b>MCP JSON Config:</b></label>
+                <textarea class="form-control" id="mcp_config" name="mcp_config" rows="15">{{ current_mcp_config_str or default_mcp_config_json }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save MCP Config</button>
+        </form>
+    </div>
+
+    <!-- Prompt Engineering Section -->
+    <div id="prompts" class="content-section">
+        <h2 class="mt-4">Prompt Engineering</h2>
+        <p>Define different profiles for prompt overrides. Each profile has a name, a list of 'triggers' to activate it, and an 'overrides' dictionary for replacements. The proxy will check incoming messages for trigger phrases and apply the overrides from the first matching profile. This is useful for handling different contexts, like regular chat vs. commit message generation.</p>
+        <form action="/set_prompt_config" method="POST">
+            <div class="mb-3">
+                <label for="prompt_overrides" class="form-label"><b>Prompt Overrides (JSON):</b></label>
+                <textarea class="form-control" id="prompt_overrides" name="prompt_overrides" rows="10">{{ current_prompt_overrides_str or default_prompt_overrides_json }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Prompt Overrides</button>
+        </form>
+    </div>
+
+</div> <!-- End .container -->
+
+<!-- Bootstrap Footer -->
+<footer class="footer mt-auto py-3 bg-light">
+    <div class="container text-center">
+        <span class="text-muted">Proxy server is running and ready to serve requests.</span>
+    </div>
+</footer>
+
+<!-- Bootstrap JS Bundle (includes Popper) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
         function showSectionBasedOnHash() {
             var hash = window.location.hash || '#home';
             var sectionId = hash.substring(1);
 
             // Hide all sections
-            var sections = document.querySelectorAll('.content-section');
-            sections.forEach(function(section) {
+            document.querySelectorAll('.content-section').forEach(function(section) {
                 section.style.display = 'none';
             });
 
@@ -136,22 +170,36 @@
                 hash = '#home';
             }
 
-            // Update active link
-            var navLinks = document.querySelectorAll('.nav-menu a');
-            navLinks.forEach(function(link) {
+            // Update active link in navbar
+            document.querySelectorAll('.navbar-nav .nav-link').forEach(function(link) {
                 if (link.getAttribute('href') === hash) {
                     link.classList.add('active');
+                    link.setAttribute('aria-current', 'page');
                 } else {
                     link.classList.remove('active');
+                    link.removeAttribute('aria-current');
                 }
             });
         }
 
         // Run on page load
-        window.addEventListener('load', showSectionBasedOnHash);
+        showSectionBasedOnHash();
 
         // Run on hash change
         window.addEventListener('hashchange', showSectionBasedOnHash);
-    </script>
+
+        // Close navbar toggler on link click for small screens
+        document.querySelectorAll('.navbar-nav .nav-link').forEach(function(link) {
+            link.addEventListener('click', function() {
+                var navbarCollapse = document.getElementById('navbarNav');
+                // Check if the navbar is actually collapsed (i.e., toggler is visible)
+                var bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
+                if (bsCollapse && navbarCollapse.classList.contains('show')) {
+                    bsCollapse.hide();
+                }
+            });
+        });
+    });
+</script>
 </body>
 </html>
