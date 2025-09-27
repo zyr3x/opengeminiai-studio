@@ -39,6 +39,9 @@ MCP_CONFIG_FILE = 'mcp_config.json'
 mcp_function_declarations = []  # A flat list of all function declarations from all tools
 mcp_function_to_tool_map = {}   # Maps a function name to its parent tool name (from mcpServers)
 mcp_function_input_schema_map = {}  # Maps a function name to its inputSchema from MCP
+mcp_tool_processes = {}  # Cache for running tool subprocesses
+mcp_request_id_counter = 1  # Counter for unique JSON-RPC request IDs
+
 
 def get_declarations_from_tool(tool_name, tool_info):
     """Fetches function declaration schema(s) from an MCP tool using MCP protocol."""
@@ -204,7 +207,22 @@ def get_declarations_from_tool(tool_name, tool_info):
 
 def load_mcp_config():
     """Loads MCP tool configuration from file and fetches schemas for all configured tools."""
-    global mcp_config, mcp_function_declarations, mcp_function_to_tool_map, mcp_function_input_schema_map
+    global mcp_config, mcp_function_declarations, mcp_function_to_tool_map, mcp_function_input_schema_map, mcp_tool_processes
+
+    # Terminate any existing tool processes before reloading config
+    for tool_name, process in mcp_tool_processes.items():
+        if process.poll() is None:  # Check if the process is running
+            try:
+                print(f"Terminating old process for tool '{tool_name}'...")
+                process.terminate()
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                print(f"Process for '{tool_name}' did not terminate in time, killing.")
+                process.kill()
+            except Exception as e:
+                print(f"Error terminating process for tool '{tool_name}': {e}")
+    mcp_tool_processes.clear()
+
     mcp_function_declarations = []
     mcp_function_to_tool_map = {}
     mcp_function_input_schema_map = {}
@@ -724,7 +742,13 @@ def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
 
 
 def execute_mcp_tool(function_name, tool_args):
-    """Executes an MCP tool function using MCP protocol and returns its output."""
+    """
+    Executes an MCP tool function using MCP protocol and returns its output.
+    This function maintains a pool of long-running tool processes and reuses them for subsequent calls.
+    If a process for a tool is not running, it will be started and initialized.
+    """
+    global mcp_tool_processes, mcp_request_id_counter
+
     print(f"Executing MCP function: {function_name} with args: {tool_args}")
 
     tool_name = mcp_function_to_tool_map.get(function_name)
@@ -735,33 +759,65 @@ def execute_mcp_tool(function_name, tool_args):
     if not tool_info:
         return f"Error: Tool '{tool_name}' for function '{function_name}' not found in mcpServers config."
 
-    command = [tool_info["command"]] + tool_info.get("args", [])
+    process = mcp_tool_processes.get(tool_name)
 
-    env = os.environ.copy()
-    if "env" in tool_info:
-        env.update(tool_info["env"])
+    # If process doesn't exist or has terminated, start a new one
+    if process is None or process.poll() is not None:
+        if process is not None:
+            print(f"Process for tool '{tool_name}' has terminated. Restarting.")
+        else:
+            print(f"No active process for tool '{tool_name}'. Starting a new one.")
 
-    try:
-        # Send MCP initialization and tool call request
-        mcp_init_request = {
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "gemini-proxy", "version": "1.0.0"}
+        command = [tool_info["command"]] + tool_info.get("args", [])
+        env = os.environ.copy()
+        if "env" in tool_info:
+            env.update(tool_info["env"])
+
+        try:
+            process = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env
+            )
+            mcp_tool_processes[tool_name] = process
+
+            # Perform MCP handshake
+            mcp_init_request = {
+                "jsonrpc": "2.0", "id": 0, "method": "initialize",
+                "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "gemini-proxy", "version": "1.0.0"}}
             }
-        }
+            process.stdin.write(json.dumps(mcp_init_request) + "\n")
+            process.stdin.flush()
+            time.sleep(0.1)
+
+            initialized_notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+            process.stdin.write(json.dumps(initialized_notification) + "\n")
+            process.stdin.flush()
+            time.sleep(0.1)
+            print(f"Successfully started and initialized process for tool '{tool_name}'.")
+
+        except Exception as e:
+            error_message = f"Failed to start or initialize tool '{tool_name}': {e}"
+            print(error_message)
+            if tool_name in mcp_tool_processes:
+                del mcp_tool_processes[tool_name]
+            return error_message
+
+    # At this point, `process` should be a valid, running Popen object
+    try:
+        call_id = mcp_request_id_counter
+        mcp_request_id_counter += 1
 
         normalized_args = _normalize_mcp_args(tool_args)
-        # Coerce arguments to match the MCP tool's input schema if available
         input_schema = mcp_function_input_schema_map.get(function_name) or {}
         arguments_for_call = _coerce_args_to_schema(normalized_args, input_schema)
 
         mcp_call_request = {
             "jsonrpc": "2.0",
-            "id": 1,
+            "id": call_id,
             "method": "tools/call",
             "params": {
                 "name": function_name,
@@ -769,145 +825,70 @@ def execute_mcp_tool(function_name, tool_args):
             }
         }
 
-        # Keep stdio session open while waiting for the response to avoid server-side ClosedResourceError
-        process = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env
-        )
+        process.stdin.write(json.dumps(mcp_call_request) + "\n")
+        process.stdin.flush()
 
-        result_to_return = None
-        try:
-            # Write initialize
-            process.stdin.write(json.dumps(mcp_init_request) + "\n")
-            process.stdin.flush()
-            time.sleep(0.05)
-
-            # Write notifications/initialized
-            initialized_notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
-            process.stdin.write(json.dumps(initialized_notification) + "\n")
-            process.stdin.flush()
-            time.sleep(0.05)
-
-            # Write tools/call
-            process.stdin.write(json.dumps(mcp_call_request) + "\n")
-            process.stdin.flush()
-
-            # Read stdout until we get id == 1 response or timeout
-            deadline = time.time() + 120
-            buffer = ""
-            while time.time() < deadline:
-                # Wait until stdout is ready or process exits
-                ready, _, _ = select.select([process.stdout], [], [], 0.5)
-                if ready:
-                    line = process.stdout.readline()
-                    if not line:
-                        # EOF
-                        break
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        if line.startswith('\ufeff'):
-                            line = line.lstrip('\ufeff')
-                        response = json.loads(line)
-                        if response.get("id") == 1:
-                            if "result" in response:
-                                content = response["result"].get("content", [])
-                                if content:
-                                    # Extract text content from MCP response
-                                    result_text = ""
-                                    for item in content:
-                                        if item.get("type") == "text":
-                                            result_text += item.get("text", "")
-                                    result_to_return = result_text if result_text else str(response["result"])
-                                else:
-                                    result_to_return = str(response["result"])
-                                break
-                            elif "error" in response:
-                                result_to_return = f"MCP Error: {response['error'].get('message', 'Unknown error')}"
-                                break
-                    except json.JSONDecodeError:
-                        continue
-                # If process exited, stop waiting
+        # Read stdout until we get a response with the matching ID or timeout
+        deadline = time.time() + 120
+        while time.time() < deadline:
+            ready, _, _ = select.select([process.stdout], [], [], 0.5)
+            if not ready:
                 if process.poll() is not None:
-                    break
+                    print(f"Tool '{tool_name}' process terminated while waiting for response.")
+                    if tool_name in mcp_tool_processes:
+                        del mcp_tool_processes[tool_name]
+                    return f"Error: Tool '{tool_name}' terminated unexpectedly."
+                continue
 
-            # If no parsed result yet, try to consume remaining buffered stdout
-            if result_to_return is None:
-                try:
-                    remaining = process.stdout.read() or ""
-                except Exception:
-                    remaining = ""
-                if remaining:
-                    # Try to parse last meaningful line
-                    for raw in remaining.strip().splitlines()[::-1]:
-                        raw = raw.strip()
-                        if not raw:
-                            continue
-                        try:
-                            if raw.startswith('\ufeff'):
-                                raw = raw.lstrip('\ufeff')
-                            r = json.loads(raw)
-                            if r.get("id") == 1:
-                                if "result" in r:
-                                    content = r["result"].get("content", [])
-                                    if content:
-                                        rt = ""
-                                        for it in content:
-                                            if it.get("type") == "text":
-                                                rt += it.get("text", "")
-                                        result_to_return = rt if rt else str(r["result"])
-                                    else:
-                                        result_to_return = str(r["result"])
-                                elif "error" in r:
-                                    result_to_return = f"MCP Error: {r['error'].get('message', 'Unknown error')}"
-                                break
-                        except json.JSONDecodeError:
-                            continue
+            line = process.stdout.readline()
+            if not line: # EOF
+                print(f"Tool '{tool_name}' process closed stdout. Assuming termination.")
+                if tool_name in mcp_tool_processes:
+                    del mcp_tool_processes[tool_name]
+                break
 
-        finally:
-            # Close stdin after we've read the response to let server exit cleanly
+            line = line.strip()
+            if not line:
+                continue
+
             try:
-                if process.stdin and not process.stdin.closed:
-                    process.stdin.close()
-            except Exception:
-                pass
-            # Give the process a moment to exit
-            try:
-                process.wait(timeout=2)
-            except Exception:
-                try:
-                    process.terminate()
-                except Exception:
-                    pass
+                if line.startswith('\ufeff'):
+                    line = line.lstrip('\ufeff')
+                response = json.loads(line)
 
-        # Prefer the parsed result; otherwise, return raw stdout/stderr info
-        if result_to_return is not None:
-            return result_to_return
+                if response.get("id") == call_id:
+                    if "result" in response:
+                        content = response["result"].get("content", [])
+                        result_text = ""
+                        if content:
+                            for item in content:
+                                if item.get("type") == "text":
+                                    result_text += item.get("text", "")
+                            return result_text if result_text else str(response["result"])
+                        else:
+                            return str(response["result"])
+                    elif "error" in response:
+                        return f"MCP Error: {response['error'].get('message', 'Unknown error')}"
+                    return "Tool returned a response with no result or error."
 
-        # Fallback: emit captured output if available
-        try:
-            stdout_tail = process.stdout.read() if process.stdout else ""
-            stderr_tail = process.stderr.read() if process.stderr else ""
-        except Exception:
-            stdout_tail = ""
-            stderr_tail = ""
-        if stderr_tail:
-            print(f"Function '{function_name}' stderr: {stderr_tail}")
-        print(f"Function '{function_name}' stdout: {stdout_tail}")
-        return stdout_tail or (f"Error executing function '{function_name}' (no response parsed)." + (f" Stderr: {stderr_tail}" if stderr_tail else ""))
+            except json.JSONDecodeError:
+                print(f"Warning: Could not decode JSON from tool '{tool_name}': {line}")
+                continue
 
-    except subprocess.TimeoutExpired:
-        error_message = f"Error: Function '{function_name}' timed out after 120 seconds."
-        print(error_message)
-        return error_message
+        # Timeout occurred
+        return f"Error: Function '{function_name}' timed out after 120 seconds."
+
     except Exception as e:
         error_message = f"An unexpected error occurred while executing function '{function_name}': {e}"
         print(error_message)
+        # If a major error occurs, it's safer to terminate the process
+        try:
+            if process.poll() is None:
+                process.terminate()
+        except Exception:
+            pass
+        if tool_name in mcp_tool_processes:
+            del mcp_tool_processes[tool_name]
         return error_message
 
 
