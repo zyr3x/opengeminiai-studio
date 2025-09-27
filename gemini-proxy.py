@@ -151,6 +151,15 @@ def index():
       }
     }
 
+    prompt_profiles = default_prompt_overrides
+    if current_prompt_overrides_str.strip():
+        try:
+            loaded_profiles = json.loads(current_prompt_overrides_str)
+            prompt_profiles = loaded_profiles
+        except json.JSONDecodeError:
+            # Keep default profiles if the file is corrupt
+            pass
+
     default_mcp_config = {
       "mcpServers": {
         "youtrack": {
@@ -175,6 +184,7 @@ def index():
         api_key_status=api_key_status,
         current_mcp_config_str=current_mcp_config_str,
         default_mcp_config_json=utils.pretty_json(default_mcp_config),
+        prompt_profiles=prompt_profiles,
         current_prompt_overrides_str=current_prompt_overrides_str,
         default_prompt_overrides_json=utils.pretty_json(default_prompt_overrides),
         verbose_logging_status=utils.VERBOSE_LOGGING
