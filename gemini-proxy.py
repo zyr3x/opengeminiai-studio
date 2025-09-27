@@ -970,11 +970,16 @@ def chat_completions():
         # --- End Prompt Engineering ---
 
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
-        system_instruction_text = None
+        system_instruction = None
 
         # Transform messages to Gemini format, merging consecutive messages of the same role
         gemini_contents = []
         if messages:
+            # Separate system instruction from other messages
+            if messages[0].get("role") == "system":
+                system_instruction = {"parts": [{"text": messages[0].get("content", "")}]}
+                messages = messages[1:]  # Remove system message from list
+
             # Map OpenAI roles to Gemini roles ('assistant' -> 'model', others -> 'user')
             mapped_messages = []
             for message in messages:
@@ -1040,6 +1045,8 @@ def chat_completions():
                 request_data = {
                     "contents": current_contents
                 }
+                if system_instruction:
+                    request_data["systemInstruction"] = system_instruction
 
                 # Add tool declarations if MCP tools are configured and enabled for this request
                 tools = create_tool_declarations()
