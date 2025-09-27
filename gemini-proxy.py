@@ -517,6 +517,7 @@ def index():
 
             <h2>MCP Tools Configuration</h2>
             <p>Configure MCP tools by providing a JSON configuration. This will be saved to <code>mcp_config.json</code>.</p>
+            <p>You can also use keywords in your prompt to control tool usage: <code>--nocmds</code> to disable them for a single request.</p>
             <form action="/set_mcp_config" method="POST">
                 <label for="mcp_config"><b>MCP JSON Config:</b></label><br>
                 <textarea id="mcp_config" name="mcp_config" rows="15">{current_mcp_config_str or pretty_json(default_mcp_config)}</textarea><br><br>
@@ -530,8 +531,7 @@ def index():
                 <textarea id="prompt_overrides" name="prompt_overrides" rows="10">{current_prompt_overrides_str or pretty_json(default_prompt_overrides)}</textarea><br><br>
                 <input type="submit" value="Save Prompt Overrides">
             </form>
-            <p>You can also use keywords in your prompt to control tool usage: <code>--nocmds</code> to disable them for a single request.</p>
-
+            
             <h2>What It Does</h2>
             <ul>
                 <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/models</code>.</li>
@@ -547,12 +547,18 @@ def index():
 
             <h3>1. Setup and Run</h3>
             <p>Before running the server, you need to set one environment variable (or use the form above for the API Key):</p>
-            <pre><code>export API_KEY="YOUR_GEMINI_API_KEY"
-export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
+            <pre><code> export API_KEY="YOUR_GEMINI_API_KEY"
+ export UPSTREAM_URL="https://generativelanguage.googleapis.com"</code></pre>
             <p>Then, run the server:</p>
-            <pre><code>python gemini-proxy.py</code></pre>
+            <pre><code> python3.12 -m venv
+ source venv/bin/activate
+ pip install -r requirements.txt
+ python3.12 gemini-proxy.py</code></pre>
+            <p>or Docker Version</p>
+            <pre><code>docker-composer up -d</code></pre>
             <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
-
+        
+            
             <h3>2. Configure JetBrains AI Assistant</h3>
             <p>To use this proxy with JetBrains IDEs:</p>
             <ol>
