@@ -1,0 +1,81 @@
+<!-- MCP Tools Section -->
+<div id="mcp" class="content-section">
+    <h2 class="mt-4">🛠️ MCP Tools Configuration</h2>
+    <p>Configure MCP tools by providing a JSON configuration. This will be saved to <code>mcp_config.json</code>.</p>
+
+    <form action="/set_mcp_config" method="POST" id="mcp-form">
+        <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="mcp-editor-mode-switch" checked>
+            <label class="form-check-label" for="mcp-editor-mode-switch">Use User-Friendly Editor (vs. Advanced JSON)</label>
+        </div>
+
+        <!-- User-Friendly Editor -->
+        <div id="mcp-user-friendly-editor">
+            <div id="mcp-servers-container" class="accordion mb-3">
+                {% if mcp_config.mcpServers %}
+                {% for server_name, server_details in mcp_config.mcpServers.items() %}
+                <div class="accordion-item" data-server-name="{{ server_name }}">
+                    <h2 class="accordion-header" id="mcp-heading-{{ loop.index }}">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mcp-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="mcp-collapse-{{ loop.index }}">
+                            {{ server_name }}
+                        </button>
+                    </h2>
+                    <div id="mcp-collapse-{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="mcp-heading-{{ loop.index }}" data-bs-parent="#mcp-servers-container">
+                        <div class="accordion-body">
+                            <div class="mb-3">
+                                <label class="form-label"><b>Server Name</b></label>
+                                <input type="text" class="form-control mcp-server-name-input" value="{{ server_name }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><b>Command</b></label>
+                                <input type="text" class="form-control mcp-command-input" value="{{ server_details.command or '' }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><b>Arguments</b></label>
+                                <div class="mcp-args-container">
+                                    {% if server_details.args %}
+                                    {% for arg in server_details.args %}
+                                    <div class="input-group mb-2">
+                                        <input type="text" class="form-control mcp-arg-input" value="{{ arg }}">
+                                        <button class="btn btn-outline-danger mcp-remove-item-btn" type="button">✖</button>
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary mcp-add-arg-btn" type="button">Add Argument</button>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><b>Environment Variables</b></label>
+                                <div class="mcp-env-container">
+                                    {% if server_details.env %}
+                                    {% for key, value in server_details.env.items() %}
+                                    <div class="input-group mb-2">
+                                        <input type="text" class="form-control mcp-env-key-input" placeholder="Key" value="{{ key }}">
+                                        <span class="input-group-text">=</span>
+                                        <input type="text" class="form-control mcp-env-value-input" placeholder="Value" value="{{ value }}">
+                                        <button class="btn btn-outline-danger mcp-remove-item-btn" type="button">✖</button>
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary mcp-add-env-btn" type="button">Add Variable</button>
+                            </div>
+                            <button class="btn btn-danger mcp-delete-server-btn" type="button">Delete Server</button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% endif %}
+            </div>
+            <button type="button" class="btn btn-success mb-3" id="mcp-add-server-btn">➕ Add New Server</button>
+        </div>
+
+        <!-- Advanced Editor -->
+        <div id="mcp-advanced-editor" class="d-none">
+            <textarea class="form-control" name="mcp_config" id="mcp_config_textarea" rows="15">{{ current_mcp_config_str or default_mcp_config_json }}</textarea>
+        </div>
+
+        <hr>
+        <button type="submit" class="btn btn-primary btn-lg">💾 Save MCP Config</button>
+    </form>
+</div>

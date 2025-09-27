@@ -1,0 +1,52 @@
+<!-- Home Section -->
+<div id="home" class="content-section">
+    <p class="lead">This is a lightweight proxy server that translates requests from an OpenAI-compatible client (like JetBrains AI Assistant) to Google's Gemini API.</p>
+
+    <h2 class="mt-4">✨ What It Does</h2>
+    <ul>
+        <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/models</code>.</li>
+        <li>Transforms the request format from OpenAI's structure to Gemini's structure.</li>
+        <li>Handles streaming responses for chat completions.</li>
+        <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
+        <li>Caches model lists to reduce upstream API calls.</li>
+        <li>Supports multimodal requests (text and images).</li>
+        <li>Supports MCP tools for function calling.</li>
+    </ul>
+
+    <h2 class="mt-4">🚀 How to Use</h2>
+
+    <h3>1. Setup and Run</h3>
+    <p>Before running the server, you need to set one environment variable (or use the form above for the API Key):</p>
+    <pre><code class="language-bash">
+ export API_KEY="YOUR_GEMINI_API_KEY"
+ export UPSTREAM_URL="https://generativelanguage.googleapis.com"
+    </code></pre>
+    <p>Then, run the server:</p>
+    <pre><code class="language-bash">
+ python3.12 -m venv
+ source venv/bin/activate
+ pip install -r requirements.txt
+ python3.12 gemini-proxy.py
+    </code></pre>
+    <p>or Docker Version</p>
+    <pre><code class="language-bash">docker-composer up -d</code></pre>
+    <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
+
+
+    <h3 class="mt-4">2. Configure JetBrains AI Assistant</h3>
+    <p>To use this proxy with JetBrains IDEs:</p>
+    <ol>
+        <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code> > <code>Models</code>).</li>
+        <li>Select the "OpenAI API" service.</li>
+        <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1/</code></li>
+        <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
+    </ol>
+    <p class="alert alert-info"><b>Note:</b> The path must end with <code>/v1/</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
+
+    <h2 class="mt-4">📡 Available Endpoints</h2>
+    <ul>
+        <li><code>GET /</code>: This documentation and setup page.</li>
+        <li><code>GET /v1/models</code>: Lists available Gemini models in OpenAI format.</li>
+        <li><code>POST /v1/chat/completions</code>: The main endpoint for chat completions. Supports streaming.</li>
+    </ul>
+</div>

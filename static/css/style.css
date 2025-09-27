@@ -1,0 +1,7 @@
+/* Small adjustment for the fixed Bootstrap navbar */
+body { padding-top: 5rem; }
+/* Custom styles for code blocks to fit Bootstrap's aesthetic */
+code { background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; }
+pre { background-color: #e9ecef; padding: 1em; border-radius: 4px; overflow-x: auto; }
+/* Ensure content sections are hidden by default, as before */
+.content-section { display: none; }

@@ -1,0 +1,24 @@
+<!-- Configuration Section -->
+<div id="configuration" class="content-section">
+    <h2 class="mt-4">🔑 API Key Setup</h2>
+    <p>You can set your Gemini API Key using the form below. The key is stored in memory and will be reset when the server restarts. You can also set it permanently using the <code>API_KEY</code> environment variable.</p>
+    <form action="/set_api_key" method="POST">
+        <div class="mb-3">
+            <label for="api_key" class="form-label"><b>🔑 Gemini API Key:</b></label>
+            <input type="text" class="form-control" id="api_key" name="api_key" placeholder="Enter your Gemini API key" value="{{ API_KEY or '' }}">
+        </div>
+        <button type="submit" class="btn btn-primary">💾 Save Key</button>
+    </form>
+    <p class="mt-3"><b>Current Status:</b> The API Key is currently <strong class="text-{{ 'success' if API_KEY else 'danger' }}">{{ api_key_status }}</strong>.</p>
+
+    <hr class="my-4">
+    <h3 class="mt-4">🐞 Debugging</h3>
+    <form action="/set_logging" method="POST">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="verbose_logging" name="verbose_logging"
+                   {% if verbose_logging_status %}checked{% endif %} onchange="this.form.submit()">
+            <label class="form-check-label" for="verbose_logging">Enable Verbose Console Logging</label>
+        </div>
+        <div class="form-text">Toggles detailed logging of requests, responses, and other events in the server console.</div>
+    </form>
+</div>
