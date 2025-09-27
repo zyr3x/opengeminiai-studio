@@ -19,6 +19,8 @@ mcp_function_input_schema_map = {}  # Maps a function name to its inputSchema fr
 mcp_tool_processes = {}  # Cache for running tool subprocesses
 mcp_request_id_counter = 1  # Counter for unique JSON-RPC request IDs
 
+GEMINI_MAX_FUNCTION_DECLARATIONS = 64  # Documented limit
+
 
 def get_declarations_from_tool(tool_name, tool_info):
     """Fetches function declaration schema(s) from an MCP tool using MCP protocol."""
@@ -229,11 +231,57 @@ def load_mcp_config():
         log(f"Total function declarations loaded: {len(mcp_function_declarations)}")
 
 
-def create_tool_declarations():
-    """Returns the cached tool declarations in the format expected by the Gemini API."""
+def create_tool_declarations(prompt_text: str = ""):
+    """
+    Returns tool declarations for the Gemini API, intelligently selecting them based on the prompt.
+    If a tool's name (e.g., 'youtrack') or a function's name (e.g., 'get_issue') is mentioned in the prompt,
+    only the functions from the relevant tool(s) are sent. Otherwise, it sends all available functions
+    up to the API limit.
+    """
     if not mcp_function_declarations:
         return None
-    return [{"functionDeclarations": mcp_function_declarations}]
+
+    selected_tool_names = set()
+    padded_prompt = f' {prompt_text.lower()} '
+
+    # Context-aware tool selection
+    if prompt_text:
+        # 1. Check for tool server names (e.g., 'youtrack')
+        if mcp_config.get("mcpServers"):
+            for tool_name in mcp_config["mcpServers"].keys():
+                if f' {tool_name.lower()} ' in padded_prompt:
+                    log(f"Detected keyword for tool server '{tool_name}'.")
+                    selected_tool_names.add(tool_name)
+
+        # 2. Check for individual function names (e.g., 'get_issue')
+        for func_decl in mcp_function_declarations:
+            func_name = func_decl['name']
+            if f' {func_name.lower()} ' in padded_prompt:
+                parent_tool_name = mcp_function_to_tool_map.get(func_name)
+                if parent_tool_name and parent_tool_name not in selected_tool_names:
+                    log(f"Detected keyword for function '{func_name}'. Selecting parent tool '{parent_tool_name}'.")
+                    selected_tool_names.add(parent_tool_name)
+
+    # If specific tools were selected, build the declaration list from them
+    if selected_tool_names:
+        log(f"Final selected tools: {list(selected_tool_names)}")
+        selected_declarations = []
+        for func_decl in mcp_function_declarations:
+            if mcp_function_to_tool_map.get(func_decl['name']) in selected_tool_names:
+                selected_declarations.append(func_decl)
+        final_declarations = selected_declarations
+    else:
+        # Fallback: use all declarations
+        final_declarations = mcp_function_declarations
+
+    if len(final_declarations) > GEMINI_MAX_FUNCTION_DECLARATIONS:
+        log(f"Warning: Number of function declarations ({len(final_declarations)}) exceeds the limit of {GEMINI_MAX_FUNCTION_DECLARATIONS}. Truncating list.")
+        final_declarations = final_declarations[:GEMINI_MAX_FUNCTION_DECLARATIONS]
+
+    if not final_declarations:
+        return None
+
+    return [{"functionDeclarations": final_declarations}]
 
 
 def _parse_kwargs_string(s: str) -> dict:

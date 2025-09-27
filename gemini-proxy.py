@@ -311,7 +311,7 @@ def chat_completions():
                     request_data["systemInstruction"] = system_instruction
 
                 # Add tool declarations if MCP tools are configured and enabled for this request
-                tools = mcp_handler.create_tool_declarations()
+                tools = mcp_handler.create_tool_declarations(full_prompt_text)
                 if tools and force_tools_enabled:
                     request_data["tools"] = tools
                     request_data["tool_config"] = {
