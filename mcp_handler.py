@@ -8,6 +8,8 @@ import shlex
 import select
 import time
 
+from utils import log
+
 # --- MCP Tool Configuration ---
 mcp_config = {}
 MCP_CONFIG_FILE = 'mcp_config.json'
@@ -27,7 +29,7 @@ def get_declarations_from_tool(tool_name, tool_info):
         env.update(tool_info["env"])
 
     try:
-        print(f"Fetching schema for tool '{tool_name}'...")
+        log(f"Fetching schema for tool '{tool_name}'...")
 
         # Send MCP initialization and tools/list request
         mcp_init_request = {
@@ -170,7 +172,7 @@ def get_declarations_from_tool(tool_name, tool_info):
         if process.stderr:
             print(f"Stderr: {process.stderr}")
 
-        print(f"Successfully fetched {len(tools)} function declaration(s) for tool '{tool_name}'.")
+        log(f"Successfully fetched {len(tools)} function declaration(s) for tool '{tool_name}'.")
         return tools
 
     except subprocess.TimeoutExpired:
@@ -189,7 +191,7 @@ def load_mcp_config():
     for tool_name, process in mcp_tool_processes.items():
         if process.poll() is None:  # Check if the process is running
             try:
-                print(f"Terminating old process for tool '{tool_name}'...")
+                log(f"Terminating old process for tool '{tool_name}'...")
                 process.terminate()
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
@@ -207,14 +209,14 @@ def load_mcp_config():
         try:
             with open(MCP_CONFIG_FILE, 'r') as f:
                 mcp_config = json.load(f)
-            print(f"MCP config loaded from {MCP_CONFIG_FILE}.")
+            log(f"MCP config loaded from {MCP_CONFIG_FILE}.")
         except (json.JSONDecodeError, IOError) as e:
             print(f"Error loading MCP config: {e}")
             mcp_config = {}
             return
     else:
         mcp_config = {}
-        print("No MCP config file found, MCP tools disabled.")
+        log("No MCP config file found, MCP tools disabled.")
         return
 
     if mcp_config.get("mcpServers"):
@@ -224,7 +226,7 @@ def load_mcp_config():
             for decl in declarations:
                 if 'name' in decl:
                     mcp_function_to_tool_map[decl['name']] = tool_name
-        print(f"Total function declarations loaded: {len(mcp_function_declarations)}")
+        log(f"Total function declarations loaded: {len(mcp_function_declarations)}")
 
 
 def create_tool_declarations():
@@ -373,7 +375,7 @@ def execute_mcp_tool(function_name, tool_args):
     """
     global mcp_tool_processes, mcp_request_id_counter
 
-    print(f"Executing MCP function: {function_name} with args: {tool_args}")
+    log(f"Executing MCP function: {function_name} with args: {tool_args}")
 
     tool_name = mcp_function_to_tool_map.get(function_name)
     if not tool_name:
@@ -388,9 +390,9 @@ def execute_mcp_tool(function_name, tool_args):
     # If process doesn't exist or has terminated, start a new one
     if process is None or process.poll() is not None:
         if process is not None:
-            print(f"Process for tool '{tool_name}' has terminated. Restarting.")
+            log(f"Process for tool '{tool_name}' has terminated. Restarting.")
         else:
-            print(f"No active process for tool '{tool_name}'. Starting a new one.")
+            log(f"No active process for tool '{tool_name}'. Starting a new one.")
 
         command = [tool_info["command"]] + tool_info.get("args", [])
         env = os.environ.copy()
@@ -421,7 +423,7 @@ def execute_mcp_tool(function_name, tool_args):
             process.stdin.write(json.dumps(initialized_notification) + "\n")
             process.stdin.flush()
             time.sleep(0.1)
-            print(f"Successfully started and initialized process for tool '{tool_name}'.")
+            log(f"Successfully started and initialized process for tool '{tool_name}'.")
 
         except Exception as e:
             error_message = f"Failed to start or initialize tool '{tool_name}': {e}"

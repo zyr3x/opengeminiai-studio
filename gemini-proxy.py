@@ -56,13 +56,22 @@ def set_api_key():
 
         # Save the key to the .env file for persistence across restarts
         set_key('.env', 'API_KEY', new_key)
-        print("API Key has been updated via web interface and saved to .env file.")
+        utils.log("API Key has been updated via web interface and saved to .env file.")
 
         # Clear model cache if key changes
         utils.cached_models_response = None
         utils.model_info_cache.clear()
-        print("Caches cleared due to API key change.")
-    return redirect(url_for('index'))
+        utils.log("Caches cleared due to API key change.")
+    return redirect(url_for('index', _anchor='configuration'))
+
+
+@app.route('/set_logging', methods=['POST'])
+def set_logging():
+    """Enables or disables verbose logging."""
+    logging_enabled = request.form.get('verbose_logging') == 'on'
+    utils.set_verbose_logging(logging_enabled)
+    return redirect(url_for('index', _anchor='configuration'))
+
 
 @app.route('/set_mcp_config', methods=['POST'])
 def set_mcp_config():
@@ -74,18 +83,18 @@ def set_mcp_config():
             json.loads(config_str.strip())
             with open(mcp_handler.MCP_CONFIG_FILE, 'w') as f:
                 f.write(config_str.strip())
-            print(f"MCP config updated and saved to {mcp_handler.MCP_CONFIG_FILE}.")
+            utils.log(f"MCP config updated and saved to {mcp_handler.MCP_CONFIG_FILE}.")
         except json.JSONDecodeError as e:
             print(f"Error: Invalid JSON in MCP config: {e}")
             # Don't reload config if JSON is invalid
-            return redirect(url_for('index'))
+            return redirect(url_for('index', _anchor='mcp'))
     elif os.path.exists(mcp_handler.MCP_CONFIG_FILE):
         # Handle empty submission: clear the config
         os.remove(mcp_handler.MCP_CONFIG_FILE)
-        print("MCP config cleared.")
+        utils.log("MCP config cleared.")
 
     mcp_handler.load_mcp_config()  # Reload config and fetch new schemas
-    return redirect(url_for('index'))
+    return redirect(url_for('index', _anchor='mcp'))
 
 @app.route('/set_prompt_config', methods=['POST'])
 def set_prompt_config():
@@ -97,18 +106,18 @@ def set_prompt_config():
             json.loads(config_str.strip())
             with open(utils.PROMPT_OVERRIDES_FILE, 'w') as f:
                 f.write(config_str.strip())
-            print(f"Prompt overrides updated and saved to {utils.PROMPT_OVERRIDES_FILE}.")
+            utils.log(f"Prompt overrides updated and saved to {utils.PROMPT_OVERRIDES_FILE}.")
         except json.JSONDecodeError as e:
             print(f"Error: Invalid JSON in prompt overrides: {e}")
             # Don't reload config if JSON is invalid
-            return redirect(url_for('index'))
+            return redirect(url_for('index', _anchor='prompts'))
     elif os.path.exists(utils.PROMPT_OVERRIDES_FILE):
         # Handle empty submission: clear the config
         os.remove(utils.PROMPT_OVERRIDES_FILE)
-        print("Prompt overrides config cleared.")
+        utils.log("Prompt overrides config cleared.")
 
     utils.load_prompt_config()
-    return redirect(url_for('index'))
+    return redirect(url_for('index', _anchor='prompts'))
 
 @app.route('/', methods=['GET'])
 def index():
@@ -167,7 +176,8 @@ def index():
         current_mcp_config_str=current_mcp_config_str,
         default_mcp_config_json=utils.pretty_json(default_mcp_config),
         current_prompt_overrides_str=current_prompt_overrides_str,
-        default_prompt_overrides_json=utils.pretty_json(default_prompt_overrides)
+        default_prompt_overrides_json=utils.pretty_json(default_prompt_overrides),
+        verbose_logging_status=utils.VERBOSE_LOGGING
     )
 
 @app.route('/v1/chat/completions', methods=['POST'])
@@ -179,7 +189,7 @@ def chat_completions():
         return jsonify({"error": {"message": "API key not configured. Please set it on the root page.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:
         openai_request = request.json
-        print(f"Incoming Request: {utils.pretty_json(openai_request)}")
+        utils.log(f"Incoming Request: {utils.pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
 
         # --- Prompt Engineering & Tool Control ---
@@ -203,7 +213,7 @@ def chat_completions():
                                 # If it's a commit message profile, do not send tools
                                 if active_profile_name == "commit_message":
                                     force_tools_enabled = False
-                                print(f"Prompt profile matched: '{profile_name}'")
+                                utils.log(f"Prompt profile matched: '{profile_name}'")
                                 break
                         if active_overrides:
                             break
@@ -292,7 +302,7 @@ def chat_completions():
                 original_message_count = len(current_contents)
                 current_contents = utils.truncate_contents(current_contents, safe_limit)
                 if len(current_contents) < original_message_count:
-                    print(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages to fit context window.")
+                    utils.log(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages to fit context window.")
 
                 request_data = {
                     "contents": current_contents
@@ -316,8 +326,8 @@ def chat_completions():
                     'X-goog-api-key': API_KEY
                 }
 
-                print(f"Outgoing Gemini Request URL: {GEMINI_STREAMING_URL}")
-                print(f"Outgoing Gemini Request Data: {utils.pretty_json(request_data)}")
+                utils.log(f"Outgoing Gemini Request URL: {GEMINI_STREAMING_URL}")
+                utils.log(f"Outgoing Gemini Request Data: {utils.pretty_json(request_data)}")
 
                 response = None
                 try:
@@ -399,6 +409,7 @@ def chat_completions():
                                     "model": COMPLETION_MODEL,
                                     "choices": [{"index": 0, "delta": {"content": text_content}, "finish_reason": None}]
                                 }
+                                utils.log(f"Active Proxy Response Chunk: {utils.pretty_json(chunk_response)}")
                                 yield f"data: {json.dumps(chunk_response)}\n\n"
 
                 if not tool_calls:
@@ -406,7 +417,7 @@ def chat_completions():
                     break
 
                 # --- Tool Call Execution ---
-                print(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
+                utils.log(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
                 current_contents.append({
                     "role": "model",
                     "parts": model_response_parts
@@ -465,7 +476,7 @@ def chat_completions():
                 }]
             }
             yield f"data: {json.dumps(final_chunk)}\n\n"
-            print(f"Final Proxy Response Chunk: {utils.pretty_json(final_chunk)}")
+            utils.log(f"Final Proxy Response Chunk: {utils.pretty_json(final_chunk)}")
             yield "data: [DONE]\n\n"
 
         return Response(generate(), mimetype='text/event-stream')

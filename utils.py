@@ -7,6 +7,9 @@ import requests
 import base64
 import re
 
+# --- Global Settings ---
+VERBOSE_LOGGING = True
+
 # --- Prompt Engineering Config ---
 PROMPT_OVERRIDES_FILE = 'prompt_config.json'
 prompt_overrides = {}
@@ -17,6 +20,19 @@ model_info_cache = {}
 TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95  # Use 95% of the model's capacity
 
 
+def set_verbose_logging(enabled: bool):
+    """Sets the verbose logging status."""
+    global VERBOSE_LOGGING
+    VERBOSE_LOGGING = enabled
+    print(f"Verbose logging has been {'enabled' if enabled else 'disabled'}.")
+
+
+def log(message: str):
+    """Prints a message to the console if verbose logging is enabled."""
+    if VERBOSE_LOGGING:
+        print(message)
+
+
 def load_prompt_config():
     """Loads prompt overrides from JSON file into the global prompt_overrides dict."""
     global prompt_overrides
@@ -24,7 +40,7 @@ def load_prompt_config():
         try:
             with open(PROMPT_OVERRIDES_FILE, 'r') as f:
                 prompt_overrides = json.load(f)
-            print(f"Prompt overrides loaded from {PROMPT_OVERRIDES_FILE}.")
+            log(f"Prompt overrides loaded from {PROMPT_OVERRIDES_FILE}.")
         except (json.JSONDecodeError, IOError) as e:
             print(f"Error loading prompt overrides: {e}")
             prompt_overrides = {}
@@ -48,13 +64,13 @@ def _process_image_url(image_url: dict) -> dict | None:
             # Handle Base64 data URI
             match = re.match(r"data:(image/.+);base64,(.+)", url)
             if not match:
-                print(f"Warning: Could not parse data URI.")
+                log(f"Warning: Could not parse data URI.")
                 return None
             mime_type, base64_data = match.groups()
             return {"inline_data": {"mime_type": mime_type, "data": base64_data}}
         else:
             # Handle web URL
-            print(f"Downloading image from URL: {url}")
+            log(f"Downloading image from URL: {url}")
             response = requests.get(url, timeout=20)
             response.raise_for_status()
             mime_type = response.headers.get("Content-Type", "image/jpeg")
@@ -75,7 +91,7 @@ def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> i
         return model_info_cache[model_name].get("inputTokenLimit", 8192)  # Default to 8k if not found
 
     try:
-        print(f"Cache miss for {model_name}. Fetching model details from API...")
+        log(f"Cache miss for {model_name}. Fetching model details from API...")
         GEMINI_MODEL_INFO_URL = f"{upstream_url}/v1beta/models/{model_name}"
         params = {"key": api_key}
         response = requests.get(GEMINI_MODEL_INFO_URL, params=params)
@@ -110,7 +126,7 @@ def truncate_contents(contents: list, limit: int) -> list:
     if estimated_tokens <= limit:
         return contents
 
-    print(f"Estimated token count ({estimated_tokens}) exceeds limit ({limit}). Truncating...")
+    log(f"Estimated token count ({estimated_tokens}) exceeds limit ({limit}). Truncating...")
 
     # Keep the first message (often a system prompt) and the most recent ones.
     # We will remove messages from the second position (index 1).
@@ -120,7 +136,7 @@ def truncate_contents(contents: list, limit: int) -> list:
         truncated_contents.pop(1)
 
     final_tokens = estimate_token_count(truncated_contents)
-    print(f"Truncation complete. Final estimated token count: {final_tokens}")
+    log(f"Truncation complete. Final estimated token count: {final_tokens}")
     return truncated_contents
 
 
