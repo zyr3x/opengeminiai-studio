@@ -562,8 +562,8 @@ def index():
             <h3>2. Configure JetBrains AI Assistant</h3>
             <p>To use this proxy with JetBrains IDEs:</p>
             <ol>
-                <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code>).</li>
-                <li>Select the "Custom" service.</li>
+                <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code> > <code>Models</code>).</li>
+                <li>Select the "OpenAI API" service.</li>
                 <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1/openai</code></li>
                 <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
             </ol>
