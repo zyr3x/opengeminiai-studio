@@ -180,6 +180,13 @@ def index():
         verbose_logging_status=utils.VERBOSE_LOGGING
     )
 
+@app.route('/favicon.ico')
+def favicon():
+    """Serves the favicon for the web interface."""
+    favicon_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚙️</text></svg>'
+    return Response(favicon_svg, mimetype='image/svg+xml')
+
+
 @app.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
     """
