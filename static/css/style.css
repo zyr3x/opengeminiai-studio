@@ -421,8 +421,8 @@ body {
 }
 
 .form-check-input:checked {
-    background-color: #6f42c1;
-    border-color: #6f42c1;
+    background-color: var(--bs-link-color);
+    border-color: var(--bs-link-color);
 }
 
 /* Cards */
