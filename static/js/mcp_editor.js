@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const mcpEditorSwitch = document.getElementById('mcp-editor-mode-switch');
     const mcpTextarea = document.getElementById('mcp_config_textarea');
     const mcpContainer = document.getElementById('mcp-servers-container');
+    const mcpMaxFunctionDeclarationsInput = document.getElementById('mcp-max-function-declarations'); // New line
 
     function toggleMcpEditorView() {
         if (!mcpEditorSwitch) return;
@@ -133,6 +134,20 @@ document.addEventListener('DOMContentLoaded', function () {
                         mcpData.mcpServers[serverName] = { command, args, env };
                     }
                 });
+
+                // Add Max Function Declarations to the config
+                if (mcpMaxFunctionDeclarationsInput) {
+                    const limit = parseInt(mcpMaxFunctionDeclarationsInput.value, 10);
+                    if (!isNaN(limit) && limit > 0) {
+                        mcpData.maxFunctionDeclarations = limit;
+                    } else {
+                        // Fallback to a sensible default if value is invalid, or ensure it's not set
+                        // If you want it to revert to the server's default when invalid, don't set it here.
+                        // For now, let's explicitly set it to handler's default if invalid.
+                        mcpData.maxFunctionDeclarations = 64; // This should match mcp_handler.MAX_FUNCTION_DECLARATIONS_DEFAULT
+                    }
+                }
+
                 mcpTextarea.value = JSON.stringify(mcpData, null, 2);
             }
         });

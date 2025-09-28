@@ -67,6 +67,13 @@
                 {% endfor %}
                 {% endif %}
             </div>
+
+            <div class="mb-3 p-3 bg-light rounded shadow-sm">
+                <label for="mcp-max-function-declarations" class="form-label"><b>Max Function Declarations</b> (Gemini API limit, default 64)</label>
+                <input type="number" name="maxFunctionDeclarations" class="form-control" id="mcp-max-function-declarations" value="{{ current_max_function_declarations }}" min="1" max="1000">
+                <small class="form-text text-muted">The maximum number of tool functions to send to the Gemini API. Exceeding the API's internal limit (e.g., 64) will cause a warning and truncation.</small>
+            </div>
+
             <button type="button" class="btn btn-success mb-3" id="mcp-add-server-btn"><span class="material-icons">add</span> Add New Server</button>
         </div>
 

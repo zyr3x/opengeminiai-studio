@@ -176,7 +176,8 @@ def index():
             "YOUTRACK_URL": "https://youtrack.example.com/"
           }
         }
-      }
+      },
+      "maxFunctionDeclarations": mcp_handler.MAX_FUNCTION_DECLARATIONS_DEFAULT
     }
 
     mcp_config = default_mcp_config  # start with default
@@ -190,6 +191,10 @@ def index():
             # Keep default config if the file is corrupt
             pass
 
+    # Ensure maxFunctionDeclarations is available, falling back to mcp_handler's current value
+    current_max_function_declarations = mcp_config.get("maxFunctionDeclarations", mcp_handler.max_function_declarations_limit)
+
+
     return render_template(
         'index.html',
         API_KEY=API_KEY,
@@ -200,7 +205,8 @@ def index():
         prompt_profiles=prompt_profiles,
         current_prompt_overrides_str=current_prompt_overrides_str,
         default_prompt_overrides_json=utils.pretty_json(default_prompt_overrides),
-        verbose_logging_status=utils.VERBOSE_LOGGING
+        verbose_logging_status=utils.VERBOSE_LOGGING,
+        current_max_function_declarations=current_max_function_declarations
     )
 
 @app.route('/favicon.ico')

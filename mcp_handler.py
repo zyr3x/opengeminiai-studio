@@ -19,7 +19,8 @@ mcp_function_input_schema_map = {}  # Maps a function name to its inputSchema fr
 mcp_tool_processes = {}  # Cache for running tool subprocesses
 mcp_request_id_counter = 1  # Counter for unique JSON-RPC request IDs
 
-GEMINI_MAX_FUNCTION_DECLARATIONS = 64  # Documented limit
+MAX_FUNCTION_DECLARATIONS_DEFAULT = 64 # Default documented limit
+max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT # Configurable limit
 
 
 def get_declarations_from_tool(tool_name, tool_info):
@@ -187,7 +188,7 @@ def get_declarations_from_tool(tool_name, tool_info):
 
 def load_mcp_config():
     """Loads MCP tool configuration from file and fetches schemas for all configured tools."""
-    global mcp_config, mcp_function_declarations, mcp_function_to_tool_map, mcp_function_input_schema_map, mcp_tool_processes
+    global mcp_config, mcp_function_declarations, mcp_function_to_tool_map, mcp_function_input_schema_map, mcp_tool_processes, max_function_declarations_limit
 
     # Terminate any existing tool processes before reloading config
     for tool_name, process in mcp_tool_processes.items():
@@ -215,11 +216,19 @@ def load_mcp_config():
         except (json.JSONDecodeError, IOError) as e:
             print(f"Error loading MCP config: {e}")
             mcp_config = {}
+            max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT
             return
     else:
         mcp_config = {}
+        max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT
         log("No MCP config file found, MCP tools disabled.")
         return
+
+    max_function_declarations_limit = mcp_config.get("maxFunctionDeclarations", MAX_FUNCTION_DECLARATIONS_DEFAULT)
+    if not isinstance(max_function_declarations_limit, int) or max_function_declarations_limit <= 0:
+        log(f"Invalid maxFunctionDeclarations in config ({max_function_declarations_limit}). Using default: {MAX_FUNCTION_DECLARATIONS_DEFAULT}")
+        max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT
+
 
     if mcp_config.get("mcpServers"):
         for tool_name, tool_info in mcp_config["mcpServers"].items():
@@ -274,9 +283,9 @@ def create_tool_declarations(prompt_text: str = ""):
         # Fallback: use all declarations
         final_declarations = mcp_function_declarations
 
-    if len(final_declarations) > GEMINI_MAX_FUNCTION_DECLARATIONS:
-        log(f"Warning: Number of function declarations ({len(final_declarations)}) exceeds the limit of {GEMINI_MAX_FUNCTION_DECLARATIONS}. Truncating list.")
-        final_declarations = final_declarations[:GEMINI_MAX_FUNCTION_DECLARATIONS]
+    if len(final_declarations) > max_function_declarations_limit:
+        log(f"Warning: Number of function declarations ({len(final_declarations)}) exceeds the limit of {max_function_declarations_limit}. Truncating list.")
+        final_declarations = final_declarations[:max_function_declarations_limit]
 
     if not final_declarations:
         return None
