@@ -12,14 +12,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const newChatBtn = document.getElementById('new-chat-btn');
     const attachFileBtn = document.getElementById('attach-file-btn');
     const fileUpload = document.getElementById('file-upload');
-    const filePreviewContainer = document.getElementById('file-preview-container');
-    const imagePreview = document.getElementById('image-preview');
-    const genericFilePreview = document.getElementById('generic-file-preview');
-    const filePreviewName = document.getElementById('file-preview-name');
-    const removeFileBtn = document.getElementById('remove-file-btn');
+    const filePreviewsContainer = document.getElementById('file-previews-container');
 
     let conversationHistory = []; // Stores {role: 'user'/'assistant', content: '...'}
-    let attachedFile = null;
+    let attachedFiles = [];
     const initialChatHistoryHTML = chatHistory.innerHTML;
 
 
@@ -35,16 +31,23 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/'/g, "&#039;");
     }
 
+    function clearFiles() {
+        attachedFiles = [];
+        fileUpload.value = ''; // Reset file input to allow re-selection of same file
+        filePreviewsContainer.innerHTML = '';
+        filePreviewsContainer.style.display = 'none';
+    }
+
     function resetChat() {
         conversationHistory = [];
         chatHistory.innerHTML = initialChatHistoryHTML;
-        removeFileBtn.click();
+        clearFiles();
         chatInput.value = '';
         adjustTextareaHeight();
         chatInput.focus();
     }
 
-    function addMessageToHistory(role, content, file = null) {
+    function addMessageToHistory(role, content, files = []) {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', role === 'user' ? 'user-message' : 'bot-message');
 
@@ -58,27 +61,36 @@ document.addEventListener('DOMContentLoaded', function () {
             textContent = DOMPurify.sanitize(marked.parse(content, { gfm: true, breaks: true }));
         }
 
-        let fileHtml = '';
-        if (file) {
-            if (file.type.startsWith('image/')) {
-                const imageUrl = URL.createObjectURL(file);
-                fileHtml = `<img src="${imageUrl}" alt="Attached image" class="attached-image">`;
-            } else {
-                fileHtml = `
-                <div class="attached-file">
-                    <span class="material-icons">description</span>
-                    <span>${escapeHtml(file.name)}</span>
-                </div>`;
-            }
+        let filesHtml = '';
+        if (files && files.length > 0) {
+            filesHtml = '<div class="d-flex flex-wrap gap-2 mt-2">';
+            files.forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const imageUrl = URL.createObjectURL(file);
+                    filesHtml += `<img src="${imageUrl}" alt="${escapeHtml(file.name)}" class="attached-image" style="max-width: 150px; border-radius: 0.5rem;">`;
+                } else {
+                    filesHtml += `
+                    <div class="attached-file">
+                        <span class="material-icons">description</span>
+                        <span>${escapeHtml(file.name)}</span>
+                    </div>`;
+                }
+            });
+            filesHtml += '</div>';
         }
 
-        // Combine text and file attachment HTML, ensuring text comes first if it exists
-        contentDiv.innerHTML = textContent ? textContent + fileHtml : fileHtml;
-        // If there's only a file and no text, don't add an extra line break for user messages
-        if (file && !content) {
-             const br = contentDiv.querySelector('br');
-             if (br) br.remove();
+        // Combine text and file attachment HTML
+        if (textContent && filesHtml) {
+            contentDiv.innerHTML = textContent + filesHtml;
+        } else {
+            contentDiv.innerHTML = textContent || filesHtml;
         }
+
+        // If there's only files and no text, remove the initial <br> from user message
+        if (files.length > 0 && !content.trim() && role === 'user') {
+             contentDiv.innerHTML = filesHtml;
+        }
+
 
         messageDiv.appendChild(contentDiv);
         chatHistory.appendChild(messageDiv);
@@ -126,55 +138,79 @@ document.addEventListener('DOMContentLoaded', function () {
 
     attachFileBtn.addEventListener('click', () => fileUpload.click());
 
-    fileUpload.addEventListener('change', function(event) {
-        const file = event.target.files[0];
-        if (file) {
-            attachedFile = file;
-            filePreviewContainer.style.display = 'block';
+    function createFilePreview(file) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'file-preview-wrapper';
+        wrapper.dataset.fileName = file.name;
+        wrapper.dataset.fileSize = file.size;
 
-            if (file.type.startsWith('image/')) {
-                imagePreview.style.display = 'block';
-                genericFilePreview.style.display = 'none';
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    imagePreview.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            } else { // Handle PDF and other files
-                imagePreview.style.display = 'none';
-                genericFilePreview.style.display = 'flex';
-                filePreviewName.textContent = file.name;
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.className = 'preview-image';
+            img.src = URL.createObjectURL(file);
+            wrapper.appendChild(img);
+        } else {
+            const genericPreview = document.createElement('div');
+            genericPreview.className = 'generic-preview';
+            genericPreview.innerHTML = `
+                <span class="material-icons">description</span>
+                <span>${escapeHtml(file.name)}</span>`;
+            wrapper.appendChild(genericPreview);
+        }
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn btn-sm btn-danger remove-file-btn';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.title = 'Remove file';
+        removeBtn.addEventListener('click', () => {
+            const index = attachedFiles.findIndex(f => f.name === file.name && f.size === file.size);
+            if (index > -1) {
+                attachedFiles.splice(index, 1);
             }
+            wrapper.remove();
+            if (attachedFiles.length === 0) {
+                filePreviewsContainer.style.display = 'none';
+            }
+        });
+
+        wrapper.appendChild(removeBtn);
+        filePreviewsContainer.appendChild(wrapper);
+    }
+
+
+    fileUpload.addEventListener('change', function(event) {
+        const files = event.target.files;
+        if (files.length > 0) {
+            filePreviewsContainer.style.display = 'flex';
+            for (const file of files) {
+                // Avoid adding duplicates
+                if (!attachedFiles.some(f => f.name === file.name && f.lastModified === file.lastModified && f.size === file.size)) {
+                     attachedFiles.push(file);
+                     createFilePreview(file);
+                }
+            }
+            // Clear the input value to allow re-adding the same file if removed
+            fileUpload.value = '';
         }
     });
 
-    removeFileBtn.addEventListener('click', () => {
-        attachedFile = null;
-        fileUpload.value = ''; // Reset file input
-        filePreviewContainer.style.display = 'none';
-        imagePreview.src = '';
-        imagePreview.style.display = 'none';
-        genericFilePreview.style.display = 'none';
-        filePreviewName.textContent = '';
-    });
 
     chatForm.addEventListener('submit', async function(event) {
         event.preventDefault();
         const userInput = chatInput.value.trim();
-        if (!userInput && !attachedFile) return;
+        if (!userInput && attachedFiles.length === 0) return;
 
-        // --- Display user's message ---
-        addMessageToHistory('user', userInput, attachedFile);
-        if (userInput) {
-            conversationHistory.push({ role: 'user', content: userInput });
-        }
+        // Add a user message to history, even if it's just for the files
+        addMessageToHistory('user', userInput, [...attachedFiles]);
+        conversationHistory.push({ role: 'user', content: userInput || '' });
 
-        const fileToSend = attachedFile; // Keep a reference to the file
+
+        const filesToSend = [...attachedFiles]; // Keep a reference to the files
 
         // Clear input and reset for next message
         chatInput.value = '';
         adjustTextareaHeight();
-        removeFileBtn.click(); // Clear file preview
+        clearFiles();
 
         // --- Prepare for bot response ---
         showTypingIndicator();
@@ -184,9 +220,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const formData = new FormData();
         formData.append('model', modelSelect.value);
         // Send only the last N messages to manage context window, or implement a more complex strategy
-        formData.append('messages', JSON.stringify(conversationHistory)); 
-        if (fileToSend) {
-            formData.append('file', fileToSend);
+        formData.append('messages', JSON.stringify(conversationHistory));
+        if (filesToSend.length > 0) {
+            filesToSend.forEach(file => {
+                formData.append('file', file); // Use 'file' as the key for getlist
+            });
         }
 
         try {
@@ -225,6 +263,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Parse content as Markdown and sanitize it before inserting into the DOM
                 botContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(botMessageContent, { gfm: true, breaks: true }));
+
+                // Render LaTeX math expressions using KaTeX auto-render extension
+                if (window.renderMathInElement) {
+                    renderMathInElement(botContentDiv, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false},
+                            {left: '\\(', right: '\\)', display: false},
+                            {left: '\\[', right: '\\]', display: true}
+                        ],
+                        // To prevent errors from being thrown for invalid math
+                        throwOnError: false
+                    });
+                }
+
                 chatHistory.scrollTop = chatHistory.scrollHeight;
             }
 
@@ -236,7 +289,6 @@ document.addEventListener('DOMContentLoaded', function () {
         } finally {
             sendBtn.disabled = false;
             chatInput.focus();
-            // attachedFile is already cleared by removeFileBtn.click()
         }
     });
 

@@ -135,7 +135,7 @@ def chat_api():
         model = request.form.get('model', 'gemini-1.5-flash-latest')
         messages_json = request.form.get('messages', '[]')
         messages = json.loads(messages_json)
-        attached_file = request.files.get('file')
+        attached_files = request.files.getlist('file')
 
         # --- Construct Gemini contents ---
         gemini_contents = []
@@ -150,10 +150,14 @@ def chat_api():
             if gemini_parts:
                 gemini_contents.append({"role": role, "parts": gemini_parts})
 
-        # Add attached file to the last user message if it exists
-        if attached_file:
+        # Add attached files to the last user message if it exists
+        if attached_files:
             # Ensure the last message is from the user to attach the file
-            if gemini_contents and gemini_contents[-1]['role'] == 'user':
+            if not gemini_contents or gemini_contents[-1]['role'] != 'user':
+                 # If no messages or last message is not from user, create one
+                gemini_contents.append({"role": "user", "parts": []})
+
+            for attached_file in attached_files:
                 file_bytes = attached_file.read()
                 file_base64 = base64.b64encode(file_bytes).decode('utf-8')
                 mime_type = attached_file.mimetype
@@ -165,9 +169,6 @@ def chat_api():
                     }
                 }
                 gemini_contents[-1]['parts'].append(file_part)
-            else:
-                # Should not happen with current UI logic, but handle it
-                print("Warning: File uploaded but no final user message to attach it to.")
 
         # --- Call Gemini API ---
         def generate():
@@ -188,7 +189,7 @@ def chat_api():
             utils.log(
                 f"Outgoing Direct Chat Request URL: {GEMINI_STREAMING_URL}")
             utils.log(
-                f"Outgoing Direct Chat Request Data (omitting file data): {utils.pretty_json({k: v for k, v in request_data.items() if k != 'contents' or not attached_file})}")
+                f"Outgoing Direct Chat Request Data (omitting file data): {utils.pretty_json({k: v for k, v in request_data.items() if k != 'contents' or not attached_files})}")
 
             try:
                 response = requests.post(

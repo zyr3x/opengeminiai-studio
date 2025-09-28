@@ -5,7 +5,7 @@
             <div class="col-12 h-100 d-flex flex-column">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Gemini Chat</h5>
+                        <h5 class="mb-0">Ai Chat</h5>
                         <div class="d-flex align-items-center gap-2">
                             <label for="model-select" class="form-label mb-0">Model:</label>
                             <select id="model-select" class="form-select form-select-sm" style="width: auto;"></select>
@@ -23,21 +23,16 @@
                         </div>
                     </div>
                     <div class="card-footer chat-input-area">
-                        <!-- File Preview -->
-                        <div id="file-preview-container" class="mb-2" style="display: none;">
-                            <img id="image-preview" src="" alt="Image preview" style="display: none;height:150px;width:auto;"/>
-                            <div id="generic-file-preview" class="alert alert-secondary p-2 d-flex align-items-center" style="display: none;">
-                                <span class="material-icons me-2">description</span>
-                                <span id="file-preview-name"></span>
-                            </div>
-                            <button id="remove-file-btn" class="btn btn-sm btn-danger">&times;</button>
+                        <!-- File Previews -->
+                        <div id="file-previews-container" class="mb-2" style="display: none;">
+                            <!-- File previews will be dynamically inserted here by chat.js -->
                         </div>
                         <form id="chat-form" class="d-flex">
                              <div class="input-group">
                                 <button class="btn btn-outline-secondary" type="button" id="attach-file-btn" title="Attach File">
                                     <span class="material-icons">attach_file</span>
                                 </button>
-                                <input type="file" id="file-upload" accept="image/*,application/pdf" style="display: none;">
+                                <input type="file" id="file-upload" accept="image/*,application/pdf" style="display: none;" multiple>
                                 <textarea id="chat-input" class="form-control" placeholder="Type your message..." rows="1"></textarea>
                                 <button id="send-btn" class="btn btn-primary" type="submit">
                                     <span class="material-icons">send</span>
@@ -50,3 +45,8 @@
         </div>
     </div>
 </section>
+
+<!-- KaTeX for LaTeX rendering -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0KOVEMMZMvyZnqkEGWRVTqNbZEBCCEUUSJKHNdfS3GNkLqsUIUSps" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
