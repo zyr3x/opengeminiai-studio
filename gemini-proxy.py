@@ -22,6 +22,7 @@ import time
 import json
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from dotenv import load_dotenv, set_key
+from datetime import datetime # Import datetime
 
 import mcp_handler
 import utils
@@ -194,6 +195,7 @@ def index():
     # Ensure maxFunctionDeclarations is available, falling back to mcp_handler's current value
     current_max_function_declarations = mcp_config.get("maxFunctionDeclarations", mcp_handler.max_function_declarations_limit)
 
+    current_year = datetime.now().year # Get the current year
 
     return render_template(
         'index.html',
@@ -206,7 +208,8 @@ def index():
         current_prompt_overrides_str=current_prompt_overrides_str,
         default_prompt_overrides_json=utils.pretty_json(default_prompt_overrides),
         verbose_logging_status=utils.VERBOSE_LOGGING,
-        current_max_function_declarations=current_max_function_declarations
+        current_max_function_declarations=current_max_function_declarations,
+        current_year=current_year # Pass current_year to the template
     )
 
 @app.route('/favicon.ico')

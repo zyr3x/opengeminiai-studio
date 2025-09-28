@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini to OpenAI Proxy</title>
-    <link rel="icon" href="/favicon.ico" type="image/svg+xml">
+    <title>OpenGeminiAI Studio</title>
+    <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
     <!-- Google Fonts and Material Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -17,8 +17,8 @@
 <nav class="navbar navbar-expand-md fixed-top shadow-sm">
     <div class="container">
         <a class="navbar-brand" href="#">
-            <img src="https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png" alt="Google Cloud logo" height="30" class="me-2">
-            Gemini to OpenAI Proxy
+            <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="OpenGeminiAI Studio Logo" height="30" class="me-2">
+            OpenGeminiAI Studio
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -53,7 +53,6 @@
 <main role="main" class="flex-shrink-0">
     <!-- Main Content Container -->
     <div class="container">
-        <h1 class="my-4">🚀 Gemini to OpenAI Proxy</h1>
         {% block content %}{% endblock %}
     </div> <!-- End .container -->
 </main>
@@ -61,7 +60,7 @@
 <!-- Bootstrap Footer -->
 <footer class="footer mt-auto py-3 bg-light">
     <div class="container text-center">
-        <span class="text-muted">✅ Proxy server is running and ready to serve requests.</span>
+        <span class="text-muted">© {{ current_year }} OpenGeminiAI Studio. All rights reserved.</span><br>
     </div>
 </footer>
 
