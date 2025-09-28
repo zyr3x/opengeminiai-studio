@@ -16,7 +16,7 @@
                 {% for profile_name, profile in prompt_profiles.items() %}
                 <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="{{ profile_name }}">
                     <h2 class="accordion-header" id="heading-{{ loop.index }}">
-                        <button class="accordion-button collapsed bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-{{ loop.index }}">
+                        <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-{{ loop.index }}">
                             {{ profile_name }}
                         </button>
                     </h2>
@@ -173,7 +173,7 @@
                 const newProfileHtml = `
                     <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New Profile ${newProfileIndex}">
                         <h2 class="accordion-header" id="heading-${newProfileIndex}">
-                            <button class="accordion-button collapsed bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${newProfileIndex}" aria-expanded="false" aria-controls="collapse-${newProfileIndex}">
+                            <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${newProfileIndex}" aria-expanded="false" aria-controls="collapse-${newProfileIndex}">
                                 New Profile ${newProfileIndex}
                             </button>
                         </h2>
