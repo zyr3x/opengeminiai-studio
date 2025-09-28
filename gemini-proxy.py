@@ -170,6 +170,12 @@ def chat_api():
                 }
                 gemini_contents[-1]['parts'].append(file_part)
 
+        # Calculate full_prompt_text for initial tool selection consideration
+        # Extract text from all messages to determine which tools might be relevant
+        full_prompt_text = " ".join(
+            [p.get("text", "") for m in gemini_contents for p in m.get("parts", []) if "text" in p]
+        )
+
         # --- Call Gemini API ---
         def generate():
             GEMINI_STREAMING_URL = f"{UPSTREAM_URL}/v1beta/models/{model}:streamGenerateContent"
@@ -177,64 +183,159 @@ def chat_api():
                 'Content-Type': 'application/json',
                 'X-goog-api-key': API_KEY
             }
-            request_data = {
-                "contents": gemini_contents,
-                "generationConfig": {  # Optional: configure output
-                    "temperature": 0.7,
-                    "topP": 1.0,
-                    "maxOutputTokens": 2048,
+
+            current_contents = gemini_contents.copy() # Make a mutable copy for conversation turns
+
+            while True: # Loop to handle sequential tool calls
+                # Truncate messages before each call to ensure they fit within the token limit
+                token_limit = utils.get_model_input_limit(model, API_KEY, UPSTREAM_URL)
+                safe_limit = int(token_limit * utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
+                original_message_count = len(current_contents)
+                current_contents = utils.truncate_contents(current_contents, safe_limit)
+                if len(current_contents) < original_message_count:
+                    utils.log(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages to fit context window.")
+
+                request_data = {
+                    "contents": current_contents,
+                    "generationConfig": {  # Optional: configure output
+                        "temperature": 0.7,
+                        "topP": 1.0,
+                        "maxOutputTokens": 2048,
+                    }
                 }
-            }
 
-            utils.log(
-                f"Outgoing Direct Chat Request URL: {GEMINI_STREAMING_URL}")
-            utils.log(
-                f"Outgoing Direct Chat Request Data (omitting file data): {utils.pretty_json({k: v for k, v in request_data.items() if k != 'contents' or not attached_files})}")
+                # Add tool declarations if MCP tools are configured
+                tools = mcp_handler.create_tool_declarations(full_prompt_text) # Use full_prompt_text for initial tool declaration
+                if tools: # No force_tools_enabled for direct chat_api, always enable if tools exist
+                    request_data["tools"] = tools
+                    request_data["tool_config"] = {
+                        "function_calling_config": {
+                            "mode": "AUTO" # Let Gemini decide
+                        }
+                    }
 
-            try:
-                response = requests.post(
-                    GEMINI_STREAMING_URL,
-                    headers=headers,
-                    json=request_data,
-                    stream=True,
-                    timeout=300
-                )
-                response.raise_for_status()
+                utils.log(
+                    f"Outgoing Direct Chat Request URL: {GEMINI_STREAMING_URL}")
+                utils.log(
+                    f"Outgoing Direct Chat Request Data: {utils.pretty_json(request_data)}")
+
+
+                response = None
+                try:
+                    response = requests.post(
+                        GEMINI_STREAMING_URL,
+                        headers=headers,
+                        json=request_data,
+                        stream=True,
+                        timeout=300
+                    )
+                    response.raise_for_status()
+                except (HTTPError, ConnectionError, Timeout, RequestException) as e:
+                    error_message = f"Error from upstream Gemini API: {e}"
+                    print(error_message)
+                    yield f"ERROR: {error_message}"
+                    return # Exit generator on error
 
                 # Process and yield the streaming response
                 buffer = ""
                 decoder = json.JSONDecoder()
+                tool_calls = []
+                model_response_parts = []
+
                 for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
                     buffer += chunk
-                    # Similar parsing logic as in chat_completions
                     while True:
+                        # Find the start of a JSON object
                         start_index = buffer.find('{')
                         if start_index == -1:
-                            if len(buffer) > 65536: buffer = buffer[-32768:]
+                            # No start of object in buffer, wait for more data
+                            # prevent unbounded growth on malformed input
+                            if len(buffer) > 65536:
+                                buffer = buffer[-32768:]
                             break
+
+                        # Drop any non-JSON prefix (SSE noise, commas, brackets, newlines)
                         if start_index > 0:
                             buffer = buffer[start_index:]
+
                         try:
                             json_data, end_index = decoder.raw_decode(buffer)
                             buffer = buffer[end_index:]
 
-                            text_content = ""
                             parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-                            for part in parts:
-                                if 'text' in part:
-                                    text_content += part['text']
 
-                            if text_content:
-                                # Yield just the text content for the simple UI
-                                yield text_content
+                            # Handle metadata-only chunks gracefully
+                            if not parts and 'usageMetadata' in json_data:
+                                pass
+                            else:
+                                model_response_parts.extend(parts)
+                                text_content = ""
+                                for part in parts:
+                                    if 'text' in part:
+                                        text_content += part['text']
+                                    if 'functionCall' in part:
+                                        tool_calls.append(part['functionCall'])
+
+                                if text_content:
+                                    # Yield just the text content for the simple UI
+                                    yield text_content
 
                         except json.JSONDecodeError:
                             break  # Need more data
 
-            except (HTTPError, ConnectionError, Timeout, RequestException) as e:
-                error_message = f"Error from upstream Gemini API: {e}"
-                print(error_message)
-                yield f"ERROR: {error_message}"
+                # After stream for this turn is exhausted
+                if not tool_calls:
+                    break # No tool calls, conversation is finished
+
+                # If tool calls were made, append model's response and then tool results
+                utils.log(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
+                current_contents.append({
+                    "role": "model",
+                    "parts": model_response_parts
+                })
+
+                tool_response_parts = []
+                for tool_call in tool_calls:
+                    function_name = tool_call.get("name")
+                    tool_args = tool_call.get("args")
+                    output = mcp_handler.execute_mcp_tool(function_name, tool_args)
+
+                    # Try to parse tool output as JSON for structured responses; ensure response is an object
+                    response_payload = None
+                    if isinstance(output, str):
+                        try:
+                            parsed_output = json.loads(output)
+                            # Ensure object; wrap non-dicts
+                            if isinstance(parsed_output, dict):
+                                response_payload = parsed_output
+                            else:
+                                response_payload = {"content": parsed_output}
+                        except json.JSONDecodeError:
+                            # Not JSON -> treat as plain text
+                            response_payload = {"text": output}
+                    else:
+                        # Non-string output
+                        if isinstance(output, dict):
+                            response_payload = output
+                        elif output is None:
+                            response_payload = {"text": ""}
+                        else:
+                            response_payload = {"content": output}
+
+                    tool_response_parts.append({
+                        "functionResponse": {
+                            "name": function_name,
+                            "response": response_payload
+                        }
+                    })
+
+                current_contents.append({
+                    "role": "tool",
+                    "parts": tool_response_parts
+                })
+                # Loop will continue to call Gemini with tool results
+
+            # No explicit "DONE" for text/plain, just generator ending
 
         return Response(generate(), mimetype='text/plain')
 
