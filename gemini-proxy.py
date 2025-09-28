@@ -23,6 +23,7 @@ import json
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from dotenv import load_dotenv, set_key
 from datetime import datetime # Import datetime
+import base64
 
 import mcp_handler
 import utils
@@ -119,6 +120,128 @@ def set_prompt_config():
 
     utils.load_prompt_config()
     return redirect(url_for('index', _anchor='prompts'))
+
+
+@app.route('/chat_api', methods=['POST'])
+def chat_api():
+    """
+    Handles direct chat requests from the web UI.
+    This is NOT an OpenAI proxy endpoint.
+    """
+    if not API_KEY:
+        return jsonify({"error": "API key not configured."}), 401
+
+    try:
+        model = request.form.get('model', 'gemini-1.5-flash-latest')
+        messages_json = request.form.get('messages', '[]')
+        messages = json.loads(messages_json)
+        image_file = request.files.get('image')
+
+        # --- Construct Gemini contents ---
+        gemini_contents = []
+        for message in messages:
+            role = "model" if message.get("role") == "assistant" else "user"
+            content = message.get("content")
+
+            gemini_parts = []
+            if isinstance(content, str) and content:
+                gemini_parts.append({"text": content})
+
+            if gemini_parts:
+                gemini_contents.append({"role": role, "parts": gemini_parts})
+
+        # Add image to the last user message if it exists
+        if image_file:
+            # Ensure the last message is from the user to attach the image
+            if gemini_contents and gemini_contents[-1]['role'] == 'user':
+                img_bytes = image_file.read()
+                img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+                mime_type = image_file.mimetype
+
+                image_part = {
+                    "inline_data": {
+                        "mime_type": mime_type,
+                        "data": img_base64
+                    }
+                }
+                gemini_contents[-1]['parts'].append(image_part)
+            else:
+                # Should not happen with current UI logic, but handle it
+                print("Warning: Image uploaded but no final user message to attach it to.")
+
+        # --- Call Gemini API ---
+        def generate():
+            GEMINI_STREAMING_URL = f"{UPSTREAM_URL}/v1beta/models/{model}:streamGenerateContent"
+            headers = {
+                'Content-Type': 'application/json',
+                'X-goog-api-key': API_KEY
+            }
+            request_data = {
+                "contents": gemini_contents,
+                "generationConfig": {  # Optional: configure output
+                    "temperature": 0.7,
+                    "topP": 1.0,
+                    "maxOutputTokens": 2048,
+                }
+            }
+
+            utils.log(
+                f"Outgoing Direct Chat Request URL: {GEMINI_STREAMING_URL}")
+            utils.log(
+                f"Outgoing Direct Chat Request Data (omitting image data): {utils.pretty_json({k: v for k, v in request_data.items() if k != 'contents' or not image_file})}")
+
+            try:
+                response = requests.post(
+                    GEMINI_STREAMING_URL,
+                    headers=headers,
+                    json=request_data,
+                    stream=True,
+                    timeout=300
+                )
+                response.raise_for_status()
+
+                # Process and yield the streaming response
+                buffer = ""
+                decoder = json.JSONDecoder()
+                for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
+                    buffer += chunk
+                    # Similar parsing logic as in chat_completions
+                    while True:
+                        start_index = buffer.find('{')
+                        if start_index == -1:
+                            if len(buffer) > 65536: buffer = buffer[-32768:]
+                            break
+                        if start_index > 0:
+                            buffer = buffer[start_index:]
+                        try:
+                            json_data, end_index = decoder.raw_decode(buffer)
+                            buffer = buffer[end_index:]
+
+                            text_content = ""
+                            parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+                            for part in parts:
+                                if 'text' in part:
+                                    text_content += part['text']
+
+                            if text_content:
+                                # Yield just the text content for the simple UI
+                                yield text_content
+
+                        except json.JSONDecodeError:
+                            break  # Need more data
+
+            except (HTTPError, ConnectionError, Timeout, RequestException) as e:
+                error_message = f"Error from upstream Gemini API: {e}"
+                print(error_message)
+                yield f"ERROR: {error_message}"
+
+        return Response(generate(), mimetype='text/plain')
+
+    except Exception as e:
+        error_message = f"An error occurred in chat API: {str(e)}"
+        print(error_message)
+        return jsonify({"error": error_message}), 500
+
 
 @app.route('/', methods=['GET'])
 def index():
