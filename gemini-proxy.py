@@ -245,43 +245,56 @@ def chat_api():
                 for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
                     buffer += chunk
                     while True:
-                        # Find the start of a JSON object
-                        start_index = buffer.find('{')
-                        if start_index == -1:
-                            # No start of object in buffer, wait for more data
+                        # Trim leading whitespace. This is important for handling streams that might have newlines.
+                        buffer = buffer.lstrip()
+
+                        # If buffer is empty after stripping, we need more data.
+                        if not buffer:
+                            break
+
+                        try:
+                            # Attempt to decode a JSON object from the beginning of the buffer.
+                            json_data, end_index = decoder.raw_decode(buffer)
+
+                            # If successful, slice the buffer to remove the parsed object.
+                            buffer = buffer[end_index:]
+
+                            # The streamed response can be a single JSON object or a list of them
+                            if isinstance(json_data, list):
+                                response_chunks = json_data
+                            else:
+                                response_chunks = [json_data]
+
+                            for response_chunk in response_chunks:
+                                # Ensure the chunk is a dict before processing
+                                if not isinstance(response_chunk, dict):
+                                    continue
+
+                                parts = response_chunk.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+
+                                # Handle metadata-only chunks gracefully
+                                if not parts and 'usageMetadata' in response_chunk:
+                                    pass
+                                else:
+                                    model_response_parts.extend(parts)
+                                    text_content = ""
+                                    for part in parts:
+                                        if 'text' in part:
+                                            text_content += part['text']
+                                        if 'functionCall' in part:
+                                            tool_calls.append(part['functionCall'])
+
+                                    if text_content:
+                                        # Yield just the text content for the simple UI
+                                        yield text_content
+
+                        except json.JSONDecodeError:
+                            # If decoding fails, it's likely an incomplete JSON object.
+                            # We break the inner loop to wait for more chunks to be added to the buffer.
                             # prevent unbounded growth on malformed input
                             if len(buffer) > 65536:
                                 buffer = buffer[-32768:]
                             break
-
-                        # Drop any non-JSON prefix (SSE noise, commas, brackets, newlines)
-                        if start_index > 0:
-                            buffer = buffer[start_index:]
-
-                        try:
-                            json_data, end_index = decoder.raw_decode(buffer)
-                            buffer = buffer[end_index:]
-
-                            parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-
-                            # Handle metadata-only chunks gracefully
-                            if not parts and 'usageMetadata' in json_data:
-                                pass
-                            else:
-                                model_response_parts.extend(parts)
-                                text_content = ""
-                                for part in parts:
-                                    if 'text' in part:
-                                        text_content += part['text']
-                                    if 'functionCall' in part:
-                                        tool_calls.append(part['functionCall'])
-
-                                if text_content:
-                                    # Yield just the text content for the simple UI
-                                    yield text_content
-
-                        except json.JSONDecodeError:
-                            break  # Need more data
 
                 # After stream for this turn is exhausted
                 if not tool_calls:
