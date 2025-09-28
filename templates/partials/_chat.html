@@ -3,7 +3,7 @@
         <div class="row h-100">
             <!-- Chat History -->
             <div class="col-12 h-100 d-flex flex-column">
-                <div class="card flex-grow-1">
+                <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Gemini Chat</h5>
                         <div class="d-flex align-items-center gap-2">
@@ -23,17 +23,21 @@
                         </div>
                     </div>
                     <div class="card-footer chat-input-area">
-                        <!-- Image Preview -->
-                        <div id="image-preview-container" class="mb-2" style="display: none;">
-                            <img id="image-preview" src="" alt="Image preview"/>
-                            <button id="remove-image-btn" class="btn btn-sm btn-danger">&times;</button>
+                        <!-- File Preview -->
+                        <div id="file-preview-container" class="mb-2" style="display: none;">
+                            <img id="image-preview" src="" alt="Image preview" style="display: none;height:150px;width:auto;"/>
+                            <div id="generic-file-preview" class="alert alert-secondary p-2 d-flex align-items-center" style="display: none;">
+                                <span class="material-icons me-2">description</span>
+                                <span id="file-preview-name"></span>
+                            </div>
+                            <button id="remove-file-btn" class="btn btn-sm btn-danger">&times;</button>
                         </div>
                         <form id="chat-form" class="d-flex">
                              <div class="input-group">
-                                <button class="btn btn-outline-secondary" type="button" id="attach-image-btn" title="Attach Image">
-                                    <span class="material-icons">add_photo_alternate</span>
+                                <button class="btn btn-outline-secondary" type="button" id="attach-file-btn" title="Attach File">
+                                    <span class="material-icons">attach_file</span>
                                 </button>
-                                <input type="file" id="image-upload" accept="image/*" style="display: none;">
+                                <input type="file" id="file-upload" accept="image/*,application/pdf" style="display: none;">
                                 <textarea id="chat-input" class="form-control" placeholder="Type your message..." rows="1"></textarea>
                                 <button id="send-btn" class="btn btn-primary" type="submit">
                                     <span class="material-icons">send</span>

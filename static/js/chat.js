@@ -10,14 +10,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const sendBtn = document.getElementById('send-btn');
     const modelSelect = document.getElementById('model-select');
     const newChatBtn = document.getElementById('new-chat-btn');
-    const attachImageBtn = document.getElementById('attach-image-btn');
-    const imageUpload = document.getElementById('image-upload');
-    const imagePreviewContainer = document.getElementById('image-preview-container');
+    const attachFileBtn = document.getElementById('attach-file-btn');
+    const fileUpload = document.getElementById('file-upload');
+    const filePreviewContainer = document.getElementById('file-preview-container');
     const imagePreview = document.getElementById('image-preview');
-    const removeImageBtn = document.getElementById('remove-image-btn');
+    const genericFilePreview = document.getElementById('generic-file-preview');
+    const filePreviewName = document.getElementById('file-preview-name');
+    const removeFileBtn = document.getElementById('remove-file-btn');
 
     let conversationHistory = []; // Stores {role: 'user'/'assistant', content: '...'}
-    let attachedImageFile = null;
+    let attachedFile = null;
     const initialChatHistoryHTML = chatHistory.innerHTML;
 
 
@@ -36,33 +38,48 @@ document.addEventListener('DOMContentLoaded', function () {
     function resetChat() {
         conversationHistory = [];
         chatHistory.innerHTML = initialChatHistoryHTML;
-        removeImageBtn.click();
+        removeFileBtn.click();
         chatInput.value = '';
         adjustTextareaHeight();
         chatInput.focus();
     }
 
-    function addMessageToHistory(role, content, imageUrl = null) {
+    function addMessageToHistory(role, content, file = null) {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', role === 'user' ? 'user-message' : 'bot-message');
 
         const contentDiv = document.createElement('div');
         contentDiv.classList.add('message-content');
 
-        let htmlContent = '';
+        let textContent = '';
         if (role === 'user') {
-            // For user messages, escape HTML to prevent self-XSS and convert newlines
-            htmlContent = escapeHtml(content).replace(/\n/g, '<br>');
+            textContent = escapeHtml(content).replace(/\n/g, '<br>');
         } else {
-            // For bot messages, parse Markdown and sanitize the output for security
-            htmlContent = DOMPurify.sanitize(marked.parse(content, { gfm: true, breaks: true }));
+            textContent = DOMPurify.sanitize(marked.parse(content, { gfm: true, breaks: true }));
         }
 
-        if (imageUrl) {
-             htmlContent += `<img src="${imageUrl}" alt="Attached image" class="attached-image">`;
+        let fileHtml = '';
+        if (file) {
+            if (file.type.startsWith('image/')) {
+                const imageUrl = URL.createObjectURL(file);
+                fileHtml = `<img src="${imageUrl}" alt="Attached image" class="attached-image">`;
+            } else {
+                fileHtml = `
+                <div class="attached-file">
+                    <span class="material-icons">description</span>
+                    <span>${escapeHtml(file.name)}</span>
+                </div>`;
+            }
         }
 
-        contentDiv.innerHTML = htmlContent;
+        // Combine text and file attachment HTML, ensuring text comes first if it exists
+        contentDiv.innerHTML = textContent ? textContent + fileHtml : fileHtml;
+        // If there's only a file and no text, don't add an extra line break for user messages
+        if (file && !content) {
+             const br = contentDiv.querySelector('br');
+             if (br) br.remove();
+        }
+
         messageDiv.appendChild(contentDiv);
         chatHistory.appendChild(messageDiv);
         chatHistory.scrollTop = chatHistory.scrollHeight; // Scroll to bottom
@@ -107,42 +124,57 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    attachImageBtn.addEventListener('click', () => imageUpload.click());
+    attachFileBtn.addEventListener('click', () => fileUpload.click());
 
-    imageUpload.addEventListener('change', function(event) {
+    fileUpload.addEventListener('change', function(event) {
         const file = event.target.files[0];
         if (file) {
-            attachedImageFile = file;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imagePreview.src = e.target.result;
-                imagePreviewContainer.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
+            attachedFile = file;
+            filePreviewContainer.style.display = 'block';
+
+            if (file.type.startsWith('image/')) {
+                imagePreview.style.display = 'block';
+                genericFilePreview.style.display = 'none';
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else { // Handle PDF and other files
+                imagePreview.style.display = 'none';
+                genericFilePreview.style.display = 'flex';
+                filePreviewName.textContent = file.name;
+            }
         }
     });
 
-    removeImageBtn.addEventListener('click', () => {
-        attachedImageFile = null;
-        imageUpload.value = ''; // Reset file input
-        imagePreviewContainer.style.display = 'none';
+    removeFileBtn.addEventListener('click', () => {
+        attachedFile = null;
+        fileUpload.value = ''; // Reset file input
+        filePreviewContainer.style.display = 'none';
         imagePreview.src = '';
+        imagePreview.style.display = 'none';
+        genericFilePreview.style.display = 'none';
+        filePreviewName.textContent = '';
     });
 
     chatForm.addEventListener('submit', async function(event) {
         event.preventDefault();
         const userInput = chatInput.value.trim();
-        if (!userInput && !attachedImageFile) return;
+        if (!userInput && !attachedFile) return;
 
         // --- Display user's message ---
-        const userImagePreviewUrl = attachedImageFile ? URL.createObjectURL(attachedImageFile) : null;
-        addMessageToHistory('user', userInput, userImagePreviewUrl);
-        conversationHistory.push({ role: 'user', content: userInput });
+        addMessageToHistory('user', userInput, attachedFile);
+        if (userInput) {
+            conversationHistory.push({ role: 'user', content: userInput });
+        }
+
+        const fileToSend = attachedFile; // Keep a reference to the file
 
         // Clear input and reset for next message
         chatInput.value = '';
         adjustTextareaHeight();
-        removeImageBtn.click(); // Clear image preview
+        removeFileBtn.click(); // Clear file preview
 
         // --- Prepare for bot response ---
         showTypingIndicator();
@@ -153,8 +185,8 @@ document.addEventListener('DOMContentLoaded', function () {
         formData.append('model', modelSelect.value);
         // Send only the last N messages to manage context window, or implement a more complex strategy
         formData.append('messages', JSON.stringify(conversationHistory)); 
-        if (attachedImageFile) {
-            formData.append('image', attachedImageFile);
+        if (fileToSend) {
+            formData.append('file', fileToSend);
         }
 
         try {
@@ -204,7 +236,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } finally {
             sendBtn.disabled = false;
             chatInput.focus();
-            attachedImageFile = null; // Clear file after sending
+            // attachedFile is already cleared by removeFileBtn.click()
         }
     });
 

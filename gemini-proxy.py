@@ -135,7 +135,7 @@ def chat_api():
         model = request.form.get('model', 'gemini-1.5-flash-latest')
         messages_json = request.form.get('messages', '[]')
         messages = json.loads(messages_json)
-        image_file = request.files.get('image')
+        attached_file = request.files.get('file')
 
         # --- Construct Gemini contents ---
         gemini_contents = []
@@ -150,24 +150,24 @@ def chat_api():
             if gemini_parts:
                 gemini_contents.append({"role": role, "parts": gemini_parts})
 
-        # Add image to the last user message if it exists
-        if image_file:
-            # Ensure the last message is from the user to attach the image
+        # Add attached file to the last user message if it exists
+        if attached_file:
+            # Ensure the last message is from the user to attach the file
             if gemini_contents and gemini_contents[-1]['role'] == 'user':
-                img_bytes = image_file.read()
-                img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-                mime_type = image_file.mimetype
+                file_bytes = attached_file.read()
+                file_base64 = base64.b64encode(file_bytes).decode('utf-8')
+                mime_type = attached_file.mimetype
 
-                image_part = {
+                file_part = {
                     "inline_data": {
                         "mime_type": mime_type,
-                        "data": img_base64
+                        "data": file_base64
                     }
                 }
-                gemini_contents[-1]['parts'].append(image_part)
+                gemini_contents[-1]['parts'].append(file_part)
             else:
                 # Should not happen with current UI logic, but handle it
-                print("Warning: Image uploaded but no final user message to attach it to.")
+                print("Warning: File uploaded but no final user message to attach it to.")
 
         # --- Call Gemini API ---
         def generate():
@@ -188,7 +188,7 @@ def chat_api():
             utils.log(
                 f"Outgoing Direct Chat Request URL: {GEMINI_STREAMING_URL}")
             utils.log(
-                f"Outgoing Direct Chat Request Data (omitting image data): {utils.pretty_json({k: v for k, v in request_data.items() if k != 'contents' or not image_file})}")
+                f"Outgoing Direct Chat Request Data (omitting file data): {utils.pretty_json({k: v for k, v in request_data.items() if k != 'contents' or not attached_file})}")
 
             try:
                 response = requests.post(
