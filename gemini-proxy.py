@@ -147,7 +147,8 @@ def index():
         "triggers": ["[Diff]"],
         "overrides": {
           "Write a short and professional commit message for the following changes:": "Write a short and professional commit message for the following changes:"
-        }
+        },
+        "disable_tools": True
       }
     }
 
@@ -239,8 +240,8 @@ def chat_completions():
                             if trigger in full_prompt_text:
                                 active_profile_name = profile_name
                                 active_overrides = profile_data.get('overrides', {})
-                                # If it's a commit message profile, do not send tools
-                                if active_profile_name == "commit_message":
+                                # Check for a flag to disable tools
+                                if profile_data.get('disable_tools', False):
                                     force_tools_enabled = False
                                 utils.log(f"Prompt profile matched: '{profile_name}'")
                                 break
