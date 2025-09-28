@@ -1,53 +1,51 @@
-<!-- Home Section -->
-<div id="home" class="content-section">
-    <h1 class="my-4">🤖 OpenGeminiAI Studio</h1>
-    <p class="lead">This is a lightweight server that translates requests from an OpenAI-compatible client (like JetBrains AI Assistant) to Google's Gemini API.</p>
+<!-- Landing Section -->
+<div id="home" class="content-section text-center">
+    <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="OpenGeminiAI Studio Logo" class="img-fluid mb-4" style="max-height: 150px;">
+    <h1 class="display-3 fw-bold mb-3">Welcome to OpenGeminiAI Studio</h1>
+    <p class="lead mb-5">Your bridge to intelligent AI experiences, powered by Google's Gemini API.</p>
 
-    <h2 class="mt-4">✨ What It Does</h2>
-    <ul>
-        <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/models</code>.</li>
-        <li>Transforms the request format from OpenAI's structure to Gemini's structure.</li>
-        <li>Handles streaming responses for chat completions.</li>
-        <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
-        <li>Caches model lists to reduce upstream API calls.</li>
-        <li>Supports multimodal requests (text and images).</li>
-        <li>Supports MCP tools for function calling.</li>
-    </ul>
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <p class="fs-5 mb-4">
+                OpenGeminiAI Studio provides a lightweight server that seamlessly translates requests from
+                OpenAI-compatible clients, like JetBrains AI Assistant, to the powerful Google Gemini API.
+                Get started quickly and integrate cutting-edge AI capabilities into your development workflow.
+            </p>
+            <a href="/#documentation" class="btn btn-primary btn-lg me-3">Learn More in Documentation</a>
+            <a href="/#configuration" class="btn btn-outline-secondary btn-lg">Configure Your Studio</a>
+        </div>
+    </div>
 
-    <h2 class="mt-4">🚀 How to Use</h2>
-
-    <h3>1. Setup and Run</h3>
-    <p>Before running the server, you need to set one environment variable (or use the form above for the API Key):</p>
-    <pre><code class="language-bash">
- export API_KEY="YOUR_GEMINI_API_KEY"
- export UPSTREAM_URL="https://generativelanguage.googleapis.com"
-    </code></pre>
-    <p>Then, run the server:</p>
-    <pre><code class="language-bash">
- python3.12 -m venv
- source venv/bin/activate
- pip install -r requirements.txt
- python3.12 gemini-proxy.py
-    </code></pre>
-    <p>or Docker Version</p>
-    <pre><code class="language-bash">docker-composer up -d</code></pre>
-    <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
-
-
-    <h3 class="mt-4">2. Configure JetBrains AI Assistant</h3>
-    <p>To use this proxy with JetBrains IDEs:</p>
-    <ol>
-        <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code> > <code>Models</code>).</li>
-        <li>Select the "OpenAI API" service.</li>
-        <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1/</code></li>
-        <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
-    </ol>
-    <p class="alert alert-info"><b>Note:</b> The path must end with <code>/v1/</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
-
-    <h2 class="mt-4">📡 Available Endpoints</h2>
-    <ul>
-        <li><code>GET /</code>: This documentation and setup page.</li>
-        <li><code>GET /v1/models</code>: Lists available Gemini models in OpenAI format.</li>
-        <li><code>POST /v1/chat/completions</code>: The main endpoint for chat completions. Supports streaming.</li>
-    </ul>
+    <div class="mt-5 pt-4 border-top">
+        <h2 class="mb-4">Key Features</h2>
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            <div class="col">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body">
+                        <span class="material-icons text-primary mb-3" style="font-size: 48px;">link</span>
+                        <h5 class="card-title fw-bold">OpenAI Compatibility</h5>
+                        <p class="card-text">Connect your favorite OpenAI-compatible tools and IDEs with ease.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body">
+                        <span class="material-icons text-success mb-3" style="font-size: 48px;">flash_on</span>
+                        <h5 class="card-title fw-bold">Gemini API Power</h5>
+                        <p class="card-text">Leverage Google's advanced Gemini models for superior AI capabilities.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body">
+                        <span class="material-icons text-info mb-3" style="font-size: 48px;">construction</span>
+                        <h5 class="card-title fw-bold">MCP Tools & Function Calling</h5>
+                        <p class="card-text">Integrate custom tools and enable powerful function calling for complex tasks.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
