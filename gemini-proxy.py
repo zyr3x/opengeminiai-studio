@@ -245,12 +245,17 @@ def chat_api():
                 for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
                     buffer += chunk
                     while True:
-                        # Trim leading whitespace. This is important for handling streams that might have newlines.
-                        buffer = buffer.lstrip()
-
-                        # If buffer is empty after stripping, we need more data.
-                        if not buffer:
+                        # Find the start of a JSON object
+                        start_index = buffer.find('{')
+                        if start_index == -1:
+                            # No start of object in buffer, wait for more data
+                            if len(buffer) > 65536:  # prevent unbounded growth
+                                buffer = buffer[-32768:]
                             break
+
+                        # Drop any non-JSON prefix (e.g., newlines, leading brackets/commas)
+                        if start_index > 0:
+                            buffer = buffer[start_index:]
 
                         try:
                             # Attempt to decode a JSON object from the beginning of the buffer.
@@ -259,40 +264,32 @@ def chat_api():
                             # If successful, slice the buffer to remove the parsed object.
                             buffer = buffer[end_index:]
 
-                            # The streamed response can be a single JSON object or a list of them
-                            if isinstance(json_data, list):
-                                response_chunks = json_data
+                            # Process the valid JSON object
+                            if not isinstance(json_data, dict):
+                                continue
+
+                            parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+
+                            # Handle metadata-only chunks gracefully
+                            if not parts and 'usageMetadata' in json_data:
+                                pass
                             else:
-                                response_chunks = [json_data]
+                                model_response_parts.extend(parts)
+                                text_content = ""
+                                for part in parts:
+                                    if 'text' in part:
+                                        text_content += part['text']
+                                    if 'functionCall' in part:
+                                        tool_calls.append(part['functionCall'])
 
-                            for response_chunk in response_chunks:
-                                # Ensure the chunk is a dict before processing
-                                if not isinstance(response_chunk, dict):
-                                    continue
-
-                                parts = response_chunk.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-
-                                # Handle metadata-only chunks gracefully
-                                if not parts and 'usageMetadata' in response_chunk:
-                                    pass
-                                else:
-                                    model_response_parts.extend(parts)
-                                    text_content = ""
-                                    for part in parts:
-                                        if 'text' in part:
-                                            text_content += part['text']
-                                        if 'functionCall' in part:
-                                            tool_calls.append(part['functionCall'])
-
-                                    if text_content:
-                                        # Yield just the text content for the simple UI
-                                        yield text_content
+                                if text_content:
+                                    # Yield just the text content for the simple UI
+                                    yield text_content
 
                         except json.JSONDecodeError:
                             # If decoding fails, it's likely an incomplete JSON object.
                             # We break the inner loop to wait for more chunks to be added to the buffer.
-                            # prevent unbounded growth on malformed input
-                            if len(buffer) > 65536:
+                            if len(buffer) > 65536:  # prevent unbounded growth
                                 buffer = buffer[-32768:]
                             break
 
