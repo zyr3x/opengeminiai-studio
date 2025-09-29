@@ -44,6 +44,7 @@ def chat_completions():
                                 active_overrides = profile_data.get('overrides', {})
                                 # Check for a flag to disable tools
                                 if profile_data.get('disable_tools', False):
+                                    utils.log(f"MCP Tools Disabled")
                                     force_tools_enabled = False
                                 utils.log(f"Prompt profile matched: '{profile_name}'")
                                 break
