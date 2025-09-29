@@ -1,127 +1,136 @@
-# Gemini API to OpenAI Proxy
+# OpenGeminiAI Studio V1
 
-This project provides a simple and efficient Python proxy that allows you to use Google's Gemini API (Generative Language API) with clients originally designed for the OpenAI API.
+<!-- TODO: Add a real project logo -->
+[![Project Logo](static/img/logo.svg)](http://localhost:8080/)
 
-It forwards requests from OpenAI-compatible endpoints (e.g., `/v1/chat/completions`) to the corresponding Google API endpoints, automatically injecting your API key.
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/username/repo)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
+
+A simple, efficient Python proxy that allows you to use Google's Gemini API with clients and tools designed for the OpenAI API. Bridge the gap and use your favorite OpenAI-native applications with the power of Gemini models.
+
+This proxy includes a web interface for easy configuration, chat, and management of MCP (Multi-Tool Communication Protocol) tools for advanced function calling.
 
 ## ✨ Features
 
--   **OpenAI Compatibility:** Use your favorite OpenAI-native tools and libraries to access Google Gemini models.
--   **Web-based Configuration Interface:** Easily configure your API key and MCP tools via a simple web UI.
--   **MCP (Multi-Tool Communication Protocol) Tools Support:** Enables advanced function calling capabilities with Gemini models.
--   **Easy Deployment:** Runs with a single command using Docker and Docker Compose.
--   **Flexible Configuration:** All settings (API key, upstream URL, MCP config) can be managed via the web UI or environment variables/files.
--   **Rapid Development:** Python configuration changes are applied by simply restarting the container, no image rebuild required.
--   **Lightweight:** Uses the official `Python:3.12` image for a minimal resource footprint.
+-   **OpenAI API Compatibility:** Seamlessly use Gemini models with tools built for the OpenAI API.
+-   **Web Interface:** A user-friendly UI to configure your API key, manage prompts, define MCP tools, and test models in a chat interface.
+-   **MCP Tools Support:** Enables powerful, structured function calling capabilities with Gemini.
+-   **Easy Deployment:** Get up and running in minutes with a single Docker command.
+-   **Flexible Configuration:** Manage settings via the web UI, `.env` file, or environment variables.
+-   **Lightweight & Fast:** Built on Flask with a minimal resource footprint using the official Python 3.12 image.
 
-## ⚙️ Prerequisites
+## 🚀 Quick Start with Docker
+
+Get the proxy running in just a few steps.
+
+### Prerequisites
 
 -   [Docker](https://www.docker.com/get-started)
--   [Docker Compose](https://docs.docker.com/compose/install/) (usually included with Docker Desktop)
-
-## 🚀 Getting Started
+-   [Docker Compose](https://docs.docker.com/compose/install/) (included with Docker Desktop)
 
 ### 1. Clone the Repository
 
-```bash
-git clone <your-repository-url>
-cd <repository-name>
+```
+bash git clone <your-repository-url> cd <repository-name>
 ```
 
-### 2. Create the Configuration File
 
-Create a `.env` file in the project's root directory. You can copy `.env.example` if it exists, or create a new one with the following content:
+### 2. Get Your Gemini API Key
 
-**.env**
-```dotenv
-# Your API key from Google AI
-API_KEY=<API_KEY>
+1.  Navigate to [Google AI Studio](https://aistudio.google.com/app/apikey).
+2.  Click **"Create API key in new project"**.
+3.  Copy the generated key.
 
-# The upstream URL for the Google Gemini API
-UPSTREAM_URL=https://generativelanguage.googleapis.com
-```
+### 3. Configure and Run
 
-### 3. Get Your API Key
+1.  Create a `.env` file in the project root (you can copy `.env.example`).
+2.  Add your API key to the `.env` file:
+    ```dotenv
+    # .env
+    API_KEY=<PASTE_YOUR_GEMINI_API_KEY_HERE>
+    UPSTREAM_URL=https://generativelanguage.googleapis.com
+    ```
+3.  Start the service using Docker Compose:
+    ```bash
+    docker-compose up -d
+    ```
 
--   Go to [Google AI Studio](https://aistudio.google.com/app/apikey).
--   Log in with your Google account.
--   Click on the **"Create API key in new project"** button.
--   Copy the generated key and paste it as the `API_KEY` value in your `.env` file.
-
-### 4. Run the Proxy
-
-Execute the following command in your terminal:
-
-```bash
-docker-compose up -d
-```
-This command will pull the Python image (if you don't have it) and start the container in the background. The proxy will be available at `http://localhost:8080`.
+The proxy is now running and accessible at `http://localhost:8080`.
 
 ## 💻 How to Use the Proxy
 
-You can now configure your OpenAI clients to point to this proxy.
+Point your OpenAI-compatible client to the proxy's base URL: `http://localhost:8080/v1`
 
--   **Base URL:** `http://localhost:8080/v1`
+### Example: `curl`
 
-### Example with `curl`
+Fetch the list of available models:
 
-```bash
-curl http://localhost:8080/v1/models 
+```
+bash curl http://localhost:8080/v1/models
 ```
 
-### Example with the OpenAI Python Client
 
+### Example: OpenAI Python Client
 ```python
+
 import openai
-
-client = openai.OpenAI(
-    base_url="http://localhost:8080/v1"
-)
-
-# List available models
-models = client.models.list()
-for model in models:
-    print(model.id)
-
-# Example chat request
-completion = client.chat.completions.create(
-    model="gemini-1.5-flash",
-    messages=[
-        {"role": "user", "content": "Write a short story about a friendly robot."},
-    ],
-)
+client = openai.OpenAI
+# List models
+for model in client.models.list(): print(model.id)
+# Chat request
+completion = client.chat.completions.create( model='gemini-2.5-flash-lite', messages= {'role':'user','content':'Tell me joe about AI.'})
 print(completion.choices[0].message.content)
 ```
 
-### `Example with JetBrains AI Assistant`
 
-To use the proxy with your JetBrains IDE's AI Assistant, you need to configure its base URL. This allows the AI Assistant to send requests to your local Gemini proxy instead of the default OpenAI endpoints.
+### Example: JetBrains AI Assistant
 
-1.  **Open JetBrains IDE Settings:** Go to `File` > `Settings` (Windows/Linux) or `PhpStorm` > `Settings` (macOS).
-2.  **Navigate to AI Assistant Settings:** In the settings dialog, search for `AI Assistant` or find it under `Tools` > `AI Assistant`.
-3.  **Configure Models:**
-    *   Select Provider **OpenAI API**.
-    *   Enable the `offline mode`.
-    *   Set the **"URL"** to:
-        ```
-        http://localhost:8080/v1
-        ```
+Integrate the proxy with your JetBrains IDE's AI Assistant.
 
-Your JetBrains AI Assistant should now route its requests through your local Gemini API proxy.
+1.  In your IDE, go to `Settings` > `Tools` > `AI Assistant`.
+2.  Select the **"OpenAI API"** service.
+3.  Set the **Server URL** to: `http://localhost:8080/v1/`
+4.  The API Key field can be left blank or filled with any text, as the proxy manages authentication.
+
+The IDE will automatically fetch the model list and route AI Assistant features through your local proxy.
+
+*Screenshot of JetBrains AI Assistant settings:*
+![JetBrains AI Assistant Configuration](/static/img/placeholder_jetbrains_config.png)
+<!-- TODO: Add screenshot of JetBrains AI Assistant configuration -->
 
 ## 🌐 Web Interface
 
-The proxy provides a simple web interface at the root URL (`http://localhost:8080`) for easy configuration:
+The proxy includes a comprehensive web interface at `http://localhost:8080` for configuration and testing.
 
--   **API Key Setup:** Enter your Google Gemini API key. This will update the key for the current session and save it to your `.env` file for persistence.
--   **MCP Tools Configuration:** Provide a JSON configuration for MCP tools. This will be saved to `mcp_config.json` and reloaded automatically.
+-   **Chat:** A simple interface to test models and conversation history.
+-   **Configuration:** Set your Gemini API Key and Upstream URL. Changes are saved to the `.env` file.
+-   **Prompts:** Create, edit, and manage a library of reusable prompts.
+-   **MCP:** Configure MCP (Multi-Tool Communication Protocol) tools for function calling.
+-   **Documentation:** View API endpoint details and setup instructions.
 
-## 🛠️ Modifying the Configuration
+*Screenshot of the Web Interface:*
+![OpenGeminiAI Studio Web Interface](/static/img/placeholder_web_ui.png)
+<!-- TODO: Add screenshot of the web UI -->
 
-If you need to change the proxy's behavior (e.g., add new endpoints or headers), you can edit the `gemini-proxy.py` file.
+## 🛠️ Configuration
+
+The proxy can be configured in three ways (in order of precedence):
+
+1.  **Web Interface:** Settings saved via the UI persist in `.env` and `mcp_config.json`.
+2.  **Environment Variables:** Set `API_KEY` and `UPSTREAM_URL` when running the container.
+3.  **Configuration Files:**
+    -   `.env`: For `API_KEY` and `UPSTREAM_URL`.
+    -   `mcp_config.json`: For MCP tool definitions.
+    -   `prompts.json`: For saved user prompts.
 
 ## 🔗 Available Endpoints
 
--   <code>GET /</code>: The web interface for documentation and setup.
--   <code>GET /v1/models</code>: Lists available Gemini models in OpenAI format.
--   <code>POST /v1/chat/completions</code>: The main endpoint for chat completions. Supports streaming and function calling.
+-   `GET /`: The main web interface.
+-   `GET /v1/models`: Lists available Gemini models in OpenAI format.
+-   `POST /v1/chat/completions`: The primary endpoint for chat completions, supporting streaming and function calling.
+
+## ⚖️ License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
+
