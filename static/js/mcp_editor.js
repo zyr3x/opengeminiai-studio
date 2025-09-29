@@ -82,6 +82,14 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <label class="form-label"><b>Server Name</b></label>
                                 <input type="text" class="form-control mcp-server-name-input" value="new_server_${mcpServerCounter}">
                             </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input mcp-enabled-input" type="checkbox" role="switch" id="mcp-enabled-${mcpServerCounter}" checked>
+                                <label class="form-check-label" for="mcp-enabled-${mcpServerCounter}"><b>Enabled</b></label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="mcp-priority-${mcpServerCounter}" class="form-label"><b>Priority</b></label>
+                                <input type="number" class="form-control mcp-priority-input" id="mcp-priority-${mcpServerCounter}" value="0" placeholder="0">
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label"><b>Command</b></label>
                                 <input type="text" class="form-control mcp-command-input" value="">
@@ -131,7 +139,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             }
                         });
 
-                        mcpData.mcpServers[serverName] = { command, args, env };
+                        const enabled = item.querySelector('.mcp-enabled-input').checked;
+                        const priority = parseInt(item.querySelector('.mcp-priority-input').value, 10) || 0;
+
+                        mcpData.mcpServers[serverName] = { command, args, env, enabled, priority };
                     }
                 });
 

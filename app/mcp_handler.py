@@ -231,7 +231,19 @@ def load_mcp_config():
 
 
     if mcp_config.get("mcpServers"):
-        for tool_name, tool_info in mcp_config["mcpServers"].items():
+        # Sort servers by priority (higher first), default 0
+        sorted_servers = sorted(
+            mcp_config["mcpServers"].items(),
+            key=lambda item: item[1].get('priority', 0),
+            reverse=True
+        )
+
+        for tool_name, tool_info in sorted_servers:
+            # Skip disabled tools (defaults to enabled if 'enabled' key is missing)
+            if not tool_info.get('enabled', True):
+                log(f"Skipping disabled tool: '{tool_name}'.")
+                continue
+
             declarations = get_declarations_from_tool(tool_name, tool_info)
             mcp_function_declarations.extend(declarations)
             for decl in declarations:

@@ -26,6 +26,14 @@
                                 <label class="form-label"><b>Server Name</b></label>
                                 <input type="text" class="form-control mcp-server-name-input" value="{{ server_name }}">
                             </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input mcp-enabled-input" type="checkbox" role="switch" id="mcp-enabled-{{ loop.index }}" {% if server_details.get('enabled', True) %}checked{% endif %}>
+                                <label class="form-check-label" for="mcp-enabled-{{ loop.index }}"><b>Enabled</b></label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="mcp-priority-{{ loop.index }}" class="form-label"><b>Priority</b></label>
+                                <input type="number" class="form-control mcp-priority-input" id="mcp-priority-{{ loop.index }}" value="{{ server_details.get('priority', 0) }}" placeholder="0">
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label"><b>Command</b></label>
                                 <input type="text" class="form-control mcp-command-input" value="{{ server_details.command or '' }}">
