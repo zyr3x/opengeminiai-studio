@@ -11,7 +11,7 @@ import re
 VERBOSE_LOGGING = True
 
 # --- Prompt Engineering Config ---
-PROMPT_OVERRIDES_FILE = 'prompt_config.json'
+PROMPT_OVERRIDES_FILE = 'var/config/prompt.json'
 prompt_overrides = {}
 
 # --- Caches for model info ---

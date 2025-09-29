@@ -8,11 +8,11 @@ import shlex
 import select
 import time
 
-from utils import log
+from .utils import log
 
 # --- MCP Tool Configuration ---
 mcp_config = {}
-MCP_CONFIG_FILE = 'mcp_config.json'
+MCP_CONFIG_FILE = 'var/config/mcp.json'
 mcp_function_declarations = []  # A flat list of all function declarations from all tools
 mcp_function_to_tool_map = {}   # Maps a function name to its parent tool name (from mcpServers)
 mcp_function_input_schema_map = {}  # Maps a function name to its inputSchema from MCP

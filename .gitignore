@@ -1,5 +1,4 @@
 /.idea/
 .env
 /venv/
-/mcp_config.json
-/prompt_config.json
+/var/

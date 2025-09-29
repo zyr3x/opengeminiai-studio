@@ -1,0 +1,69 @@
+"""
+Flask routes for the web UI, including the main page and direct chat API.
+"""
+import base64
+import json
+from datetime import datetime
+import os
+import requests
+from flask import Blueprint, request, jsonify, Response, render_template
+from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
+
+from app.config import config
+from app import mcp_handler
+from app import utils
+
+web_ui_bp = Blueprint('web_ui', __name__)
+
+@web_ui_bp.route('/', methods=['GET'])
+def index():
+    """
+    Serves the main documentation and configuration page.
+    """
+    api_key_status = "Set" if config.API_KEY else "Not Set"
+    current_mcp_config_str = ""
+    if os.path.exists(mcp_handler.MCP_CONFIG_FILE):
+        with open(mcp_handler.MCP_CONFIG_FILE, 'r') as f: current_mcp_config_str = f.read()
+
+    current_prompt_overrides_str = ""
+    if os.path.exists(utils.PROMPT_OVERRIDES_FILE):
+        with open(utils.PROMPT_OVERRIDES_FILE, 'r') as f: current_prompt_overrides_str = f.read()
+
+    default_prompt_overrides = {
+      "default_chat": {"triggers": ["You are a JetBrains AI Assistant for code development."], "overrides": {"Follow the user's requirements carefully & to the letter.": ""}},
+      "commit_message": {"triggers": ["[Diff]"], "overrides": {"Write a short and professional commit message for the following changes:": "Write a short and professional commit message for the following changes:"}, "disable_tools": True}
+    }
+    prompt_profiles = default_prompt_overrides
+    if current_prompt_overrides_str.strip():
+        try: prompt_profiles = json.loads(current_prompt_overrides_str)
+        except json.JSONDecodeError: pass
+
+    default_mcp_config = {
+      "mcpServers": {"youtrack": {"command": "docker", "args": ["run", "--rm", "-i", "-e", "YOUTRACK_API_TOKEN", "-e", "YOUTRACK_URL", "tonyzorin/youtrack-mcp:latest"], "env": {"YOUTRACK_API_TOKEN": "perm-your-token-here", "YOUTRACK_URL": "https://youtrack.example.com/"}}},
+      "maxFunctionDeclarations": mcp_handler.MAX_FUNCTION_DECLARATIONS_DEFAULT
+    }
+    mcp_config_data = default_mcp_config
+    if current_mcp_config_str.strip():
+        try:
+            loaded_mcp_config = json.loads(current_mcp_config_str)
+            if "mcpServers" in loaded_mcp_config and isinstance(loaded_mcp_config.get("mcpServers"), dict):
+                mcp_config_data = loaded_mcp_config
+        except json.JSONDecodeError: pass
+
+    return render_template(
+        'index.html',
+        API_KEY=config.API_KEY, api_key_status=api_key_status,
+        current_mcp_config_str=current_mcp_config_str, mcp_config=mcp_config_data,
+        default_mcp_config_json=utils.pretty_json(default_mcp_config),
+        prompt_profiles=prompt_profiles, current_prompt_overrides_str=current_prompt_overrides_str,
+        default_prompt_overrides_json=utils.pretty_json(default_prompt_overrides),
+        verbose_logging_status=utils.VERBOSE_LOGGING,
+        current_max_function_declarations=mcp_config_data.get("maxFunctionDeclarations", mcp_handler.max_function_declarations_limit),
+        current_year=datetime.now().year
+    )
+
+@web_ui_bp.route('/favicon.ico')
+def favicon():
+    """Serves the favicon for the web interface."""
+    favicon_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚙️</text></svg>'
+    return Response(favicon_svg, mimetype='image/svg+xml')
