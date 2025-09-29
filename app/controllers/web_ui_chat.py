@@ -3,9 +3,13 @@ Flask routes for the web chat UI, including the main page and direct chat API.
 """
 import base64
 import json
+import os
+import shutil
+import sqlite3
 import requests
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify, Response, send_from_directory
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
+from werkzeug.utils import secure_filename
 
 from app.config import config
 from app import mcp_handler
@@ -13,35 +17,201 @@ from app import utils
 
 web_ui_chat_bp = Blueprint('web_ui_chat', __name__)
 
+
+# --- Database setup ---
+UPLOAD_FOLDER = "var/uploads"
+DATABASE_FILE = "var/data/chats.db"
+
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    # Ensure data and upload directories exist
+    os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+    if os.path.exists(DATABASE_FILE) and os.path.getsize(DATABASE_FILE) > 0:
+        return
+
+    print("Initializing database...")
+    conn = get_db_connection()
+    conn.execute('PRAGMA foreign_keys = ON;')
+    conn.execute('''
+        CREATE TABLE chats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    ''')
+    conn.execute('''
+        CREATE TABLE messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER NOT NULL,
+            role TEXT NOT NULL, -- user, model, or tool
+            parts TEXT NOT NULL, -- JSON list of parts (text or file references)
+            FOREIGN KEY (chat_id) REFERENCES chats (id) ON DELETE CASCADE
+        );
+    ''')
+    conn.commit()
+    conn.close()
+    print("Database initialized.")
+
+init_db()
+
+
+# --- Chat Management API Routes ---
+@web_ui_chat_bp.route('/api/chats', methods=['GET'])
+def get_chats():
+    conn = get_db_connection()
+    chats = conn.execute('SELECT id, title FROM chats ORDER BY created_at DESC').fetchall()
+    conn.close()
+    return jsonify([dict(c) for c in chats])
+
+@web_ui_chat_bp.route('/api/chats', methods=['POST'])
+def create_chat():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO chats (title) VALUES ('New Chat')")
+    new_chat_id = cursor.lastrowid
+    conn.commit()
+    new_chat = {'id': new_chat_id, 'title': 'New Chat'}
+    conn.close()
+    return jsonify(new_chat), 201
+
+
+@web_ui_chat_bp.route('/api/chats/<int:chat_id>', methods=['DELETE'])
+def delete_chat(chat_id):
+    """
+    Deletes a chat and its associated messages and files.
+    """
+    # 1. Delete associated files
+    try:
+        chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
+        if os.path.exists(chat_upload_folder):
+            shutil.rmtree(chat_upload_folder)
+    except OSError as e:
+        print(f"Error deleting files for chat {chat_id}: {e}")
+
+    # 2. Delete chat from the database (messages are deleted via CASCADE)
+    conn = get_db_connection()
+    conn.execute('DELETE FROM chats WHERE id = ?', (chat_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True}), 200
+
+
+@web_ui_chat_bp.route('/api/chats/<int:chat_id>/messages', methods=['GET'])
+def get_chat_messages(chat_id):
+    conn = get_db_connection()
+    messages = conn.execute(
+        'SELECT role, parts FROM messages WHERE chat_id = ? ORDER BY id ASC',
+        (chat_id,)
+    ).fetchall()
+    conn.close()
+
+    formatted_messages = []
+    for db_message in messages:
+        role = 'assistant' if db_message['role'] == 'model' else db_message['role']
+        message_data = {'role': role, 'content': '', 'files': []}
+        try:
+            parts = json.loads(db_message['parts'])
+            text_parts = []
+            for part in parts:
+                if 'text' in part:
+                    text_parts.append(part['text'])
+                elif 'file_data' in part:
+                    file_path = part['file_data']['path']
+                    # Create a relative path for the URL
+                    relative_path = os.path.relpath(file_path, UPLOAD_FOLDER)
+                    file_url = f"/uploads/{relative_path.replace(os.sep, '/')}"
+                    message_data['files'].append({
+                        'url': file_url,
+                        'mimetype': part['file_data']['mime_type'],
+                        'name': os.path.basename(file_path)
+                    })
+            message_data['content'] = " ".join(text_parts).strip()
+
+            if message_data['content'] or message_data['files']:
+                formatted_messages.append(message_data)
+        except (json.JSONDecodeError, TypeError):
+            continue
+    return jsonify(formatted_messages)
+
+
 @web_ui_chat_bp.route('/chat_api', methods=['POST'])
 def chat_api():
     """
-    Handles direct chat requests from the web UI.
+    Handles direct chat requests from the web UI, with session support.
     """
     if not config.API_KEY:
         return jsonify({"error": "API key not configured."}), 401
 
     try:
+        chat_id = request.form.get('chat_id', type=int)
+        if not chat_id:
+            return jsonify({"error": "chat_id is required"}), 400
+
         model = request.form.get('model', 'gemini-1.5-flash-latest')
-        messages_json = request.form.get('messages', '[]')
-        messages = json.loads(messages_json)
+        user_message = request.form.get('message', '')
         attached_files = request.files.getlist('file')
 
-        gemini_contents = []
-        for message in messages:
-            role = "model" if message.get("role") == "assistant" else "user"
-            content = message.get("content")
-            if isinstance(content, str) and content:
-                gemini_contents.append({"role": role, "parts": [{"text": content}]})
+        user_parts = []
+        if user_message:
+            user_parts.append({"text": user_message})
 
         if attached_files:
-            if not gemini_contents or gemini_contents[-1]['role'] != 'user':
-                gemini_contents.append({"role": "user", "parts": []})
+            chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
+            os.makedirs(chat_upload_folder, exist_ok=True)
             for attached_file in attached_files:
-                file_base64 = base64.b64encode(attached_file.read()).decode('utf-8')
-                gemini_contents[-1]['parts'].append({
-                    "inline_data": {"mime_type": attached_file.mimetype, "data": file_base64}
+                filename = secure_filename(attached_file.filename)
+                filepath = os.path.join(chat_upload_folder, filename)
+                attached_file.save(filepath)
+                user_parts.append({
+                    "file_data": {"mime_type": attached_file.mimetype, "path": filepath}
                 })
+
+        if user_parts:
+            conn = get_db_connection()
+            conn.execute(
+                'INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
+                (chat_id, 'user', json.dumps(user_parts))
+            )
+            if user_message:
+                message_count = conn.execute('SELECT COUNT(id) FROM messages WHERE chat_id = ? AND role = "user"', (chat_id,)).fetchone()[0]
+                if message_count == 1:
+                    new_title = (user_message[:47] + '...') if len(user_message) > 50 else user_message
+                    conn.execute('UPDATE chats SET title = ? WHERE id = ?', (new_title, chat_id))
+            conn.commit()
+            conn.close()
+
+        conn = get_db_connection()
+        db_messages = conn.execute(
+            'SELECT role, parts FROM messages WHERE chat_id = ? ORDER BY id ASC', (chat_id,)
+        ).fetchall()
+        conn.close()
+
+        gemini_contents = []
+        for m in db_messages:
+            role = m['role']
+            parts = json.loads(m['parts'])
+            reconstructed_parts = []
+            for part in parts:
+                if 'file_data' in part:
+                    file_path = part['file_data']['path']
+                    if os.path.exists(file_path):
+                        with open(file_path, 'rb') as f:
+                            file_content = f.read()
+                        file_base64 = base64.b64encode(file_content).decode('utf-8')
+                        reconstructed_parts.append({
+                            "inline_data": {"mime_type": part['file_data']['mime_type'], "data": file_base64}
+                        })
+                    else:
+                        reconstructed_parts.append({"text": f"[File not found: {os.path.basename(file_path)}]"})
+                else:
+                    reconstructed_parts.append(part)
+            gemini_contents.append({'role': role, 'parts': reconstructed_parts})
 
         full_prompt_text = " ".join(
             [p.get("text", "") for m in gemini_contents for p in m.get("parts", []) if "text" in p]
@@ -69,9 +239,6 @@ def chat_api():
                     request_data["tools"] = tools
                     request_data["tool_config"] = {"function_calling_config": {"mode": "AUTO"}}
 
-                utils.log(f"Outgoing Direct Chat Request URL: {GEMINI_STREAMING_URL}")
-                utils.log(f"Outgoing Direct Chat Request Data: {utils.pretty_json(request_data)}")
-
                 try:
                     response = requests.post(
                         GEMINI_STREAMING_URL, headers=headers, json=request_data, stream=True, timeout=300
@@ -94,10 +261,8 @@ def chat_api():
                             json_data, end_index = decoder.raw_decode(buffer)
                             buffer = buffer[end_index:]
                             if not isinstance(json_data, dict): continue
-
                             parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
                             if not parts and 'usageMetadata' in json_data: continue
-
                             model_response_parts.extend(parts)
                             for part in parts:
                                 if 'text' in part:
@@ -107,6 +272,13 @@ def chat_api():
                         except json.JSONDecodeError:
                             if len(buffer) > 65536: buffer = buffer[-32768:]
                             break
+
+                if model_response_parts:
+                    db_conn = get_db_connection()
+                    db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
+                                  (chat_id, 'model', json.dumps(model_response_parts)))
+                    db_conn.commit()
+                    db_conn.close()
 
                 if not tool_calls: break
 
@@ -126,8 +298,14 @@ def chat_api():
                             response_payload = {"text": output}
                     else:
                         response_payload = output if isinstance(output, dict) else ({"text": ""} if output is None else {"content": output})
-
                     tool_response_parts.append({"functionResponse": {"name": function_name, "response": response_payload}})
+
+                if tool_response_parts:
+                    db_conn = get_db_connection()
+                    db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
+                                  (chat_id, 'tool', json.dumps(tool_response_parts)))
+                    db_conn.commit()
+                    db_conn.close()
 
                 current_contents.append({"role": "tool", "parts": tool_response_parts})
 
@@ -135,3 +313,19 @@ def chat_api():
     except Exception as e:
         print(f"An error occurred in chat API: {str(e)}")
         return jsonify({"error": f"An error occurred in chat API: {str(e)}"}), 500
+
+
+@web_ui_chat_bp.route('/uploads/<path:filepath>')
+def serve_upload(filepath):
+    """
+    Serves an uploaded file from the UPLOAD_FOLDER.
+    """
+    # Security: prevent directory traversal attacks
+    safe_path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filepath))
+    if not safe_path.startswith(os.path.abspath(UPLOAD_FOLDER)):
+        return "Forbidden", 403
+
+    try:
+        return send_from_directory(os.path.dirname(safe_path), os.path.basename(safe_path))
+    except FileNotFoundError:
+        return "File not found", 404

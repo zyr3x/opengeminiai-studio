@@ -1,17 +1,26 @@
 <section id="chat" class="content-section" style="display: none;">
     <div class="container-fluid h-100">
         <div class="row h-100">
-            <!-- Chat History -->
-            <div class="col-12 h-100 d-flex flex-column">
-                <div class="card">
+            <!-- Chat List Sidebar -->
+            <div class="col-lg-3 col-md-4 h-100 d-flex flex-column bg-light border-end p-0">
+                <div class="p-3 border-bottom">
+                    <button class="btn btn-primary w-100 d-flex align-items-center justify-content-center" id="new-chat-btn">
+                        <span class="material-icons me-2">add</span> New Chat
+                    </button>
+                </div>
+                <div class="flex-grow-1" style="overflow-y: auto;" id="chat-list-container">
+                    <!-- Chat list will be populated by chat.js -->
+                </div>
+            </div>
+
+            <!-- Main Chat Area -->
+            <div class="col-lg-9 col-md-8 h-100 d-flex flex-column p-0">
+                <div class="card h-100 rounded-0 border-0">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Ai Chat</h5>
+                        <h5 class="mb-0" id="chat-title">AI Chat</h5>
                         <div class="d-flex align-items-center gap-2">
                             <label for="model-select" class="form-label mb-0">Model:</label>
                             <select id="model-select" class="form-select form-select-sm" style="width: auto;"></select>
-                            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center" id="new-chat-btn" title="New Chat">
-                                <span class="material-icons fs-6">refresh</span>
-                            </button>
                         </div>
                     </div>
                     <div class="card-body chat-history" id="chat-history">

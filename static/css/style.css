@@ -476,8 +476,6 @@ code {
     padding: 1rem;
     display: flex;
     flex-direction: column;
-    max-height: 550px;
-    min-height: 550px;
 }
 
 .message {
