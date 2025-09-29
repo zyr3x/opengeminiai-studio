@@ -1,5 +1,5 @@
 """
-Flask routes for the web UI, including the main page and direct chat API.
+Flask routes for the web chat UI, including the main page and direct chat API.
 """
 import base64
 import json

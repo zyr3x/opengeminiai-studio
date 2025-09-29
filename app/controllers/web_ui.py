@@ -1,13 +1,10 @@
 """
 Flask routes for the web UI, including the main page and direct chat API.
 """
-import base64
 import json
 from datetime import datetime
 import os
-import requests
-from flask import Blueprint, request, jsonify, Response, render_template
-from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
+from flask import Blueprint, Response, render_template
 
 from app.config import config
 from app import mcp_handler
