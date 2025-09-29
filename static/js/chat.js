@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function () {
             item.classList.remove('active');
             if (item.dataset.chatId == chatId) {
                 item.classList.add('active');
-                chatTitle.textContent = item.textContent;
+                chatTitle.textContent = item.textContent.replace('Chatdelete','Chat');
             }
         });
 
