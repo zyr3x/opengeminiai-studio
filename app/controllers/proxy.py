@@ -188,46 +188,43 @@ def chat_completions():
 
                 for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
                     buffer += chunk
-
                     while True:
                         start_index = buffer.find('{')
                         if start_index == -1:
-                            if len(buffer) > 65536:
-                                buffer = buffer[-32768:]
+                            if len(buffer) > 65536: buffer = buffer[-32768:]
                             break
-
-                        if start_index > 0:
-                            buffer = buffer[start_index:]
-
+                        buffer = buffer[start_index:]
                         try:
                             json_data, end_index = decoder.raw_decode(buffer)
+                            buffer = buffer[end_index:]
+                            if not isinstance(json_data, dict): continue
+
+                            parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+
+                            if not parts and 'usageMetadata' in json_data:
+                                continue
+                            else:
+                                model_response_parts.extend(parts)
+                                text_content = ""
+                                for part in parts:
+                                    if 'text' in part:
+                                        text_content += part['text']
+                                    if 'functionCall' in part:
+                                        tool_calls.append(part['functionCall'])
+
+                                if text_content:
+                                    chunk_response = {
+                                        "id": f"chatcmpl-{os.urandom(12).hex()}",
+                                        "object": "chat.completion.chunk",
+                                        "created": int(time.time()),
+                                        "model": COMPLETION_MODEL,
+                                        "choices": [{"index": 0, "delta": {"content": text_content}, "finish_reason": None}]
+                                    }
+                                    utils.log(f"Active Proxy Response Chunk: {utils.pretty_json(chunk_response)}")
+                                    yield f"data: {json.dumps(chunk_response)}\n\n"
                         except json.JSONDecodeError:
+                            if len(buffer) > 65536: buffer = buffer[-32768:]
                             break
-
-                        buffer = buffer[end_index:]
-                        parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-
-                        if not parts and 'usageMetadata' in json_data:
-                            pass
-                        else:
-                            model_response_parts.extend(parts)
-                            text_content = ""
-                            for part in parts:
-                                if 'text' in part:
-                                    text_content += part['text']
-                                if 'functionCall' in part:
-                                    tool_calls.append(part['functionCall'])
-
-                            if text_content:
-                                chunk_response = {
-                                    "id": f"chatcmpl-{os.urandom(12).hex()}",
-                                    "object": "chat.completion.chunk",
-                                    "created": int(time.time()),
-                                    "model": COMPLETION_MODEL,
-                                    "choices": [{"index": 0, "delta": {"content": text_content}, "finish_reason": None}]
-                                }
-                                utils.log(f"Active Proxy Response Chunk: {utils.pretty_json(chunk_response)}")
-                                yield f"data: {json.dumps(chunk_response)}\n\n"
 
                 if not tool_calls:
                     break
