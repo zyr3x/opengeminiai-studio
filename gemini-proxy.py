@@ -37,4 +37,4 @@ app.register_blueprint(web_ui_chat_bp)
 
 if __name__ == '__main__':
     print("Starting proxy server on http://0.0.0.0:8080...")
-    app.run(host='0.0.0.0', port=8081)
+    app.run(host='0.0.0.0', port=8080)
