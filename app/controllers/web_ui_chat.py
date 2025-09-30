@@ -289,16 +289,21 @@ def chat_api():
                 for tool_call in tool_calls:
                     function_name = tool_call.get("name")
                     output = mcp_handler.execute_mcp_tool(function_name, tool_call.get("args"))
-                    response_payload = None
-                    if isinstance(output, str):
-                        try:
-                            parsed_output = json.loads(output)
-                            response_payload = parsed_output if isinstance(parsed_output, dict) else {"content": parsed_output}
-                        except json.JSONDecodeError:
-                            response_payload = {"text": output}
+
+                    response_payload = {}
+                    if output is not None:
+                        # Convert any output to a pretty-printed JSON string in the 'text' field.
+                        # This is a robust way to present tool output to the model.
+                        response_payload = {"text": json.dumps(output, indent=2, default=str)}
                     else:
-                        response_payload = output if isinstance(output, dict) else ({"text": ""} if output is None else {"content": output})
-                    tool_response_parts.append({"functionResponse": {"name": function_name, "response": response_payload}})
+                        response_payload = {"text": ""}
+
+                    tool_response_parts.append({
+                        "functionResponse": {
+                            "name": function_name,
+                            "response": response_payload
+                        }
+                    })
 
                 if tool_response_parts:
                     db_conn = get_db_connection()
