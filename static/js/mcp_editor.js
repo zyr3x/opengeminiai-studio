@@ -54,18 +54,78 @@ document.addEventListener('DOMContentLoaded', function () {
             <button class="btn btn-outline-danger mcp-remove-item-btn" type="button">✖</button>
         </div>`;
 
-    mcpContainer.addEventListener('click', function(e) {
+    mcpContainer.addEventListener('click', async function(e) {
+        const checkBtn = e.target.closest('.mcp-check-commands-btn');
+
         if (e.target.classList.contains('mcp-add-arg-btn')) {
             e.target.previousElementSibling.insertAdjacentHTML('beforeend', mcpArgTemplate);
-        }
-        if (e.target.classList.contains('mcp-add-env-btn')) {
+        } else if (e.target.classList.contains('mcp-add-env-btn')) {
             e.target.previousElementSibling.insertAdjacentHTML('beforeend', mcpEnvTemplate);
-        }
-        if (e.target.classList.contains('mcp-remove-item-btn')) {
+        } else if (e.target.classList.contains('mcp-remove-item-btn')) {
             e.target.closest('.input-group').remove();
-        }
-        if (e.target.classList.contains('mcp-delete-server-btn')) {
+        } else if (e.target.classList.contains('mcp-delete-server-btn')) {
             e.target.closest('.accordion-item').remove();
+        } else if (checkBtn) {
+            const accordionItem = checkBtn.closest('.accordion-item');
+            const infoContainer = accordionItem.querySelector('.mcp-commands-info-container');
+
+            const escapeHtml = (text) => {
+                if (typeof text !== 'string') return '';
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+
+            const command = accordionItem.querySelector('.mcp-command-input').value.trim();
+            const args = Array.from(accordionItem.querySelectorAll('.mcp-arg-input')).map(input => input.value.trim()).filter(Boolean);
+            const env = {};
+            accordionItem.querySelectorAll('.mcp-env-container .input-group').forEach(group => {
+                const keyInput = group.querySelector('.mcp-env-key-input');
+                const valueInput = group.querySelector('.mcp-env-value-input');
+                if (keyInput && valueInput) {
+                    const key = keyInput.value.trim();
+                    if (key) env[key] = valueInput.value;
+                }
+            });
+
+            infoContainer.style.display = 'block';
+            infoContainer.innerHTML = `<div class="d-flex align-items-center"><div class="spinner-border spinner-border-sm me-2" role="status"></div><span>Fetching commands...</span></div>`;
+            checkBtn.disabled = true;
+
+            try {
+                const response = await fetch('/mcp_tool_info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command, args, env })
+                });
+                const data = await response.json();
+
+                if (!response.ok && !data.error) {
+                   throw new Error(data.error || 'Server returned an error');
+                }
+
+                if (data.error) {
+                    let stderrHtml = data.stderr ? `<pre class="mt-2" style="white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; background-color: #f1f1f1; padding: 10px; border-radius: 4px;">${escapeHtml(data.stderr)}</pre>` : '';
+                    infoContainer.innerHTML = `<div class="alert alert-danger mb-0"><strong>Error:</strong> ${data.error}${stderrHtml}</div>`;
+                } else if (data.tools && data.tools.length > 0) {
+                    let html = '<h6>Available Commands:</h6><ul class="list-group list-group-flush">';
+                    data.tools.forEach(tool => {
+                        const description = tool.description || 'No description available.';
+                        html += `<li class="list-group-item px-0 py-2">
+                                    <strong>${tool.name}</strong>
+                                    <p class="mb-0 text-muted small">${escapeHtml(description)}</p>
+                                 </li>`;
+                    });
+                    html += '</ul>';
+                    infoContainer.innerHTML = html;
+                } else {
+                    infoContainer.innerHTML = `<div class="alert alert-warning mb-0">No commands found for this tool.</div>`;
+                }
+            } catch (error) {
+                infoContainer.innerHTML = `<div class="alert alert-danger mb-0"><strong>Request Failed:</strong> ${error.message}</div>`;
+            } finally {
+                checkBtn.disabled = false;
+            }
         }
     });
 
@@ -116,6 +176,15 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <div class="mcp-env-container"></div>
                                 <button class="btn btn-sm btn-outline-secondary mcp-add-env-btn" type="button">Add Variable</button>
                             </div>
+                             <div class="mt-3">
+                                <button class="btn btn-info btn-sm mcp-check-commands-btn" type="button">
+                                    <span class="material-icons" style="vertical-align: middle; font-size: 1.1rem;">checklist</span> Check Commands
+                                </button>
+                            </div>
+                            <div class="mcp-commands-info-container mt-3" style="display: none;">
+                                <!-- Populated by JS -->
+                            </div>
+                            <hr>
                             <button class="btn btn-danger mcp-delete-server-btn" type="button">Delete Server</button>
                         </div>
                     </div>

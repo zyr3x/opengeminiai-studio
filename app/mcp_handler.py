@@ -185,6 +185,65 @@ def get_declarations_from_tool(tool_name, tool_info):
 
     return []
 
+def fetch_mcp_tool_list(tool_info):
+    """Fetches the raw list of tools from an MCP server based on its config."""
+    command_str = tool_info.get("command")
+    if not command_str:
+        return {"error": "Command not provided."}
+
+    command = [command_str] + tool_info.get("args", [])
+    env = os.environ.copy()
+    if "env" in tool_info:
+        env.update(tool_info["env"])
+
+    try:
+        log(f"Fetching tool list for command: '{command_str}'")
+
+        mcp_init_request = {
+            "jsonrpc": "2.0", "id": 0, "method": "initialize",
+            "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "gemini-proxy", "version": "1.0.0"}}
+        }
+        tools_list_request = {
+            "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}
+        }
+        initialized_notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+        input_data = (
+            json.dumps(mcp_init_request) + "\n" +
+            json.dumps(initialized_notification) + "\n" +
+            json.dumps(tools_list_request) + "\n"
+        )
+
+        process = subprocess.run(
+            command, input=input_data, text=True, capture_output=True,
+            check=False, env=env, timeout=30
+        )
+
+        if process.returncode != 0:
+            return {"error": f"Tool failed with exit code {process.returncode}", "stderr": process.stderr.strip()}
+
+        lines = process.stdout.strip().split('\n')
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                if line.startswith('\ufeff'):
+                    line = line.lstrip('\ufeff')
+                response = json.loads(line)
+                if response.get("id") == 1 and "result" in response and "tools" in response["result"]:
+                    return {"tools": response["result"]["tools"]}
+            except json.JSONDecodeError:
+                continue
+
+        return {"error": "Did not receive a valid tools/list response.", "stdout": process.stdout.strip(), "stderr": process.stderr.strip()}
+
+    except subprocess.TimeoutExpired:
+        return {"error": "Timeout while fetching tool list."}
+    except FileNotFoundError:
+        return {"error": f"Command not found: '{command_str}'."}
+    except Exception as e:
+        return {"error": f"An unexpected error occurred: {e}"}
+
+
 
 def load_mcp_config():
     """Loads MCP tool configuration from file and fetches schemas for all configured tools."""

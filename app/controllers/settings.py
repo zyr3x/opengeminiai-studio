@@ -3,7 +3,7 @@ Flask routes for handling application settings and configuration.
 """
 import json
 import os
-from flask import Blueprint, request, redirect, url_for
+from flask import Blueprint, request, redirect, url_for, jsonify
 
 from app.config import config
 from app import mcp_handler
@@ -53,6 +53,21 @@ def set_mcp_config():
 
     mcp_handler.load_mcp_config()
     return redirect(url_for('web_ui.index', _anchor='mcp'))
+
+
+@settings_bp.route('/mcp_tool_info', methods=['POST'])
+def mcp_tool_info():
+    """
+    Fetches tool declarations from a single MCP tool based on the provided configuration.
+    This is used for UI checks and does not affect the saved configuration.
+    """
+    tool_config = request.json
+    if not tool_config:
+        return jsonify({"error": "Invalid request body"}), 400
+
+    result = mcp_handler.fetch_mcp_tool_list(tool_config)
+    return jsonify(result)
+
 
 @settings_bp.route('/set_prompt_config', methods=['POST'])
 def set_prompt_config():
