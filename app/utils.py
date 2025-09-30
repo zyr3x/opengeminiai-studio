@@ -34,13 +34,22 @@ def log(message: str):
 
 
 def load_prompt_config():
-    """Loads prompt overrides from JSON file into the global prompt_overrides dict."""
+    """
+    Loads prompt overrides from JSON file into the global prompt_overrides dict.
+    Only profiles marked as 'enabled' (or without the key) will be loaded.
+    """
     global prompt_overrides
     if os.path.exists(PROMPT_OVERRIDES_FILE):
         try:
             with open(PROMPT_OVERRIDES_FILE, 'r') as f:
-                prompt_overrides = json.load(f)
-            log(f"Prompt overrides loaded from {PROMPT_OVERRIDES_FILE}.")
+                all_profiles = json.load(f)
+
+            prompt_overrides = {
+                name: profile for name, profile in all_profiles.items()
+                if profile.get('enabled', True)
+            }
+            log(f"Prompt overrides loaded from {PROMPT_OVERRIDES_FILE}. "
+                f"{len(prompt_overrides)} of {len(all_profiles)} profiles are enabled.")
         except (json.JSONDecodeError, IOError) as e:
             print(f"Error loading prompt overrides: {e}")
             prompt_overrides = {}

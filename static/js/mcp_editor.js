@@ -9,6 +9,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const mcpContainer = document.getElementById('mcp-servers-container');
     const mcpMaxFunctionDeclarationsInput = document.getElementById('mcp-max-function-declarations'); // New line
 
+    // Add event delegation for enabled switch
+    if (mcpContainer) {
+        mcpContainer.addEventListener('change', function(e) {
+            if (e.target.classList.contains('mcp-enabled-input')) {
+                const accordionItem = e.target.closest('.accordion-item');
+                if (accordionItem) {
+                    accordionItem.classList.toggle('disabled-item', !e.target.checked);
+                }
+            }
+        });
+    }
+
     function toggleMcpEditorView() {
         if (!mcpEditorSwitch) return;
         if (mcpEditorSwitch.checked) {

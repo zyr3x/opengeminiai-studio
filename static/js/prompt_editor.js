@@ -1,13 +1,29 @@
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function() {
+    const promptForm = document.getElementById('prompt-form');
+    if (!promptForm) {
+        return; // Don't run if the prompt editor form is not on the page
+    }
+
+    const promptEditorModeSwitch = document.getElementById('prompt-editor-mode-switch');
     const userFriendlyEditor = document.getElementById('user-friendly-editor');
-    if (!userFriendlyEditor) return; // Don't run if the editor is not on the page
-
     const advancedEditor = document.getElementById('advanced-editor');
-    const editorSwitch = document.getElementById('prompt-editor-mode-switch');
-    const promptTextarea = document.getElementById('prompt_overrides_textarea');
+    const promptOverridesTextarea = document.getElementById('prompt_overrides_textarea');
+    const promptProfilesContainer = document.getElementById('prompt-profiles-container');
+    const addProfileBtn = document.getElementById('add-profile-btn');
 
-    function toggleEditorView() {
-        if (editorSwitch.checked) {
+    // Add event delegation for the enabled switch to visually update the item
+    promptProfilesContainer.addEventListener('change', function(e) {
+        if (e.target.classList.contains('enabled-switch')) {
+            const accordionItem = e.target.closest('.accordion-item');
+            if (accordionItem) {
+                accordionItem.classList.toggle('disabled-item', !e.target.checked);
+            }
+        }
+    });
+
+    // Initial state based on the switch
+    function updateEditorVisibility() {
+        if (promptEditorModeSwitch.checked) {
             userFriendlyEditor.classList.remove('d-none');
             advancedEditor.classList.add('d-none');
         } else {
@@ -15,116 +31,191 @@ document.addEventListener('DOMContentLoaded', function () {
             advancedEditor.classList.remove('d-none');
         }
     }
+    updateEditorVisibility();
+    promptEditorModeSwitch.addEventListener('change', updateEditorVisibility);
 
-    editorSwitch.addEventListener('change', toggleEditorView);
-    toggleEditorView(); // Set initial state
+    // Function to attach event listeners to a newly added or existing profile div
+    function attachProfileEventListeners(profileDiv) {
+        // Delete Profile
+        profileDiv.querySelector('.delete-profile-btn')?.addEventListener('click', function() {
+            if (confirm('Are you sure you want to delete this profile?')) {
+                profileDiv.remove();
+            }
+        });
 
-    const container = document.getElementById('prompt-profiles-container');
-    let profileCounter = container.children.length;
+        // Add Trigger
+        profileDiv.querySelector('.add-trigger-btn')?.addEventListener('click', function() {
+            const triggersContainer = profileDiv.querySelector('.triggers-container');
+            const newTriggerHtml = `
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control trigger-input" placeholder="e.g., commit message">
+                    <button class="btn btn-outline-danger remove-item-btn" type="button"><span class="material-icons">close</span></button>
+                </div>
+            `;
+            triggersContainer.insertAdjacentHTML('beforeend', newTriggerHtml);
+            // Re-attach remove listener for the new trigger input
+            triggersContainer.lastElementChild.querySelector('.remove-item-btn')?.addEventListener('click', function() {
+                this.closest('.input-group').remove();
+            });
+        });
 
-    const triggerTemplate = `
-        <div class="input-group mb-2">
-            <input type="text" class="form-control trigger-input" value="">
-            <button class="btn btn-outline-danger remove-item-btn" type="button">✖</button>
-        </div>`;
+        // Add Override
+        profileDiv.querySelector('.add-override-btn')?.addEventListener('click', function() {
+            const overridesContainer = profileDiv.querySelector('.overrides-container');
+            const newOverrideHtml = `
+                <div class="input-group mb-2">
+                    <span class="input-group-text" style="width: 50px;">Find</span>
+                    <input type="text" class="form-control override-key-input" placeholder="Text to find">
+                    <span class="input-group-text" style="width: 80px;">Replace</span>
+                    <input type="text" class="form-control override-value-input" placeholder="Replacement text">
+                    <button class="btn btn-outline-danger remove-item-btn" type="button"><span class="material-icons">close</span></button>
+                </div>
+            `;
+            overridesContainer.insertAdjacentHTML('beforeend', newOverrideHtml);
+            // Re-attach remove listener for the new override input
+            overridesContainer.lastElementChild.querySelector('.remove-item-btn')?.addEventListener('click', function() {
+                this.closest('.input-group').remove();
+            });
+        });
 
-    const overrideTemplate = `
-        <div class="input-group mb-2">
-            <span class="input-group-text" style="width: 50px;">Find</span>
-            <input type="text" class="form-control override-key-input" placeholder="Text to find" value="">
-            <span class="input-group-text" style="width: 80px;">Replace</span>
-            <input type="text" class="form-control override-value-input" placeholder="Replacement text" value="">
-            <button class="btn btn-outline-danger remove-item-btn" type="button">✖</button>
-        </div>`;
+        // Attach listeners for existing remove buttons within the new profile
+        profileDiv.querySelectorAll('.remove-item-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.closest('.input-group').remove();
+            });
+        });
 
-    // Event delegation for all dynamic buttons inside the container
-    container.addEventListener('click', function (e) {
-        if (e.target.classList.contains('add-trigger-btn')) {
-            e.target.previousElementSibling.insertAdjacentHTML('beforeend', triggerTemplate);
-        }
-        if (e.target.classList.contains('add-override-btn')) {
-            e.target.previousElementSibling.insertAdjacentHTML('beforeend', overrideTemplate);
-        }
-        if (e.target.classList.contains('remove-item-btn')) {
-            e.target.closest('.input-group').remove();
-        }
-        if (e.target.classList.contains('delete-profile-btn')) {
-            e.target.closest('.accordion-item').remove();
-        }
+        // Update accordion button text if profile name changes
+        profileDiv.querySelector('.profile-name-input')?.addEventListener('input', function() {
+            const headerButton = profileDiv.querySelector('.accordion-header button');
+            if (headerButton) {
+                headerButton.textContent = this.value || 'Unnamed Profile';
+            }
+        });
+    }
+
+    // Attach listeners to initially loaded profiles
+    document.querySelectorAll('#prompt-profiles-container .accordion-item').forEach(profileDiv => {
+        attachProfileEventListeners(profileDiv);
     });
 
-    // Update accordion header as profile name changes
-    container.addEventListener('input', function(e) {
-        if (e.target.classList.contains('profile-name-input')) {
-            const newName = e.target.value || 'New Profile';
-            const headerButton = e.target.closest('.accordion-item').querySelector('.accordion-button');
-            headerButton.textContent = newName;
-        }
-    });
-
-    // Add new profile
-    document.getElementById('add-profile-btn').addEventListener('click', function () {
-        profileCounter++;
-        const newProfileName = `new_profile_${profileCounter}`;
-        const newProfileTemplate = `
-            <div class="accordion-item" data-profile-name="${newProfileName}">
-                <h2 class="accordion-header" id="heading-${profileCounter}">
-                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${profileCounter}" aria-expanded="true" aria-controls="collapse-${profileCounter}">
-                        New Profile
+    // Add new profile button logic
+    addProfileBtn.addEventListener('click', function() {
+        const newProfileIndex = promptProfilesContainer.children.length + 1; // Simple incrementing index
+        const newProfileHtml = `
+            <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New Profile ${newProfileIndex}">
+                <h2 class="accordion-header" id="heading-${newProfileIndex}">
+                    <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${newProfileIndex}" aria-expanded="false" aria-controls="collapse-${newProfileIndex}">
+                        New Profile ${newProfileIndex}
                     </button>
                 </h2>
-                <div id="collapse-${profileCounter}" class="accordion-collapse collapse show" aria-labelledby="heading-${profileCounter}" data-bs-parent="#prompt-profiles-container">
+                <div id="collapse-${newProfileIndex}" class="accordion-collapse collapse" aria-labelledby="heading-${newProfileIndex}" data-bs-parent="#prompt-profiles-container">
                     <div class="accordion-body">
                         <div class="mb-3">
                             <label class="form-label"><b>Profile Name</b></label>
-                            <input type="text" class="form-control profile-name-input" value="New Profile">
+                            <input type="text" class="form-control profile-name-input" value="New Profile ${newProfileIndex}">
                         </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input enabled-switch" type="checkbox" role="switch" id="enabled-${newProfileIndex}" checked>
+                            <label class="form-check-label" for="enabled-${newProfileIndex}"><b>Enabled</b></label>
+                        </div>
+
                         <div class="mb-3">
-                            <label class="form-label"><b>Triggers</b></label>
-                            <div class="triggers-container"></div>
+                            <label class="form-label"><b>Triggers</b> (phrases that activate this profile)</label>
+                            <div class="triggers-container">
+                                <div class="input-group mb-2">
+                                    <input type="text" class="form-control trigger-input" placeholder="e.g., commit message">
+                                    <button class="btn btn-outline-danger remove-item-btn" type="button"><span class="material-icons">close</span></button>
+                                </div>
+                            </div>
                             <button class="btn btn-sm btn-outline-secondary add-trigger-btn" type="button">Add Trigger</button>
                         </div>
+
                         <div class="mb-3">
-                            <label class="form-label"><b>Overrides</b></label>
-                            <div class="overrides-container"></div>
+                            <label class="form-label"><b>Overrides</b> (text to find and replace)</label>
+                            <div class="overrides-container">
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text" style="width: 50px;">Find</span>
+                                    <input type="text" class="form-control override-key-input" placeholder="Text to find">
+                                    <span class="input-group-text" style="width: 80px;">Replace</span>
+                                    <input type="text" class="form-control override-value-input" placeholder="Replacement text">
+                                    <button class="btn btn-outline-danger remove-item-btn" type="button"><span class="material-icons">close</span></button>
+                                </div>
+                            </div>
                             <button class="btn btn-sm btn-outline-secondary add-override-btn" type="button">Add Override</button>
                         </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input disable-tools-switch" type="checkbox" role="switch" id="disable-tools-${newProfileIndex}">
+                            <label class="form-check-label" for="disable-tools-${newProfileIndex}">Disable Tools (Commands) for this profile</label>
+                        </div>
+
                         <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
                     </div>
                 </div>
-            </div>`;
-        container.insertAdjacentHTML('beforeend', newProfileTemplate);
+            </div>
+        `;
+        promptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
+        // Attach event listeners to the newly added profile
+        attachProfileEventListeners(promptProfilesContainer.lastElementChild);
     });
 
-    // Before submitting, collect all data and put it in the textarea if in user-friendly mode
-    document.getElementById('prompt-form').addEventListener('submit', function () {
-        if (editorSwitch.checked) {
-            const profilesData = {};
-            container.querySelectorAll('.accordion-item').forEach(item => {
-                const nameInput = item.querySelector('.profile-name-input');
-                const profileName = nameInput ? nameInput.value.trim() : '';
+    // Form submission handler for the user-friendly editor
+    promptForm.addEventListener('submit', function(event) {
+        if (promptEditorModeSwitch.checked) {
+            event.preventDefault(); // Prevent default submission to serialize and then submit
 
-                if (profileName) {
-                    const triggers = Array.from(item.querySelectorAll('.trigger-input'))
-                        .map(input => input.value.trim())
-                        .filter(Boolean);
+            const profiles = {};
+            document.querySelectorAll('#prompt-profiles-container .accordion-item').forEach(profileDiv => {
+                const profileNameInput = profileDiv.querySelector('.profile-name-input');
+                const newProfileName = profileNameInput ? profileNameInput.value.trim() : '';
 
-                    const overrides = {};
-                    item.querySelectorAll('.overrides-container .input-group').forEach(group => {
-                        const keyInput = group.querySelector('.override-key-input');
-                        const valueInput = group.querySelector('.override-value-input');
-                        if (keyInput && valueInput) {
-                            const key = keyInput.value;
-                            const value = valueInput.value;
-                            if (key) { // Key must not be empty
-                                overrides[key] = value;
-                            }
-                        }
-                    });
-                    profilesData[profileName] = { triggers, overrides };
+                // Skip profiles with empty names, or provide user feedback
+                if (!newProfileName) {
+                    alert('All profile names must be filled out.');
+                    // Optionally highlight the empty field
+                    profileNameInput?.focus();
+                    throw new Error('Empty profile name found.'); // Stop submission
                 }
+
+                const triggers = [];
+                profileDiv.querySelectorAll('.triggers-container .trigger-input').forEach(input => {
+                    const triggerValue = input.value.trim();
+                    if (triggerValue) {
+                        triggers.push(triggerValue);
+                    }
+                });
+
+                const overrides = {};
+                profileDiv.querySelectorAll('.overrides-container .input-group').forEach(inputGroup => {
+                    const keyInput = inputGroup.querySelector('.override-key-input');
+                    const valueInput = inputGroup.querySelector('.override-value-input');
+                    const key = keyInput ? keyInput.value.trim() : '';
+                    const value = valueInput ? valueInput.value.trim() : '';
+                    if (key) { // Only add if key is not empty
+                        overrides[key] = value;
+                    }
+                });
+
+                const disableToolsSwitch = profileDiv.querySelector('.disable-tools-switch');
+                const disableTools = disableToolsSwitch ? disableToolsSwitch.checked : false;
+
+                const enabledSwitch = profileDiv.querySelector('.enabled-switch');
+                const enabled = enabledSwitch ? enabledSwitch.checked : true;
+
+                profiles[newProfileName] = {
+                    enabled: enabled,
+                    triggers: triggers,
+                    overrides: overrides,
+                    disable_tools: disableTools
+                };
             });
-            promptTextarea.value = JSON.stringify(profilesData, null, 2);
+
+            promptOverridesTextarea.value = JSON.stringify(profiles, null, 2);
+
+            // Now submit the form manually
+            promptForm.submit();
         }
     });
 });
