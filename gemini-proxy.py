@@ -16,25 +16,8 @@
 
 """
 from flask import Flask
-
-import app.mcp_handler as mcp_handler
-import app.utils as utils
-from app.config import config
-from app.controllers.proxy import proxy_bp
-from app.controllers.settings import settings_bp
-from app.controllers.web_ui import web_ui_bp
-from app.controllers.web_ui_chat import web_ui_chat_bp
-app = Flask(__name__)
-
-# Load configurations from external modules
-mcp_handler.load_mcp_config()
-utils.load_prompt_config()
-
-# Register blueprints
-app.register_blueprint(proxy_bp)
-app.register_blueprint(settings_bp)
-app.register_blueprint(web_ui_bp)
-app.register_blueprint(web_ui_chat_bp)
+from app import run
 
 if __name__ == '__main__':
-    app.run(host=config.SERVER_HOST, port=config.SERVER_PORT)
+    app = run(Flask(__name__))
+
