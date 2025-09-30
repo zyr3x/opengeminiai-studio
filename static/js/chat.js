@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
     const modelSelect = document.getElementById('model-select');
+    const systemPromptSelect = document.getElementById('system-prompt-select');
     const newChatBtn = document.getElementById('new-chat-btn');
     const attachFileBtn = document.getElementById('attach-file-btn');
     const fileUpload = document.getElementById('file-upload');
@@ -293,6 +294,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const formData = new FormData();
         formData.append('chat_id', currentChatId);
         formData.append('model', modelSelect.value);
+        formData.append('system_prompt_name', systemPromptSelect ? systemPromptSelect.value : '');
         formData.append('message', userInput);
         filesToSend.forEach(file => formData.append('file', file));
 
