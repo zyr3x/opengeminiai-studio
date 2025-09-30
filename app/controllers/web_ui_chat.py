@@ -311,13 +311,15 @@ def chat_api():
                                 continue
                             try:
                                 # Try to parse and pretty-print if it's a JSON string
-                                parsed_json = json.loads(resp_text)
-                                pretty_text = json.dumps(parsed_json, indent=2, default=str)
+                                parsed_json = json.loads(json.loads(resp_text))
+                                pretty_text = json.dumps(parsed_json, indent=3, default=str)
+                                pretty_text = pretty_text.replace('\\n', '\n')
                             except (json.JSONDecodeError, TypeError):
                                 pretty_text = resp_text
-                                formatted_output = (f'\n<details><summary>Tool Output: `{name}`</summary>\n\n'
+
+                            formatted_output = (f'\n<details><summary>Tool Output: `{name}`</summary>\n\n'
                                                             f'```json\n{pretty_text}\n```\n\n</details>\n')
-                                formatted_tool_outputs.append(formatted_output)
+                            formatted_tool_outputs.append(formatted_output)
                             if formatted_tool_outputs:
                                 final_text = "".join(formatted_tool_outputs)
                                 model_response_parts = [{'text': final_text}]
