@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const filePreviewsContainer = document.getElementById('file-previews-container');
     const chatListContainer = document.getElementById('chat-list-container');
     const chatTitle = document.getElementById('chat-title');
+    const mobileChatSelect = document.getElementById('mobile-chat-select'); // Mobile chat dropdown
+    const newChatBtnMobile = document.getElementById('new-chat-btn-mobile'); // Mobile new chat button
+    const deleteChatBtnUniversal = document.getElementById('delete-chat-btn-universal'); // Universal delete chat button
 
     let currentChatId = null;
     let attachedFiles = [];
@@ -115,6 +118,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch('/api/chats', { method: 'POST' });
             if (!response.ok) throw new Error('Failed to create new chat');
             const newChat = await response.json();
+            currentChatId = newChat.id; // Set the new chat as the active one
             await loadChats(); // Reload list which will also load the new chat
         } catch (error) {
             console.error('Error creating new chat:', error);
@@ -138,6 +142,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 currentChatId = null;
             }
 
+            if (!currentChatId && deleteChatBtnUniversal) {
+                deleteChatBtnUniversal.style.display = 'none';
+            }
+
             await loadChats();
         } catch (error) {
             console.error('Error deleting chat:', error);
@@ -146,17 +154,36 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function loadChat(chatId) {
-        if (!chatId) return;
+        if (!chatId) {
+            if (deleteChatBtnUniversal) deleteChatBtnUniversal.style.display = 'none';
+            return;
+        }
         currentChatId = chatId;
+        let newTitle = "AI Chat";
 
-        // Highlight active chat in sidebar
+        if (deleteChatBtnUniversal) {
+            deleteChatBtnUniversal.style.display = 'flex'; // Show the button when a chat is loaded
+        }
+
+        // Highlight active chat in sidebar (Desktop view)
         document.querySelectorAll('#chat-list-container .list-group-item').forEach(item => {
             item.classList.remove('active');
             if (item.dataset.chatId == chatId) {
                 item.classList.add('active');
-                chatTitle.textContent = item.querySelector('span').textContent;
+                newTitle = item.querySelector('span').textContent;
             }
         });
+
+        // Synchronize mobile select and ensure title update
+        if (mobileChatSelect) {
+            mobileChatSelect.value = chatId;
+            const selectedOption = mobileChatSelect.options[mobileChatSelect.selectedIndex];
+            if (selectedOption) {
+                 newTitle = selectedOption.textContent;
+            }
+        }
+
+        chatTitle.textContent = newTitle; // Update the chat title
 
         chatHistory.innerHTML = ''; // Clear messages
         try {
@@ -182,9 +209,14 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch('/api/chats');
             if (!response.ok) throw new Error('Failed to load chats');
             const chats = await response.json();
-            chatListContainer.innerHTML = ''; // Clear list
+            chatListContainer.innerHTML = ''; // Clear desktop list
+
+            if (mobileChatSelect) {
+                mobileChatSelect.innerHTML = '';
+            }
 
             if (chats.length === 0) {
+                if (deleteChatBtnUniversal) deleteChatBtnUniversal.style.display = 'none';
                 await createNewChat(); // Will recall loadChats
             } else {
                 const listGroup = document.createElement('div');
@@ -212,6 +244,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     a.appendChild(titleSpan);
                     a.appendChild(deleteBtn);
                     listGroup.appendChild(a);
+
+                    // Populate mobile select
+                    if (mobileChatSelect) {
+                        const option = document.createElement('option');
+                        option.value = chat.id;
+                        option.textContent = chat.title;
+                        mobileChatSelect.appendChild(option);
+                    }
                 });
                 chatListContainer.appendChild(listGroup);
 
@@ -241,6 +281,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
     attachFileBtn.addEventListener('click', () => fileUpload.click());
     newChatBtn.addEventListener('click', createNewChat);
+
+    // Mobile event listeners
+    if (newChatBtnMobile) {
+        newChatBtnMobile.addEventListener('click', createNewChat);
+    }
+
+    // Universal Delete Listener
+    if (deleteChatBtnUniversal) {
+        deleteChatBtnUniversal.addEventListener('click', () => {
+            if (currentChatId) {
+                deleteChat(currentChatId, chatTitle.textContent);
+            }
+        });
+    }
+
+    if (mobileChatSelect) {
+        mobileChatSelect.addEventListener('change', function() {
+            loadChat(parseInt(this.value));
+        });
+    }
 
     fileUpload.addEventListener('change', function(event) {
         const files = event.target.files;
