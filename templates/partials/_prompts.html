@@ -92,5 +92,68 @@
         <hr>
         <button type="submit" class="btn btn-primary btn-lg"><span class="material-icons">save</span> Save Prompt Overrides</button>
     </form>
+
+    <hr class="my-5">
+
+    <h2 class="mt-4">System Prompts Configuration</h2>
+    <p>Define system-level instructions that users can optionally select in the chat UI. System prompts are injected at the start of the conversation. They can also be configured to disable tool usage.</p>
+
+    <form action="/set_system_prompt_config" method="POST" id="system-prompt-form">
+        <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="system-prompt-editor-mode-switch" checked>
+            <label class="form-check-label" for="system-prompt-editor-mode-switch">Use User-Friendly Editor (vs. Advanced JSON)</label>
+        </div>
+
+        <!-- User-Friendly Editor for System Prompts -->
+        <div id="system-friendly-editor">
+            <div id="system-prompt-profiles-container" class="accordion mb-3">
+                {% for profile_name, profile in system_prompt_profiles.items() %}
+                <div class="accordion-item rounded mb-3 shadow-sm {% if not profile.get('enabled', True) %}disabled-item{% endif %}" data-profile-name="{{ profile_name }}">
+                    <h2 class="accordion-header" id="sys-heading-{{ loop.index }}">
+                        <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#sys-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="sys-collapse-{{ loop.index }}">
+                            {{ profile_name }}
+                        </button>
+                    </h2>
+                    <div id="sys-collapse-{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="sys-heading-{{ loop.index }}" data-bs-parent="#system-prompt-profiles-container">
+                        <div class="accordion-body">
+                            <div class="mb-3">
+                                <label class="form-label"><b>Prompt Name</b></label>
+                                <input type="text" class="form-control system-prompt-name-input" value="{{ profile_name }}">
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input system-enabled-switch" type="checkbox" role="switch" id="sys-enabled-{{ loop.index }}" {% if profile.get('enabled', True) %}checked{% endif %}>
+                                <label class="form-check-label" for="sys-enabled-{{ loop.index }}"><b>Enabled</b></label>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label"><b>System Prompt Text</b></label>
+                                <textarea class="form-control system-prompt-text-input" rows="5" name="prompt">{{ profile.prompt }}</textarea>
+                                <div class="form-text">This text will be injected as the first message of the conversation.</div>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input system-disable-tools-switch" type="checkbox" role="switch" id="sys-disable-tools-{{ loop.index }}" {% if profile.get('disable_tools') %}checked{% endif %}>
+                                <label class="form-check-label" for="sys-disable-tools-{{ loop.index }}">Disable Tools (Commands) when this prompt is active</label>
+                            </div>
+
+                            <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn btn-success mb-3" id="add-system-prompt-btn"><span class="material-icons">add</span> Add New System Prompt</button>
+        </div>
+
+        <!-- Advanced Editor for System Prompts -->
+        <div id="system-advanced-editor" class="d-none">
+            <textarea class="form-control" name="system_prompts" id="system_prompts_textarea" rows="20">{{ current_system_prompts_str or default_system_prompts_json }}</textarea>
+        </div>
+
+        <hr>
+        <button type="submit" class="btn btn-primary btn-lg"><span class="material-icons">save</span> Save System Prompts</button>
+    </form>
+
 </div>
 <script src="{{ url_for('static', filename='js/prompt_editor.js') }}" defer></script>

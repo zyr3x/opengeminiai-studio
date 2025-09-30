@@ -16,11 +16,24 @@
             <!-- Main Chat Area -->
             <div class="col-lg-9 col-md-8 h-100 d-flex flex-column p-0">
                 <div class="card h-100 rounded-0 border-0">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0" id="chat-title">AI Chat</h5>
-                        <div class="d-flex align-items-center gap-2">
-                            <label for="model-select" class="form-label mb-0">Model:</label>
-                            <select id="model-select" class="form-select form-select-sm" style="width: auto;"></select>
+                    <div class="card-header d-flex flex-column">
+                        <h5 class="mb-2" id="chat-title">AI Chat</h5>
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="system-prompt-select" class="form-label mb-0">System Prompt:</label>
+                                <select id="system-prompt-select" name="system_prompt_name" class="form-select form-select-sm" style="width: auto;">
+                                    <option value="">(None)</option>
+                                    {% for profile_name, profile in system_prompt_profiles.items() %}
+                                    {% if profile.get('enabled', True) %}
+                                    <option value="{{ profile_name }}">{{ profile_name }}</option>
+                                    {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="model-select" class="form-label mb-0">Model:</label>
+                                <select id="model-select" class="form-select form-select-sm" style="width: auto;"></select>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body chat-history" id="chat-history">

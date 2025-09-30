@@ -156,6 +156,7 @@ def chat_api():
         model = request.form.get('model', 'gemini-1.5-flash-latest')
         user_message = request.form.get('message', '')
         attached_files = request.files.getlist('file')
+        system_prompt_name = request.form.get('system_prompt_name')
 
         user_parts = []
         if user_message:
@@ -193,6 +194,23 @@ def chat_api():
         conn.close()
 
         gemini_contents = []
+        disable_tools = False
+
+        if system_prompt_name and system_prompt_name in utils.system_prompts:
+            sp_config = utils.system_prompts[system_prompt_name]
+            system_prompt_text = sp_config.get('prompt')
+
+            if system_prompt_text:
+                # Inject system prompt as the initial message of the conversation history
+                # We use 'user' role for consistency with how Gemini handles system instructions
+                gemini_contents.append({
+                    'role': 'user',
+                    'parts': [{'text': system_prompt_text}]
+                })
+                utils.log(f"Injected system prompt profile: {system_prompt_name}")
+
+            disable_tools = sp_config.get('disable_tools', False)
+
         for m in db_messages:
             role = m['role']
             parts = json.loads(m['parts'])
@@ -235,9 +253,13 @@ def chat_api():
                     "generationConfig": {"temperature": 0.7, "topP": 1.0, "maxOutputTokens": 2048}
                 }
                 tools = mcp_handler.create_tool_declarations(full_prompt_text)
-                if tools:
+
+                # Check if tools should be disabled due to an active system prompt
+                if tools and not disable_tools:
                     request_data["tools"] = tools
                     request_data["tool_config"] = {"function_calling_config": {"mode": "AUTO"}}
+                elif disable_tools:
+                    utils.log(f"Tools omitted due to selected system prompt: {system_prompt_name}")
 
                 try:
                     response = requests.post(

@@ -18,6 +18,7 @@ def create(app: Flask):
     # Load configurations from external modules (MCP/Prompts)
     mcp_handler.load_mcp_config()
     utils.load_prompt_config()
+    utils.load_system_prompt_config()
 
     # Register blueprints
     app.register_blueprint(proxy_bp)

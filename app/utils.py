@@ -14,6 +14,9 @@ VERBOSE_LOGGING = True
 PROMPT_OVERRIDES_FILE = 'var/config/prompt.json'
 prompt_overrides = {}
 
+SYSTEM_PROMPTS_FILE = 'var/config/system_prompts.json'
+system_prompts = {}
+
 # --- Caches for model info ---
 cached_models_response = None
 model_info_cache = {}
@@ -55,6 +58,30 @@ def load_prompt_config():
             prompt_overrides = {}
     else:
         prompt_overrides = {}
+
+def load_system_prompt_config():
+    """
+    Loads preset system prompts from JSON file into the global system_prompts dict.
+    Only profiles marked as 'enabled' (or without the key) and containing a prompt will be loaded.
+    """
+    global system_prompts
+    if os.path.exists(SYSTEM_PROMPTS_FILE):
+        try:
+            with open(SYSTEM_PROMPTS_FILE, 'r') as f:
+                all_profiles = json.load(f)
+
+            system_prompts = {
+                name: profile for name, profile in all_profiles.items()
+                if profile.get('enabled', True) and profile.get('prompt')
+            }
+            log(f"System prompts loaded from {SYSTEM_PROMPTS_FILE}. "
+                f"{len(system_prompts)} of {len(all_profiles)} profiles are enabled.")
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Error loading system prompts: {e}")
+            system_prompts = {}
+    else:
+        system_prompts = {}
+
 
 
 # --- Helper Functions for Multimodal Support ---

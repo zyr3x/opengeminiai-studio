@@ -26,6 +26,10 @@ def index():
     if os.path.exists(utils.PROMPT_OVERRIDES_FILE):
         with open(utils.PROMPT_OVERRIDES_FILE, 'r') as f: current_prompt_overrides_str = f.read()
 
+    current_system_prompts_str = ""
+    if os.path.exists(utils.SYSTEM_PROMPTS_FILE):
+        with open(utils.SYSTEM_PROMPTS_FILE, 'r') as f: current_system_prompts_str = f.read()
+
     default_prompt_overrides = {
       "default_chat": {"triggers": ["You are a JetBrains AI Assistant for code development."], "overrides": {"Follow the user's requirements carefully & to the letter.": ""}},
       "commit_message": {"triggers": ["[Diff]"], "overrides": {"Write a short and professional commit message for the following changes:": "Write a short and professional commit message for the following changes:"}, "disable_tools": True}
@@ -33,6 +37,15 @@ def index():
     prompt_profiles = default_prompt_overrides
     if current_prompt_overrides_str.strip():
         try: prompt_profiles = json.loads(current_prompt_overrides_str)
+        except json.JSONDecodeError: pass
+
+    default_system_prompts = {
+      "Professional Assistant": {"enabled": True, "prompt": "You are a professional software development assistant. Your answers must be concise, accurate, and focus on providing code solutions or technical advice.", "disable_tools": False},
+      "Creative Writer": {"enabled": True, "prompt": "You are a creative writer. Answer all questions with imaginative prose and engaging storytelling.", "disable_tools": True}
+    }
+    system_prompt_profiles = default_system_prompts
+    if current_system_prompts_str.strip():
+        try: system_prompt_profiles = json.loads(current_system_prompts_str)
         except json.JSONDecodeError: pass
 
     default_mcp_config = {
@@ -54,6 +67,8 @@ def index():
         default_mcp_config_json=utils.pretty_json(default_mcp_config),
         prompt_profiles=prompt_profiles, current_prompt_overrides_str=current_prompt_overrides_str,
         default_prompt_overrides_json=utils.pretty_json(default_prompt_overrides),
+        system_prompt_profiles=system_prompt_profiles, current_system_prompts_str=current_system_prompts_str,
+        default_system_prompts_json=utils.pretty_json(default_system_prompts),
         verbose_logging_status=utils.VERBOSE_LOGGING,
         current_max_function_declarations=mcp_config_data.get("maxFunctionDeclarations", mcp_handler.max_function_declarations_limit),
         current_year=datetime.now().year
