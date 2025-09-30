@@ -11,9 +11,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const promptProfilesContainer = document.getElementById('prompt-profiles-container');
     const addProfileBtn = document.getElementById('add-profile-btn');
 
+    // System Prompt Editor Elements
+    const systemPromptForm = document.getElementById('system-prompt-form');
+    const systemPromptEditorModeSwitch = document.getElementById('system-prompt-editor-mode-switch');
+    const systemFriendlyEditor = document.getElementById('system-friendly-editor');
+    const systemAdvancedEditor = document.getElementById('system-advanced-editor');
+    const systemPromptsTextarea = document.getElementById('system_prompts_textarea');
+    const systemPromptProfilesContainer = document.getElementById('system-prompt-profiles-container');
+    const addSystemPromptBtn = document.getElementById('add-system-prompt-btn');
+
     // Add event delegation for the enabled switch to visually update the item
     promptProfilesContainer.addEventListener('change', function(e) {
         if (e.target.classList.contains('enabled-switch')) {
+            const accordionItem = e.target.closest('.accordion-item');
+            if (accordionItem) {
+                accordionItem.classList.toggle('disabled-item', !e.target.checked);
+            }
+        }
+    });
+
+    // Add event delegation for system prompt enabled switch to visually update the item
+    systemPromptProfilesContainer?.addEventListener('change', function(e) {
+        if (e.target.classList.contains('system-enabled-switch')) {
             const accordionItem = e.target.closest('.accordion-item');
             if (accordionItem) {
                 accordionItem.classList.toggle('disabled-item', !e.target.checked);
@@ -33,6 +52,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     updateEditorVisibility();
     promptEditorModeSwitch.addEventListener('change', updateEditorVisibility);
+
+    // Initial state and listener for System Prompt editor visibility
+    function updateSystemEditorVisibility() {
+        if (systemPromptEditorModeSwitch.checked) {
+            systemFriendlyEditor.classList.remove('d-none');
+            systemAdvancedEditor.classList.add('d-none');
+        } else {
+            systemFriendlyEditor.classList.add('d-none');
+            systemAdvancedEditor.classList.remove('d-none');
+        }
+    }
+    if (systemPromptEditorModeSwitch) {
+        updateSystemEditorVisibility();
+        systemPromptEditorModeSwitch.addEventListener('change', updateSystemEditorVisibility);
+    }
 
     // Function to attach event listeners to a newly added or existing profile div
     function attachProfileEventListeners(profileDiv) {
@@ -94,9 +128,32 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Function to attach event listeners to a newly added or existing system prompt profile div
+    function attachSystemPromptEventListeners(profileDiv) {
+        // Delete Profile
+        profileDiv.querySelector('.system-delete-profile-btn')?.addEventListener('click', function() {
+            if (confirm('Are you sure you want to delete this System Prompt?')) {
+                profileDiv.remove();
+            }
+        });
+
+        // Update accordion button text if profile name changes
+        profileDiv.querySelector('.system-prompt-name-input')?.addEventListener('input', function() {
+            const headerButton = profileDiv.querySelector('.accordion-header button');
+            if (headerButton) {
+                headerButton.textContent = this.value || 'Unnamed Prompt';
+            }
+        });
+    }
+
     // Attach listeners to initially loaded profiles
     document.querySelectorAll('#prompt-profiles-container .accordion-item').forEach(profileDiv => {
         attachProfileEventListeners(profileDiv);
+    });
+
+    // Attach listeners to initially loaded system profiles
+    document.querySelectorAll('#system-prompt-profiles-container .accordion-item').forEach(profileDiv => {
+        attachSystemPromptEventListeners(profileDiv);
     });
 
     // Add new profile button logic
@@ -161,6 +218,51 @@ document.addEventListener('DOMContentLoaded', function() {
         attachProfileEventListeners(promptProfilesContainer.lastElementChild);
     });
 
+    // Add new system prompt button logic
+    addSystemPromptBtn?.addEventListener('click', function() {
+        if (!systemPromptProfilesContainer) return;
+        const newProfileIndex = systemPromptProfilesContainer.children.length + 1;
+        const profileId = `sys-${newProfileIndex}-${Date.now()}`; // Ensure unique IDs
+        const newProfileHtml = `
+            <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New System Prompt ${newProfileIndex}">
+                <h2 class="accordion-header" id="sys-heading-${profileId}">
+                    <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#sys-collapse-${profileId}" aria-expanded="false" aria-controls="sys-collapse-${profileId}">
+                        New System Prompt ${newProfileIndex}
+                    </button>
+                </h2>
+                <div id="sys-collapse-${profileId}" class="accordion-collapse collapse" aria-labelledby="sys-heading-${profileId}" data-bs-parent="#system-prompt-profiles-container">
+                    <div class="accordion-body">
+                        <div class="mb-3">
+                            <label class="form-label"><b>Prompt Name</b></label>
+                            <input type="text" class="form-control system-prompt-name-input" value="New System Prompt ${newProfileIndex}">
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input system-enabled-switch" type="checkbox" role="switch" id="sys-enabled-${profileId}" checked>
+                            <label class="form-check-label" for="sys-enabled-${profileId}"><b>Enabled</b></label>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label"><b>System Prompt Text</b></label>
+                            <textarea class="form-control system-prompt-text-input" rows="5" name="prompt"></textarea>
+                            <div class="form-text">This text will be injected as the first message of the conversation.</div>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input system-disable-tools-switch" type="checkbox" role="switch" id="sys-disable-tools-${profileId}">
+                            <label class="form-check-label" for="sys-disable-tools-${profileId}">Disable Tools (Commands) when this prompt is active</label>
+                        </div>
+
+                        <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        systemPromptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
+        // Attach event listeners to the newly added profile
+        attachSystemPromptEventListeners(systemPromptProfilesContainer.lastElementChild);
+    });
+
     // Form submission handler for the user-friendly editor
     promptForm.addEventListener('submit', function(event) {
         if (promptEditorModeSwitch.checked) {
@@ -216,6 +318,46 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Now submit the form manually
             promptForm.submit();
+        }
+    });
+
+    // Form submission handler for the user-friendly editor (System Prompts)
+    systemPromptForm?.addEventListener('submit', function(event) {
+        if (systemPromptEditorModeSwitch && systemPromptEditorModeSwitch.checked) {
+            event.preventDefault(); // Prevent default submission to serialize and then submit
+
+            const profiles = {};
+            document.querySelectorAll('#system-prompt-profiles-container .accordion-item').forEach(profileDiv => {
+                const profileNameInput = profileDiv.querySelector('.system-prompt-name-input');
+                const newProfileName = profileNameInput ? profileNameInput.value.trim() : '';
+
+                // Skip profiles with empty names, or provide user feedback
+                if (!newProfileName) {
+                    alert('All system prompt names must be filled out.');
+                    profileNameInput?.focus();
+                    throw new Error('Empty system prompt name found.'); // Stop submission
+                }
+
+                const promptTextInput = profileDiv.querySelector('.system-prompt-text-input');
+                const promptText = promptTextInput ? promptTextInput.value.trim() : '';
+
+                const disableToolsSwitch = profileDiv.querySelector('.system-disable-tools-switch');
+                const disableTools = disableToolsSwitch ? disableToolsSwitch.checked : false;
+
+                const enabledSwitch = profileDiv.querySelector('.system-enabled-switch');
+                const enabled = enabledSwitch ? enabledSwitch.checked : true;
+
+                profiles[newProfileName] = {
+                    enabled: enabled,
+                    prompt: promptText,
+                    disable_tools: disableTools
+                };
+            });
+
+            systemPromptsTextarea.value = JSON.stringify(profiles, null, 2);
+
+            // Now submit the form manually
+            systemPromptForm.submit();
         }
     });
 });
