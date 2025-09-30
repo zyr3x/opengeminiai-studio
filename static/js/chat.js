@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function () {
             item.classList.remove('active');
             if (item.dataset.chatId == chatId) {
                 item.classList.add('active');
-                chatTitle.textContent = item.textContent.replace('Chatdelete','Chat');
+                chatTitle.textContent = item.querySelector('span').textContent;
             }
         });
 
@@ -191,11 +191,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 chats.forEach(chat => {
                     const a = document.createElement('a');
                     a.href = '#chat';
-                    a.className = 'list-group-item list-group-item-action text-truncate d-flex justify-content-between align-items-center';
+                    a.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
                     a.dataset.chatId = chat.id;
                     a.onclick = (e) => { e.preventDefault(); loadChat(chat.id); };
 
                     const titleSpan = document.createElement('span');
+                    titleSpan.className = 'text-truncate';
                     titleSpan.textContent = chat.title;
 
                     const deleteBtn = document.createElement('button');
