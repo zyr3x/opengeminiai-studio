@@ -295,6 +295,34 @@ def chat_api():
                             if len(buffer) > 65536: buffer = buffer[-32768:]
                             break
 
+                    # If the model is silent after a tool call, construct a response from the tool's output
+                    # to avoid an empty message and ensure the user sees the result.
+                    is_after_tool_call = current_contents and current_contents[-1].get('role') == 'tool'
+                    has_text_in_model_response = any('text' in p for p in model_response_parts)
+
+                    if is_after_tool_call and not has_text_in_model_response and not tool_calls:
+                        tool_parts_from_history = current_contents[-1].get('parts', [])
+                        formatted_tool_outputs = []
+                        for tool_part in tool_parts_from_history:
+                            func_resp = tool_part.get('functionResponse', {})
+                            name = func_resp.get('name', 'unknown_tool')
+                            resp_text = func_resp.get('response', {}).get('text', '')
+                            if not resp_text:
+                                continue
+                            try:
+                                # Try to parse and pretty-print if it's a JSON string
+                                parsed_json = json.loads(resp_text)
+                                pretty_text = json.dumps(parsed_json, indent=2, default=str)
+                            except (json.JSONDecodeError, TypeError):
+                                pretty_text = resp_text
+                                formatted_output = (f'\n<details><summary>Tool Output: `{name}`</summary>\n\n'
+                                                            f'```json\n{pretty_text}\n```\n\n</details>\n')
+                                formatted_tool_outputs.append(formatted_output)
+                            if formatted_tool_outputs:
+                                final_text = "".join(formatted_tool_outputs)
+                                model_response_parts = [{'text': final_text}]
+                                yield final_text
+
                 if model_response_parts:
                     db_conn = get_db_connection()
                     db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
