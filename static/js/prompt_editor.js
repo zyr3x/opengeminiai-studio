@@ -157,111 +157,117 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Add new profile button logic
-    addProfileBtn.addEventListener('click', function() {
-        const newProfileIndex = promptProfilesContainer.children.length + 1; // Simple incrementing index
-        const newProfileHtml = `
-            <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New Profile ${newProfileIndex}">
-                <h2 class="accordion-header" id="heading-${newProfileIndex}">
-                    <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${newProfileIndex}" aria-expanded="false" aria-controls="collapse-${newProfileIndex}">
-                        New Profile ${newProfileIndex}
-                    </button>
-                </h2>
-                <div id="collapse-${newProfileIndex}" class="accordion-collapse collapse" aria-labelledby="heading-${newProfileIndex}" data-bs-parent="#prompt-profiles-container">
-                    <div class="accordion-body">
-                        <div class="mb-3">
-                            <label class="form-label"><b>Profile Name</b></label>
-                            <input type="text" class="form-control profile-name-input" value="New Profile ${newProfileIndex}">
-                        </div>
-
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input enabled-switch" type="checkbox" role="switch" id="enabled-${newProfileIndex}" checked>
-                            <label class="form-check-label" for="enabled-${newProfileIndex}"><b>Enabled</b></label>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label"><b>Triggers</b> (phrases that activate this profile)</label>
-                            <div class="triggers-container">
-                                <div class="input-group mb-2">
-                                    <input type="text" class="form-control trigger-input" placeholder="e.g., commit message">
-                                    <button class="btn btn-outline-danger remove-item-btn" type="button"><span class="material-icons">close</span></button>
-                                </div>
+    if (addProfileBtn && !addProfileBtn.dataset.listenerAttached) {
+        addProfileBtn.dataset.listenerAttached = 'true';
+        addProfileBtn.addEventListener('click', function() {
+            const newProfileIndex = promptProfilesContainer.children.length + 1; // Simple incrementing index
+            const newProfileHtml = `
+                <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New Profile ${newProfileIndex}">
+                    <h2 class="accordion-header" id="heading-${newProfileIndex}">
+                        <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${newProfileIndex}" aria-expanded="false" aria-controls="collapse-${newProfileIndex}">
+                            New Profile ${newProfileIndex}
+                        </button>
+                    </h2>
+                    <div id="collapse-${newProfileIndex}" class="accordion-collapse collapse" aria-labelledby="heading-${newProfileIndex}" data-bs-parent="#prompt-profiles-container">
+                        <div class="accordion-body">
+                            <div class="mb-3">
+                                <label class="form-label"><b>Profile Name</b></label>
+                                <input type="text" class="form-control profile-name-input" value="New Profile ${newProfileIndex}">
                             </div>
-                            <button class="btn btn-sm btn-outline-secondary add-trigger-btn" type="button">Add Trigger</button>
-                        </div>
 
-                        <div class="mb-3">
-                            <label class="form-label"><b>Overrides</b> (text to find and replace)</label>
-                            <div class="overrides-container">
-                                <div class="input-group mb-2">
-                                    <span class="input-group-text" style="width: 50px;">Find</span>
-                                    <input type="text" class="form-control override-key-input" placeholder="Text to find">
-                                    <span class="input-group-text" style="width: 80px;">Replace</span>
-                                    <input type="text" class="form-control override-value-input" placeholder="Replacement text">
-                                    <button class="btn btn-outline-danger remove-item-btn" type="button"><span class="material-icons">close</span></button>
-                                </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input enabled-switch" type="checkbox" role="switch" id="enabled-${newProfileIndex}" checked>
+                                <label class="form-check-label" for="enabled-${newProfileIndex}"><b>Enabled</b></label>
                             </div>
-                            <button class="btn btn-sm btn-outline-secondary add-override-btn" type="button">Add Override</button>
-                        </div>
 
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input disable-tools-switch" type="checkbox" role="switch" id="disable-tools-${newProfileIndex}">
-                            <label class="form-check-label" for="disable-tools-${newProfileIndex}">Disable Tools (Commands) for this profile</label>
-                        </div>
+                            <div class="mb-3">
+                                <label class="form-label"><b>Triggers</b> (phrases that activate this profile)</label>
+                                <div class="triggers-container">
+                                    <div class="input-group mb-2">
+                                        <input type="text" class="form-control trigger-input" placeholder="e.g., commit message">
+                                        <button class="btn btn-outline-danger remove-item-btn" type="button"><span class="material-icons">close</span></button>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary add-trigger-btn" type="button">Add Trigger</button>
+                            </div>
 
-                        <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
+                            <div class="mb-3">
+                                <label class="form-label"><b>Overrides</b> (text to find and replace)</label>
+                                <div class="overrides-container">
+                                    <div class="input-group mb-2">
+                                        <span class="input-group-text" style="width: 50px;">Find</span>
+                                        <input type="text" class="form-control override-key-input" placeholder="Text to find">
+                                        <span class="input-group-text" style="width: 80px;">Replace</span>
+                                        <input type="text" class="form-control override-value-input" placeholder="Replacement text">
+                                        <button class="btn btn-outline-danger remove-item-btn" type="button"><span class="material-icons">close</span></button>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary add-override-btn" type="button">Add Override</button>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input disable-tools-switch" type="checkbox" role="switch" id="disable-tools-${newProfileIndex}">
+                                <label class="form-check-label" for="disable-tools-${newProfileIndex}">Disable Tools (Commands) for this profile</label>
+                            </div>
+
+                            <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-        promptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
-        // Attach event listeners to the newly added profile
-        attachProfileEventListeners(promptProfilesContainer.lastElementChild);
-    });
+            `;
+            promptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
+            // Attach event listeners to the newly added profile
+            attachProfileEventListeners(promptProfilesContainer.lastElementChild);
+        });
+    }
 
     // Add new system prompt button logic
-    addSystemPromptBtn?.addEventListener('click', function() {
-        if (!systemPromptProfilesContainer) return;
-        const newProfileIndex = systemPromptProfilesContainer.children.length + 1;
-        const profileId = `sys-${newProfileIndex}-${Date.now()}`; // Ensure unique IDs
-        const newProfileHtml = `
-            <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New System Prompt ${newProfileIndex}">
-                <h2 class="accordion-header" id="sys-heading-${profileId}">
-                    <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#sys-collapse-${profileId}" aria-expanded="false" aria-controls="sys-collapse-${profileId}">
-                        New System Prompt ${newProfileIndex}
-                    </button>
-                </h2>
-                <div id="sys-collapse-${profileId}" class="accordion-collapse collapse" aria-labelledby="sys-heading-${profileId}" data-bs-parent="#system-prompt-profiles-container">
-                    <div class="accordion-body">
-                        <div class="mb-3">
-                            <label class="form-label"><b>Prompt Name</b></label>
-                            <input type="text" class="form-control system-prompt-name-input" value="New System Prompt ${newProfileIndex}">
-                        </div>
+    if (addSystemPromptBtn && !addSystemPromptBtn.dataset.listenerAttached) {
+        addSystemPromptBtn.dataset.listenerAttached = 'true';
+        addSystemPromptBtn.addEventListener('click', function() {
+            if (!systemPromptProfilesContainer) return;
+            const newProfileIndex = systemPromptProfilesContainer.children.length + 1;
+            const profileId = `sys-${newProfileIndex}-${Date.now()}`; // Ensure unique IDs
+            const newProfileHtml = `
+                <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New System Prompt ${newProfileIndex}">
+                    <h2 class="accordion-header" id="sys-heading-${profileId}">
+                        <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#sys-collapse-${profileId}" aria-expanded="false" aria-controls="sys-collapse-${profileId}">
+                            New System Prompt ${newProfileIndex}
+                        </button>
+                    </h2>
+                    <div id="sys-collapse-${profileId}" class="accordion-collapse collapse" aria-labelledby="sys-heading-${profileId}" data-bs-parent="#system-prompt-profiles-container">
+                        <div class="accordion-body">
+                            <div class="mb-3">
+                                <label class="form-label"><b>Prompt Name</b></label>
+                                <input type="text" class="form-control system-prompt-name-input" value="New System Prompt ${newProfileIndex}">
+                            </div>
 
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input system-enabled-switch" type="checkbox" role="switch" id="sys-enabled-${profileId}" checked>
-                            <label class="form-check-label" for="sys-enabled-${profileId}"><b>Enabled</b></label>
-                        </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input system-enabled-switch" type="checkbox" role="switch" id="sys-enabled-${profileId}" checked>
+                                <label class="form-check-label" for="sys-enabled-${profileId}"><b>Enabled</b></label>
+                            </div>
 
-                        <div class="mb-3">
-                            <label class="form-label"><b>System Prompt Text</b></label>
-                            <textarea class="form-control system-prompt-text-input" rows="5" name="prompt"></textarea>
-                            <div class="form-text">This text will be injected as the first message of the conversation.</div>
-                        </div>
+                            <div class="mb-3">
+                                <label class="form-label"><b>System Prompt Text</b></label>
+                                <textarea class="form-control system-prompt-text-input" rows="5" name="prompt"></textarea>
+                                <div class="form-text">This text will be injected as the first message of the conversation.</div>
+                            </div>
 
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input system-disable-tools-switch" type="checkbox" role="switch" id="sys-disable-tools-${profileId}">
-                            <label class="form-check-label" for="sys-disable-tools-${profileId}">Disable Tools (Commands) when this prompt is active</label>
-                        </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input system-disable-tools-switch" type="checkbox" role="switch" id="sys-disable-tools-${profileId}">
+                                <label class="form-check-label" for="sys-disable-tools-${profileId}">Disable Tools (Commands) when this prompt is active</label>
+                            </div>
 
-                        <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
+                            <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-        systemPromptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
-        // Attach event listeners to the newly added profile
-        attachSystemPromptEventListeners(systemPromptProfilesContainer.lastElementChild);
-    });
+            `;
+            systemPromptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
+            // Attach event listeners to the newly added profile
+            attachSystemPromptEventListeners(systemPromptProfilesContainer.lastElementChild);
+        });
+    }
 
     // Form submission handler for the user-friendly editor
     promptForm.addEventListener('submit', function(event) {
