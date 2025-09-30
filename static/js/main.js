@@ -5,7 +5,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('.nav-link');
     const contentSections = document.querySelectorAll('.content-section');
     const navbarCollapse = document.getElementById('navbarNav');
-
+    const mainContent = document.querySelector('.main-content');
+    const body = document.querySelector('body');
     // Function to set the theme
     function setTheme(theme) {
         htmlElement.setAttribute('data-bs-theme', theme);
@@ -20,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to show/hide content sections based on hash
     function showSectionBasedOnHash() {
-        let hash = window.location.hash || '#home';
+        let hash = window.location.hash || '#chat';
         let sectionId = hash.substring(1);
 
         // Hide all sections
@@ -33,9 +34,24 @@ document.addEventListener('DOMContentLoaded', function() {
         if (targetSection) {
             targetSection.style.display = 'block';
         } else {
-            // Fallback to home if hash is invalid
-            document.getElementById('home').style.display = 'block';
-            hash = '#home';
+            // Fallback to chat if hash is invalid
+            const chatSection = document.getElementById('chat');
+            if (chatSection) {
+                chatSection.style.display = 'block';
+            }
+            hash = '#chat';
+        }
+
+        if (mainContent) {
+            if (hash === '#chat') {
+                body.classList.add('chat');
+                mainContent.classList.remove('container');
+                mainContent.classList.add('container-fluid');
+            } else {
+                body.classList.remove('chat');
+                mainContent.classList.remove('container-fluid');
+                mainContent.classList.add('container');
+            }
         }
 
         // Update active link in navbar

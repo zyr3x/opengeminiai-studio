@@ -805,3 +805,12 @@ pre {
     /* remove margin if it's the only child */
     margin: 0;
 }
+
+body.chat {
+    overflow: hidden;
+}
+#chat {
+    padding-top: 0rem;
+    padding-bottom: 0rem;
+    margin-top: -15px;
+}
