@@ -12,6 +12,8 @@ class AppConfig:
     def __init__(self):
         self.API_KEY = os.getenv("API_KEY")
         self.UPSTREAM_URL = os.getenv("UPSTREAM_URL")
+        self.SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
+        self.SERVER_PORT = int(os.getenv("SERVER_PORT", 8080))
         if not self.UPSTREAM_URL:
             raise ValueError("UPSTREAM_URL environment variable not set")
 

@@ -19,6 +19,7 @@ from flask import Flask
 
 import app.mcp_handler as mcp_handler
 import app.utils as utils
+from app.config import config
 from app.controllers.proxy import proxy_bp
 from app.controllers.settings import settings_bp
 from app.controllers.web_ui import web_ui_bp
@@ -36,5 +37,5 @@ app.register_blueprint(web_ui_bp)
 app.register_blueprint(web_ui_chat_bp)
 
 if __name__ == '__main__':
-    print("Starting proxy server on http://0.0.0.0:8080...")
-    app.run(host='0.0.0.0', port=8080)
+    print(f"Starting proxy server on http://{config.SERVER_HOST}:{config.SERVER_PORT}...")
+    app.run(host=config.SERVER_HOST, port=config.SERVER_PORT)
