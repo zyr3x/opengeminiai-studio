@@ -50,6 +50,8 @@ bash git clone <your-repository-url> cd <repository-name>
     # .env
     API_KEY=<PASTE_YOUR_GEMINI_API_KEY_HERE>
     UPSTREAM_URL=https://generativelanguage.googleapis.com
+    SERVER_HOST=0.0.0.0
+    SERVER_PORT=8080
     ```
 3.  Start the service using Docker Compose:
     ```bash
@@ -117,12 +119,12 @@ The proxy includes a comprehensive web interface at `http://localhost:8080` for 
 
 The proxy can be configured in three ways (in order of precedence):
 
-1.  **Web Interface:** Settings saved via the UI persist in `.env` and `mcp_config.json`.
+1.  **Web Interface:** Settings saved via the UI persist in `.env` and `var/config/mcp.json`.
 2.  **Environment Variables:** Set `API_KEY` and `UPSTREAM_URL` when running the container.
 3.  **Configuration Files:**
     -   `.env`: For `API_KEY` and `UPSTREAM_URL`.
-    -   `mcp_config.json`: For MCP tool definitions.
-    -   `prompts.json`: For saved user prompts.
+    -   `var/config/mcp.json`: For MCP tool definitions.
+    -   `var/config/prompts.json`: For saved user prompts.
 
 ## 🔗 Available Endpoints
 

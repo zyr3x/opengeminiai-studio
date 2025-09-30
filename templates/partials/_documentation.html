@@ -33,13 +33,15 @@
     <pre><code class="language-bash">
  export API_KEY="YOUR_GEMINI_API_KEY"
  export UPSTREAM_URL="https://generativelanguage.googleapis.com"
+ export SERVER_HOST=0.0.0.0
+ export SERVER_PORT=8080
     </code></pre>
     <p>Then, run the server:</p>
     <pre><code class="language-bash">
  python3.12 -m venv
  source venv/bin/activate
  pip install -r requirements.txt
- python3.12 gemini-proxy.py
+ python3.12 run.py
     </code></pre>
     <p>or Docker Version</p>
     <pre><code class="language-bash">docker-composer up -d</code></pre>

@@ -17,4 +17,4 @@ EXPOSE 8080
 # Run the application
 # Note: You MUST provide the API_KEY environment variable when running the container.
 # Example: docker run -p 8081:8081 -e API_KEY="YOUR_GEMINI_API_KEY" gemini-proxy
-CMD ["python", "gemini-proxy.py"]
+CMD ["python", "run.py"]
