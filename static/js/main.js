@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to show/hide content sections based on hash
     function showSectionBasedOnHash() {
-        let hash = window.location.hash || '#chat';
+        let hash = window.location.hash || '#home';
         let sectionId = hash.substring(1);
 
         // Hide all sections
