@@ -22,19 +22,16 @@ cached_models_response = None
 model_info_cache = {}
 TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95  # Use 95% of the model's capacity
 
-
 def set_verbose_logging(enabled: bool):
     """Sets the verbose logging status."""
     global VERBOSE_LOGGING
     VERBOSE_LOGGING = enabled
     print(f"Verbose logging has been {'enabled' if enabled else 'disabled'}.")
 
-
 def log(message: str):
     """Prints a message to the console if verbose logging is enabled."""
     if VERBOSE_LOGGING:
         print(message)
-
 
 def load_prompt_config():
     """
@@ -82,10 +79,6 @@ def load_system_prompt_config():
     else:
         system_prompts = {}
 
-
-
-# --- Helper Functions for Multimodal Support ---
-
 def _process_image_url(image_url: dict) -> dict | None:
     """
     Processes an OpenAI image_url object and converts it to a Gemini inline_data part.
@@ -116,9 +109,6 @@ def _process_image_url(image_url: dict) -> dict | None:
         print(f"Error processing image URL {url}: {e}")
         return None
 
-
-# --- Helper Functions for Token Management ---
-
 def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> int:
     """
     Fetches the input token limit for a given model from the Gemini API and caches it.
@@ -139,7 +129,6 @@ def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> i
         print(f"Error fetching model details for {model_name}: {e}. Using default limit of 8192.")
         return 8192  # Return a safe default on error
 
-
 def estimate_token_count(contents: list) -> int:
     """
     Estimates the token count of the 'contents' list using a character-based heuristic.
@@ -151,7 +140,6 @@ def estimate_token_count(contents: list) -> int:
             if "text" in part:
                 total_chars += len(part.get("text", ""))
     return total_chars // 4
-
 
 def truncate_contents(contents: list, limit: int) -> list:
     """
@@ -174,7 +162,6 @@ def truncate_contents(contents: list, limit: int) -> list:
     final_tokens = estimate_token_count(truncated_contents)
     log(f"Truncation complete. Final estimated token count: {final_tokens}")
     return truncated_contents
-
 
 def pretty_json(data):
     return json.dumps(data, ensure_ascii=False)
