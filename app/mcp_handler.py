@@ -22,7 +22,6 @@ mcp_request_id_counter = 1  # Counter for unique JSON-RPC request IDs
 MAX_FUNCTION_DECLARATIONS_DEFAULT = 64 # Default documented limit
 max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT # Configurable limit
 
-
 def get_declarations_from_tool(tool_name, tool_info):
     """Fetches function declaration schema(s) from an MCP tool using MCP protocol."""
     global mcp_function_input_schema_map
@@ -243,8 +242,6 @@ def fetch_mcp_tool_list(tool_info):
     except Exception as e:
         return {"error": f"An unexpected error occurred: {e}"}
 
-
-
 def load_mcp_config():
     """Loads MCP tool configuration from file and fetches schemas for all configured tools."""
     global mcp_config, mcp_function_declarations, mcp_function_to_tool_map, mcp_function_input_schema_map, mcp_tool_processes, max_function_declarations_limit
@@ -310,7 +307,6 @@ def load_mcp_config():
                     mcp_function_to_tool_map[decl['name']] = tool_name
         log(f"Total function declarations loaded: {len(mcp_function_declarations)}")
 
-
 def create_tool_declarations(prompt_text: str = ""):
     """
     Returns tool declarations for the Gemini API, intelligently selecting them based on the prompt.
@@ -363,7 +359,6 @@ def create_tool_declarations(prompt_text: str = ""):
 
     return [{"functionDeclarations": final_declarations}]
 
-
 def _parse_kwargs_string(s: str) -> dict:
     """
     Parses a simple key=value string (supports quoted values) into a dict.
@@ -379,7 +374,6 @@ def _parse_kwargs_string(s: str) -> dict:
     except Exception as e:
         print(f"Warning: failed to parse kwargs string '{s}': {e}")
     return result
-
 
 def _normalize_mcp_args(args) -> dict:
     """
@@ -433,7 +427,6 @@ def _normalize_mcp_args(args) -> dict:
     # Unknown type
     return {}
 
-
 def _ensure_dict(value):
     """
     Ensures the value is a dict. If a string, try JSON then key=value parsing.
@@ -448,7 +441,6 @@ def _ensure_dict(value):
         except json.JSONDecodeError:
             return _parse_kwargs_string(value)
     return {}
-
 
 def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
     """
@@ -493,7 +485,6 @@ def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
             result["args"] = []
 
     return result
-
 
 def execute_mcp_tool(function_name, tool_args):
     """
