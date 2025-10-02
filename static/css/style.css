@@ -819,3 +819,7 @@ body.chat footer{
     padding-bottom: 0rem;
     margin-top: -15px;
 }
+#chat .card:hover,
+#chat .card {
+    box-shadow: unset;
+}
