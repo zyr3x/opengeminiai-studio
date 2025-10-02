@@ -22,9 +22,9 @@
     /* Bootstrap component compatibility */
     --bs-primary: #6A1B9A;
     --bs-primary-rgb: 106, 27, 154;
-    --bs-list-group-active-bg: var(--btn-primary-bg);
-    --bs-list-group-active-color: var(--btn-primary-color);
-    --bs-list-group-active-border-color: var(--btn-primary-border);
+    --bs-list-group-active-bg: #6A1B9AFF !important;
+    --bs-list-group-active-color: #6A1B9AFF !important;;
+    --bs-list-group-active-border-color: #6A1B9AFF !important;;
 
     /* Specific component overrides for light theme */
     --card-bg: #fff;
@@ -479,9 +479,9 @@ code {
 }
 
 #chat .list-group-item.active {
-    background-color: var(--bs-list-group-active-bg);
-    color: var(--bs-list-group-active-color);
-    border-color: var(--bs-list-group-active-border-color);
+    background-color: #6A1B9AFF !important;
+    color: #fff;
+    border-color: #6A1B9AFF !important;
 }
 
 #chat .card {
