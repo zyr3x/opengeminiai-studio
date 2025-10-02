@@ -461,7 +461,7 @@ code {
 
 /* Chat Interface Specific Styles */
 #chat {
-    height: calc(100vh - 8rem); /* Full viewport height minus navbar and padding */
+    height: calc(100vh - 5rem); /* Full viewport height minus navbar and padding */
 }
 
 #chat .card {
@@ -809,6 +809,11 @@ pre {
 body.chat {
     overflow: hidden;
 }
+
+body.chat footer{
+    display:none;
+}
+
 #chat {
     padding-top: 0rem;
     padding-bottom: 0rem;

@@ -30,7 +30,6 @@ def set_mcp_config():
     mcp_handler.load_mcp_config()
     return redirect(url_for('web_ui.index', _anchor='mcp'))
 
-
 @mcp_settings_bp.route('/mcp_tool_info', methods=['POST'])
 def mcp_tool_info():
     """

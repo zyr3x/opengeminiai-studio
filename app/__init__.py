@@ -14,7 +14,9 @@ def create(app: Flask):
     from app.controllers.prompt_settings import prompt_settings_bp
     from app.controllers.web_ui import web_ui_bp
     from app.controllers.web_ui_chat import web_ui_chat_bp
+    from app.db import init_db
 
+    init_db()
     # Load configurations from external modules (MCP/Prompts)
     mcp_handler.load_mcp_config()
     utils.load_prompt_config()

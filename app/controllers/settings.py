@@ -22,7 +22,6 @@ def set_api_key():
         utils.log("Caches cleared due to API key change.")
     return redirect(url_for('web_ui.index', _anchor='configuration'))
 
-
 @settings_bp.route('/set_logging', methods=['POST'])
 def set_logging():
     """Enables or disables verbose logging."""

@@ -3,10 +3,9 @@ Flask routes for the web chat UI, including the main page and direct chat API.
 """
 import base64
 import json
-import os
 import shutil
-import sqlite3
 import requests
+import os
 from flask import Blueprint, request, jsonify, Response, send_from_directory
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from werkzeug.utils import secure_filename
@@ -14,51 +13,10 @@ from werkzeug.utils import secure_filename
 from app.config import config
 from app import mcp_handler
 from app import utils
+from app.db import get_db_connection, UPLOAD_FOLDER
+
 
 web_ui_chat_bp = Blueprint('web_ui_chat', __name__)
-
-
-# --- Database setup ---
-UPLOAD_FOLDER = "var/uploads"
-DATABASE_FILE = "var/data/chats.db"
-
-def get_db_connection():
-    conn = sqlite3.connect(DATABASE_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    # Ensure data and upload directories exist
-    os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-    if os.path.exists(DATABASE_FILE) and os.path.getsize(DATABASE_FILE) > 0:
-        return
-
-    print("Initializing database...")
-    conn = get_db_connection()
-    conn.execute('PRAGMA foreign_keys = ON;')
-    conn.execute('''
-        CREATE TABLE chats (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    ''')
-    conn.execute('''
-        CREATE TABLE messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id INTEGER NOT NULL,
-            role TEXT NOT NULL, -- user, model, or tool
-            parts TEXT NOT NULL, -- JSON list of parts (text or file references)
-            FOREIGN KEY (chat_id) REFERENCES chats (id) ON DELETE CASCADE
-        );
-    ''')
-    conn.commit()
-    conn.close()
-    print("Database initialized.")
-
-init_db()
 
 
 # --- Chat Management API Routes ---
@@ -80,7 +38,6 @@ def create_chat():
     conn.close()
     return jsonify(new_chat), 201
 
-
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>', methods=['DELETE'])
 def delete_chat(chat_id):
     """
@@ -100,7 +57,6 @@ def delete_chat(chat_id):
     conn.commit()
     conn.close()
     return jsonify({'success': True}), 200
-
 
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>/messages', methods=['GET'])
 def get_chat_messages(chat_id):
@@ -138,7 +94,6 @@ def get_chat_messages(chat_id):
         except (json.JSONDecodeError, TypeError):
             continue
     return jsonify(formatted_messages)
-
 
 @web_ui_chat_bp.route('/chat_api', methods=['POST'])
 def chat_api():
@@ -370,7 +325,6 @@ def chat_api():
     except Exception as e:
         print(f"An error occurred in chat API: {str(e)}")
         return jsonify({"error": f"An error occurred in chat API: {str(e)}"}), 500
-
 
 @web_ui_chat_bp.route('/uploads/<path:filepath>')
 def serve_upload(filepath):

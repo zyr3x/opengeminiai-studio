@@ -29,7 +29,6 @@ def set_prompt_config():
     utils.load_prompt_config()
     return redirect(url_for('web_ui.index', _anchor='prompts'))
 
-
 @prompt_settings_bp.route('/set_system_prompt_config', methods=['POST'])
 def set_system_prompt_config():
     """Saves system prompt configuration from web form to a JSON file and reloads it."""
