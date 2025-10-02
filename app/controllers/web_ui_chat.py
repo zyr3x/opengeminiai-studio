@@ -134,10 +134,33 @@ def generate_image_api():
 
         # 3. Process the response
         parts = response_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-        image_part = next((p for p in parts if 'inline_data' in p and 'image' in p['inline_data']['mime_type']), None)
+
+        image_data = None
+        mime_type = None
+
+        # Try to find inline image data first
+        inline_part = next((p for p in parts if 'inline_data' in p and 'image' in p['inline_data']['mime_type']), None)
+        if inline_part:
+            mime_type = inline_part['inline_data']['mime_type']
+            image_data = base64.b64decode(inline_part['inline_data']['data'])
+        else:
+            # If not found, try to find a file URI from fileData and download the image
+            # Note: Gemini API returns camelCase keys like 'fileData'
+            uri_part = next((p for p in parts if 'fileData' in p and 'image' in p['fileData']['mimeType']), None)
+            if uri_part:
+                try:
+                    mime_type = uri_part['fileData']['mimeType']
+                    image_url = uri_part['fileData']['fileUri']
+                    # Download the image from the public URL
+                    image_response = requests.get(image_url, timeout=60)
+                    image_response.raise_for_status()
+                    image_data = image_response.content
+                except (RequestException, HTTPError) as e:
+                    print(f"Failed to download image from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
+                    image_data = None  # Ensure image_data is None on failure
 
         db_conn = get_db_connection()
-        if not image_part:
+        if not image_data or not mime_type:
             text_response = " ".join(p.get('text', '') for p in parts).strip() or "Sorry, I couldn't generate an image. The model returned an unexpected response."
             bot_text_parts = [{"text": text_response}]
             db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)', (chat_id, 'model', json.dumps(bot_text_parts)))
@@ -146,8 +169,6 @@ def generate_image_api():
             return jsonify({'content': text_response})
 
         # 4. Save image and bot message to DB
-        mime_type = image_part['inline_data']['mime_type']
-        image_data = base64.b64decode(image_part['inline_data']['data'])
         ext = mime_type.split('/')[-1] if '/' in mime_type else 'png'
 
         chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
