@@ -224,6 +224,7 @@ def chat_api():
         user_message = request.form.get('message', '')
         attached_files = request.files.getlist('file')
         system_prompt_name = request.form.get('system_prompt_name')
+        selected_mcp_tools = request.form.getlist('mcp_tools')
 
         user_parts = []
         if user_message:
@@ -319,13 +320,24 @@ def chat_api():
                     "contents": current_contents,
                     "generationConfig": {"temperature": 0.7, "topP": 1.0, "maxOutputTokens": 2048}
                 }
-                tools = mcp_handler.create_tool_declarations(full_prompt_text)
 
-                # Check if tools should be disabled due to an active system prompt
-                if tools and not disable_tools:
+                tools = None
+                if selected_mcp_tools:
+                    # When tools are selected manually, we force them.
+                    # This assumes create_tool_declarations can find tools by their names in text,
+                    # and bypasses the 'enabled' check in mcp_handler.
+                    tools = mcp_handler.create_tool_declarations(" ".join(selected_mcp_tools))
+                    utils.log(f"Using explicitly selected tools: {selected_mcp_tools}")
+                else:
+                    # Standard tool discovery based on full prompt.
+                    tools = mcp_handler.create_tool_declarations(full_prompt_text)
+
+                # Add tools to request if they exist and are not disabled by a system prompt
+                # (unless they were manually selected, in which case disable_tools is ignored).
+                if tools and (not disable_tools or selected_mcp_tools):
                     request_data["tools"] = tools
                     request_data["tool_config"] = {"function_calling_config": {"mode": "AUTO"}}
-                elif disable_tools:
+                elif disable_tools and not selected_mcp_tools:
                     utils.log(f"Tools omitted due to selected system prompt: {system_prompt_name}")
 
                 try:

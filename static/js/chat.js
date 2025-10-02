@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const newChatBtnMobile = document.getElementById('new-chat-btn-mobile'); // Mobile new chat button
     const deleteChatBtnUniversal = document.getElementById('delete-chat-btn-universal'); // Universal delete chat button
     const generationTypeSelect = document.getElementById('generation-type-select');
-
+    const el = document.querySelector('#mcp-tools-select');
     const chatSidebar = document.getElementById('chat-sidebar');
     const mainChatArea = document.getElementById('main-chat-area');
     const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
@@ -34,6 +34,13 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         </div>`;
 
+
+    if (el) {
+       new TomSelect(el, {
+          plugins: ['remove_button'],
+          placeholder: 'Select MCP Tools (optional)...',
+       });
+    }
 
     // --- Helper Functions ---
 

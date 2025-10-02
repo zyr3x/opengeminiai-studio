@@ -906,3 +906,7 @@ body.chat footer{
     padding-left: 1.25rem;
     padding-right: 1.25rem;
 }
+
+#mcp-tools-select + .ts-wrapper {
+        min-width: 230px;
+}

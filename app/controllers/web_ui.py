@@ -66,6 +66,8 @@ def index():
                 mcp_config_data = loaded_mcp_config
         except json.JSONDecodeError: pass
 
+    mcp_tools = sorted(list(mcp_config_data.get("mcpServers", {}).keys()))
+
     return render_template(
         'index.html',
         API_KEY=config.API_KEY, api_key_status=api_key_status,
@@ -77,7 +79,8 @@ def index():
         default_system_prompts_json=utils.pretty_json(default_system_prompts),
         verbose_logging_status=utils.VERBOSE_LOGGING,
         current_max_function_declarations=mcp_config_data.get("maxFunctionDeclarations", mcp_handler.max_function_declarations_limit),
-        current_year=datetime.now().year
+        current_year=datetime.now().year,
+        mcp_tools=mcp_tools
     )
 
 @web_ui_bp.route('/favicon.ico')
