@@ -7,17 +7,24 @@
     --bs-border-color: #dadce0;
     --bs-border-color-translucent: rgba(0, 0, 0, 0.175); /* For shadows and borders with opacity */
     --bs-heading-color: #202124;
-    --bs-link-color: #1a73e8;
-    --bs-link-hover-color: #186bd6;
+    --bs-link-color: #6A1B9A;
+    --bs-link-hover-color: #4A148C;
     --bs-emphasis-color: #000; /* Used for strong tags, etc. */
 
     /* Custom variables for theme consistency */
     --navbar-bg: #fff;
     --navbar-brand-color: #5f6368;
     --nav-link-color: #5f6368;
-    --nav-link-hover-color: #1a73e8;
+    --nav-link-hover-color: #6A1B9A;
     --footer-bg: #f8f9fa;
     --footer-text: #6c757d;
+
+    /* Bootstrap component compatibility */
+    --bs-primary: #6A1B9A;
+    --bs-primary-rgb: 106, 27, 154;
+    --bs-list-group-active-bg: var(--btn-primary-bg);
+    --bs-list-group-active-color: var(--btn-primary-color);
+    --bs-list-group-active-border-color: var(--btn-primary-border);
 
     /* Specific component overrides for light theme */
     --card-bg: #fff;
@@ -28,24 +35,24 @@
     --input-group-text-color: #495057;
 
     /* Alert colors - Light theme */
-    --alert-info-bg: #dbeafc;
-    --alert-info-color: #1e62d4;
-    --alert-info-border: #a4c2f6;
+    --alert-info-bg: #F3E5F5;
+    --alert-info-color: #6A1B9A;
+    --alert-info-border: #E1BEE7;
 
     /* Button colors - Light theme */
-    --btn-primary-bg: #1a73e8;
+    --btn-primary-bg: #6A1B9A;
     --btn-primary-color: #fff;
-    --btn-primary-border: #1a73e8;
-    --btn-primary-hover-bg: #186bd6;
-    --btn-primary-hover-border: #186bd6;
+    --btn-primary-border: #6A1B9A;
+    --btn-primary-hover-bg: #4A148C;
+    --btn-primary-hover-border: #4A148C;
     --btn-danger-bg: #d93025;
     --btn-danger-color: #fff;
     --btn-danger-border: #d93025;
     --btn-danger-hover-bg: #c5221f;
     --btn-danger-hover-border: #c5221f;
-    --btn-outline-secondary-color: #1a73e8;
+    --btn-outline-secondary-color: var(--bs-body-color);
     --btn-outline-secondary-border: #dadce0;
-    --btn-outline-secondary-hover-bg: rgba(26, 115, 232, 0.04);
+    --btn-outline-secondary-hover-bg: rgba(32, 33, 36, 0.04);
     --btn-outline-danger-color: #d93025;
     --btn-outline-danger-hover-bg: rgba(217, 48, 37, 0.04);
 }
@@ -58,17 +65,24 @@
     --bs-border-color: #fff;
     --bs-border-color-translucent: rgba(255, 255, 255, 0.15);
     --bs-heading-color: #e8eaed;
-    --bs-link-color: #8ab4f8;
-    --bs-link-hover-color: #6a9af3;
+    --bs-link-color: #CE93D8;
+    --bs-link-hover-color: #BA68C8;
     --bs-emphasis-color: #e8eaed;
 
     /* Custom variables for theme consistency in dark mode */
     --navbar-bg: #2d2d2d; /* Darker navbar */
     --navbar-brand-color: #ffffff;
     --nav-link-color: #ffffff; /* Lighter grey for nav links */
-    --nav-link-hover-color: #8ab4f8; /* Google blue for dark mode */
+    --nav-link-hover-color: #CE93D8; /* Google blue for dark mode */
     --footer-bg: #2d2d2d;
     --footer-text: #bdc1c6;
+
+    /* Bootstrap component compatibility */
+    --bs-primary: #9C27B0;
+    --bs-primary-rgb: 156, 39, 176;
+    --bs-list-group-active-bg: var(--btn-primary-bg);
+    --bs-list-group-active-color: var(--btn-primary-color);
+    --bs-list-group-active-border-color: var(--btn-primary-border);
 
     /* Specific component overrides for dark theme */
     --card-bg: #2d2d2d;
@@ -79,24 +93,24 @@
     --input-group-text-color: #e8eaed;
 
     /* Alert colors - Dark theme */
-    --alert-info-bg: #1a3c6c;
-    --alert-info-color: #8ab4f8;
-    --alert-info-border: #3b7ad6;
+    --alert-info-bg: #2b0d3b;
+    --alert-info-color: #E1BEE7;
+    --alert-info-border: #6A1B9A;
 
     /* Button colors - Dark theme */
-    --btn-primary-bg: #8ab4f8;
-    --btn-primary-color: #202124;
-    --btn-primary-border: #8ab4f8;
-    --btn-primary-hover-bg: #6a9af3;
-    --btn-primary-hover-border: #6a9af3;
+    --btn-primary-bg: #9C27B0;
+    --btn-primary-color: #FFFFFF;
+    --btn-primary-border: #9C27B0;
+    --btn-primary-hover-bg: #AB47BC;
+    --btn-primary-hover-border: #AB47BC;
     --btn-danger-bg: #f28b82;
     --btn-danger-color: #202124;
     --btn-danger-border: #f28b82;
     --btn-danger-hover-bg: #ea7066;
     --btn-danger-hover-border: #ea7066;
-    --btn-outline-secondary-color: #8ab4f8;
+    --btn-outline-secondary-color: var(--bs-body-color);
     --btn-outline-secondary-border: #5f6368;
-    --btn-outline-secondary-hover-bg: rgba(138, 180, 248, 0.08);
+    --btn-outline-secondary-hover-bg: rgba(232, 234, 237, 0.08);
     --btn-outline-danger-color: #f28b82;
     --btn-outline-danger-hover-bg: rgba(242, 139, 130, 0.08);
 }
@@ -211,7 +225,7 @@ pre {
 
 .accordion-button:focus {
     border-color: var(--bs-border-color);
-    box-shadow: 0 0 0 0.25rem rgba(var(--btn-primary-bg), .25); /* Use primary button color for focus */
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), .25); /* Use primary button color for focus */
 }
 
 .accordion-body {
@@ -361,7 +375,7 @@ hr {
 
 .nav-link.active,
 .nav-link:hover {
-    color: #1a73e8 !important; /* Google's blue for active/hover state */
+    color: var(--nav-link-hover-color) !important; /* Google's blue for active/hover state */
 }
 
 .navbar-toggler {
@@ -464,6 +478,12 @@ code {
     height: calc(100vh - 5rem); /* Full viewport height minus navbar and padding */
 }
 
+#chat .list-group-item.active {
+    background-color: var(--bs-list-group-active-bg);
+    color: var(--bs-list-group-active-color);
+    border-color: var(--bs-list-group-active-border-color);
+}
+
 #chat .card {
     display: flex;
     flex-direction: column;
@@ -498,7 +518,7 @@ code {
 
 .user-message .message-content {
     background-color: var(--bs-primary);
-    color: var(--bs-light);
+    color: var(--btn-primary-color);
     border-bottom-right-radius: 0.25rem;
 }
 
@@ -715,7 +735,7 @@ pre {
 
 .btn:focus, .btn.focus {
     outline: 0;
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1a73e8;
+    box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--btn-primary-bg);
 }
 
 .btn-lg {
@@ -730,21 +750,21 @@ pre {
 
 /* Primary Button Style */
 .btn-primary, .btn-success {
-    background-color: #1a73e8;
-    color: #fff;
-    border-color: #1a73e8;
+    background-color: var(--btn-primary-bg);
+    color: var(--btn-primary-color);
+    border-color: var(--btn-primary-border);
 }
 
 .btn-primary:hover, .btn-success:hover {
-    background-color: #186bd6;
-    border-color: #186bd6;
-    color: #fff;
+    background-color: var(--btn-primary-hover-bg);
+    border-color: var(--btn-primary-hover-border);
+    color: var(--btn-primary-color);
     box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
 }
 
 .btn-primary.active, .btn-primary:active, .btn-success.active, .btn-success:active {
-    background-color: #1765c7 !important;
-    border-color: #1765c7 !important;
+    background-color: var(--btn-primary-hover-bg) !important;
+    border-color: var(--btn-primary-hover-border) !important;
     box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
 }
 
@@ -772,15 +792,15 @@ pre {
 
 /* Secondary/Outline Button Style */
 .btn-outline-secondary {
-    color: #1a73e8;
+    color: var(--btn-outline-secondary-color);
     background-color: transparent;
-    border-color: #dadce0;
+    border-color: var(--btn-outline-secondary-border);
 }
 
 .btn-outline-secondary:hover {
-    background-color: rgba(26, 115, 232, 0.04);
-    color: #1a73e8;
-    border-color: #dadce0;
+    background-color: var(--btn-outline-secondary-hover-bg);
+    color: var(--btn-outline-secondary-color);
+    border-color: var(--btn-outline-secondary-border);
 }
 
 /* Outline Danger for small remove buttons */
