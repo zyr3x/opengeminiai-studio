@@ -823,3 +823,79 @@ body.chat footer{
 #chat .card {
     box-shadow: unset;
 }
+
+/* --- Sidebar Styles --- */
+#chat-sidebar {
+    transition: width 0.25s ease-in-out;
+    flex-shrink: 0; /* Prevent sidebar from shrinking when window is narrow */
+}
+#main-chat-area {
+    transition: width 0.25s ease-in-out;
+}
+
+/* --- Collapsed State --- */
+#chat-sidebar.collapsed {
+    width: 60px !important;
+    overflow: hidden;
+}
+#main-chat-area.sidebar-collapsed {
+    width: calc(100% - 60px) !important;
+}
+/* Style collapsed content */
+.chat-title-abbr {
+    display: none;
+    font-weight: 500;
+}
+#chat-sidebar.collapsed .p-3 { padding: 0.75rem !important; }
+#chat-sidebar.collapsed #new-chat-btn .material-icons { margin-right: 0 !important; }
+#chat-sidebar.collapsed #new-chat-btn { justify-content: center !important; }
+#chat-sidebar.collapsed .btn-text,
+#chat-sidebar.collapsed .list-group-item .text-truncate,
+#chat-sidebar.collapsed .list-group-item .chat-delete-btn {
+    display: none !important;
+}
+#chat-sidebar.collapsed .list-group-item .chat-title-abbr { display: inline; }
+#chat-sidebar.collapsed .list-group-item {
+    justify-content: center !important;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+
+/* --- Hover effect when collapsed --- */
+#chat-sidebar.collapsed:hover {
+    /* These widths correspond to col-lg-2 and col-md-3 from the HTML */
+    width: 16.666667% !important; /* col-lg-2 */
+    position: absolute;
+    height: 100%;
+    z-index: 1050; /* Above everything */
+    box-shadow: 0 0 1rem rgba(0,0,0,0.15);
+    background-color: var(--card-bg); /* Use card background for theme consistency */
+}
+/* Responsive hover width */
+@media (max-width: 991.98px) {
+    #chat-sidebar.collapsed:hover {
+        width: 25% !important; /* col-md-3 */
+    }
+}
+
+/* Reveal content on hover */
+#chat-sidebar.collapsed:hover #new-chat-btn .material-icons {
+    margin-right: 0.5rem !important;
+}
+#chat-sidebar.collapsed:hover .btn-text {
+    display: inline !important;
+}
+#chat-sidebar.collapsed:hover .list-group-item .text-truncate {
+    display: block !important;
+}
+#chat-sidebar.collapsed:hover .list-group-item .chat-delete-btn {
+    display: flex !important;
+}
+#chat-sidebar.collapsed:hover .list-group-item .chat-title-abbr {
+    display: none !important;
+}
+#chat-sidebar.collapsed:hover .list-group-item {
+    justify-content: space-between !important;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+}

@@ -21,6 +21,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const deleteChatBtnUniversal = document.getElementById('delete-chat-btn-universal'); // Universal delete chat button
     const generationTypeSelect = document.getElementById('generation-type-select');
 
+    const chatSidebar = document.getElementById('chat-sidebar');
+    const mainChatArea = document.getElementById('main-chat-area');
+    const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
+
     let currentChatId = null;
     let attachedFiles = [];
     const initialBotMessageHTML = `
@@ -110,6 +114,44 @@ document.addEventListener('DOMContentLoaded', function () {
         chatInput.style.height = 'auto';
         chatInput.style.height = (chatInput.scrollHeight) + 'px';
     }
+
+    // --- Sidebar Management ---
+    function setSidebarState(collapsed) {
+        if (!chatSidebar || !mainChatArea) return;
+
+        if (collapsed) {
+            chatSidebar.classList.add('collapsed');
+            mainChatArea.classList.add('sidebar-collapsed');
+            localStorage.setItem('sidebarState', 'collapsed');
+            if (toggleSidebarBtn) {
+                toggleSidebarBtn.querySelector('.material-icons').textContent = 'menu_open';
+                toggleSidebarBtn.title = 'Expand Sidebar';
+            }
+        } else { // expanded
+            chatSidebar.classList.remove('collapsed');
+            mainChatArea.classList.remove('sidebar-collapsed');
+            localStorage.setItem('sidebarState', 'expanded');
+            if (toggleSidebarBtn) {
+                toggleSidebarBtn.querySelector('.material-icons').textContent = 'menu';
+                toggleSidebarBtn.title = 'Collapse Sidebar';
+            }
+        }
+    }
+
+    function toggleSidebar() {
+        const isCollapsed = localStorage.getItem('sidebarState') === 'collapsed';
+        setSidebarState(!isCollapsed);
+    }
+
+    function initializeSidebar() {
+        const savedState = localStorage.getItem('sidebarState');
+        if (savedState === 'collapsed') {
+            setSidebarState(true);
+        } else {
+            setSidebarState(false); // Default to expanded
+        }
+    }
+
 
 
     // --- Chat Management ---
@@ -233,8 +275,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     titleSpan.className = 'text-truncate';
                     titleSpan.textContent = chat.title;
 
+                    const titleAbbr = document.createElement('span');
+                    titleAbbr.className = 'chat-title-abbr';
+                    titleAbbr.textContent = (chat.title || 'CH').substring(0, 2).toUpperCase();
+
                     const deleteBtn = document.createElement('button');
-                    deleteBtn.className = 'btn btn-sm btn-outline-danger p-0 px-1 d-flex align-items-center flex-shrink-0';
+                    deleteBtn.className = 'btn btn-sm btn-outline-danger p-0 px-1 d-flex align-items-center flex-shrink-0 chat-delete-btn';
                     deleteBtn.innerHTML = '<span class="material-icons fs-6">delete</span>';
                     deleteBtn.title = 'Delete Chat';
                     deleteBtn.onclick = (e) => {
@@ -243,6 +289,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     };
 
                     a.appendChild(titleSpan);
+                    a.appendChild(titleAbbr);
                     a.appendChild(deleteBtn);
                     listGroup.appendChild(a);
 
@@ -271,6 +318,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     // --- Event Listeners ---
+
+    if (toggleSidebarBtn) {
+        toggleSidebarBtn.addEventListener('click', toggleSidebar);
+    }
 
     chatInput.addEventListener('input', adjustTextareaHeight);
     chatInput.addEventListener('keydown', (e) => {
@@ -465,6 +516,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    initializeSidebar();
     loadModels();
     loadChats();
 });
