@@ -55,6 +55,11 @@
     --btn-outline-secondary-hover-bg: rgba(32, 33, 36, 0.04);
     --btn-outline-danger-color: #d93025;
     --btn-outline-danger-hover-bg: rgba(217, 48, 37, 0.04);
+
+    /* Modern Shadows */
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
 }
 
 [data-bs-theme="dark"] {
@@ -122,10 +127,14 @@ body {
     color: var(--bs-body-color);
 }
 
+/* Override Bootstrap Shadows for modern look */
+.shadow-sm { box-shadow: var(--shadow-sm) !important; }
+.shadow { box-shadow: var(--shadow-md) !important; }
+.shadow-lg { box-shadow: var(--shadow-lg) !important; }
+
 /* Navbar customization */
 .navbar {
-    background-color: var(--navbar-bg) !important;
-    box-shadow: 0 2px 4px var(--bs-border-color-translucent) !important; /* Ensure shadow adapts */
+    background-color: var(--navbar-bg);
 }
 
 .navbar-brand {
@@ -200,15 +209,22 @@ pre {
 
 .card {
     border: 1px solid var(--bs-border-color);
-    border-radius: 8px;
+    border-radius: 12px;
     background-color: var(--card-bg);
     color: var(--bs-body-color);
-    box-shadow: 0 1px 2px 0 var(--bs-border-color-translucent); /* Ensure card shadow adapts */
+    transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.card.shadow:hover, .card.shadow-sm:hover, .card.shadow-lg:hover {
+    box-shadow: var(--shadow-md) !important;
+    transform: translateY(-2px);
 }
 
 .accordion-item {
     background-color: var(--card-bg);
     border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    overflow: hidden;
 }
 
 .accordion-header .accordion-button {
@@ -298,13 +314,13 @@ hr {
     background-color: var(--btn-primary-hover-bg);
     border-color: var(--btn-primary-hover-border);
     color: var(--btn-primary-color); /* Keep text color consistent on hover */
-    box-shadow: 0 1px 2px 0 var(--bs-border-color-translucent), 0 1px 3px 1px var(--bs-border-color-translucent);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-primary.active, .btn-primary:active, .btn-success.active, .btn-success:active {
     background-color: var(--btn-primary-hover-bg) !important; /* Use hover color for active state */
     border-color: var(--btn-primary-hover-border) !important;
-    box-shadow: 0 1px 2px 0 var(--bs-border-color-translucent), 0 2px 6px 2px var(--bs-border-color-translucent);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-danger {
@@ -317,13 +333,13 @@ hr {
     background-color: var(--btn-danger-hover-bg);
     border-color: var(--btn-danger-hover-border);
     color: var(--btn-danger-color);
-    box-shadow: 0 1px 2px 0 var(--bs-border-color-translucent), 0 1px 3px 1px var(--bs-border-color-translucent);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-danger.active, .btn-danger:active {
     background-color: var(--btn-danger-hover-bg) !important;
     border-color: var(--btn-danger-hover-border) !important;
-    box-shadow: 0 1px 2px 0 var(--bs-border-color-translucent), 0 2px 6px 2px var(--bs-border-color-translucent);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-outline-secondary {
@@ -440,14 +456,6 @@ body {
 }
 
 /* Cards */
-.card {
-    border: 1px solid var(--bs-border-color-translucent);
-    transition: box-shadow 0.3s ease-in-out;
-}
-
-.card:hover {
-    box-shadow: 0 .5rem 1rem rgba(0,0,0,.075);
-}
 
 /* Code Blocks */
 pre {
@@ -712,11 +720,6 @@ pre {
     display: none;
 }
 
-.card {
-    border: 1px solid #dadce0;
-    border-radius: 8px;
-}
-
 /* Material Design Buttons */
 .btn {
     border-radius: 4px;
@@ -755,20 +758,6 @@ pre {
     border-color: var(--btn-primary-border);
 }
 
-.btn-primary:hover, .btn-success:hover {
-    background-color: var(--btn-primary-hover-bg);
-    border-color: var(--btn-primary-hover-border);
-    color: var(--btn-primary-color);
-    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
-}
-
-.btn-primary.active, .btn-primary:active, .btn-success.active, .btn-success:active {
-    background-color: var(--btn-primary-hover-bg) !important;
-    border-color: var(--btn-primary-hover-border) !important;
-    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
-}
-
-
 /* Danger Button Style */
 .btn-danger {
     background-color: #d93025;
@@ -780,13 +769,11 @@ pre {
     background-color: #c5221f;
     border-color: #c5221f;
     color: #fff;
-    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
 }
 
 .btn-danger.active, .btn-danger:active {
     background-color: #b9201a !important;
     border-color: #b9201a !important;
-    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
 }
 
 
