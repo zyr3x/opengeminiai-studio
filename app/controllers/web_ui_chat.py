@@ -89,11 +89,102 @@ def get_chat_messages(chat_id):
                     })
             message_data['content'] = " ".join(text_parts).strip()
 
+            for file_info in message_data['files']:
+                if 'image' in file_info.get('mimetype', ''):
+                    alt_text = file_info.get('name', 'image')
+                    url = file_info.get('url', '')
+                    message_data['content'] += f"\n\n![{alt_text}]({url})"
+
             if message_data['content'] or message_data['files']:
                 formatted_messages.append(message_data)
         except (json.JSONDecodeError, TypeError):
             continue
     return jsonify(formatted_messages)
+
+@web_ui_chat_bp.route('/api/generate_image', methods=['POST'])
+def generate_image_api():
+    if not config.API_KEY:
+        return jsonify({"error": "API key not configured."}), 401
+
+    try:
+        chat_id = request.form.get('chat_id', type=int)
+        model = request.form.get('model', 'gemini-1.5-pro-latest')
+        prompt = request.form.get('prompt', '')
+
+        if not all([chat_id, model, prompt]):
+            return jsonify({"error": "chat_id, model, and prompt are required"}), 400
+
+        # 1. Save user message to DB
+        user_parts = [{"text": prompt}]
+        db_conn = get_db_connection()
+        db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)', (chat_id, 'user', json.dumps(user_parts)))
+        db_conn.commit()
+        db_conn.close()
+
+        # 2. Call the image generation model via non-streaming API
+        IMAGE_GEN_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
+        headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
+        request_data = {
+            "contents": [{"parts": [{"text": f"Generate an image of: {prompt}"}]}],
+        }
+
+        response = requests.post(IMAGE_GEN_URL, headers=headers, json=request_data, timeout=300)
+        response.raise_for_status()
+        response_data = response.json()
+
+        # 3. Process the response
+        parts = response_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+        image_part = next((p for p in parts if 'inline_data' in p and 'image' in p['inline_data']['mime_type']), None)
+
+        db_conn = get_db_connection()
+        if not image_part:
+            text_response = " ".join(p.get('text', '') for p in parts).strip() or "Sorry, I couldn't generate an image. The model returned an unexpected response."
+            bot_text_parts = [{"text": text_response}]
+            db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)', (chat_id, 'model', json.dumps(bot_text_parts)))
+            db_conn.commit()
+            db_conn.close()
+            return jsonify({'content': text_response})
+
+        # 4. Save image and bot message to DB
+        mime_type = image_part['inline_data']['mime_type']
+        image_data = base64.b64decode(image_part['inline_data']['data'])
+        ext = mime_type.split('/')[-1] if '/' in mime_type else 'png'
+
+        chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
+        os.makedirs(chat_upload_folder, exist_ok=True)
+        filename = f"generated_image_{len(os.listdir(chat_upload_folder))}.{ext}"
+        filepath = os.path.join(chat_upload_folder, filename)
+
+        with open(filepath, 'wb') as f:
+            f.write(image_data)
+
+        relative_path = os.path.relpath(filepath, UPLOAD_FOLDER)
+        file_url = f"/uploads/{relative_path.replace(os.sep, '/')}"
+
+        text_part = " ".join(p.get('text', '') for p in parts if 'text' in p).strip()
+        bot_response_text = text_part or f"Here is the generated image for '{prompt}':"
+
+        bot_parts = [
+            {"text": bot_response_text},
+            {"file_data": {"mime_type": mime_type, "path": filepath}}
+        ]
+        db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)', (chat_id, 'model', json.dumps(bot_parts)))
+        db_conn.commit()
+        db_conn.close()
+
+        # 5. Return markdown content to the frontend
+        response_content = f"{bot_response_text}\n![{prompt}]({file_url})"
+        return jsonify({'content': response_content})
+
+    except (HTTPError, ConnectionError, Timeout, RequestException) as e:
+        error_message = f"Error from upstream API: {e}"
+        print(error_message)
+        return jsonify({"error": error_message}), 500
+    except Exception as e:
+        error_message = f"An error occurred in generate image API: {str(e)}"
+        print(error_message)
+        return jsonify({"error": error_message}), 500
+
 
 @web_ui_chat_bp.route('/chat_api', methods=['POST'])
 def chat_api():

@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const mobileChatSelect = document.getElementById('mobile-chat-select'); // Mobile chat dropdown
     const newChatBtnMobile = document.getElementById('new-chat-btn-mobile'); // Mobile new chat button
     const deleteChatBtnUniversal = document.getElementById('delete-chat-btn-universal'); // Universal delete chat button
+    const generateImageBtn = document.getElementById('generate-image-btn');
 
     let currentChatId = null;
     let attachedFiles = [];
@@ -196,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="message-content"><p>This is a new chat. Ask me anything!</p></div>
                     </div>`;
             } else {
-                messages.forEach(msg => addMessageToHistory(msg.role, msg.content));
+                messages.forEach(msg => addMessageToHistory(msg.role, msg.content, msg.files || []));
             }
         } catch (error) {
             console.error(`Error loading chat ${chatId}:`, error);
@@ -399,6 +400,53 @@ document.addEventListener('DOMContentLoaded', function () {
             chatInput.focus();
         }
     });
+
+    generateImageBtn.addEventListener('click', handleImageGeneration);
+
+    async function handleImageGeneration(event) {
+        event.preventDefault();
+        const userInput = chatInput.value.trim();
+        if (!userInput) {
+            alert("Please enter a prompt to generate an image.");
+            return;
+        }
+
+        addMessageToHistory('user', userInput);
+        chatInput.value = '';
+        adjustTextareaHeight();
+        clearFiles(); // Ensure no files are lingering from chat mode
+
+        showTypingIndicator();
+        sendBtn.disabled = true;
+        generateImageBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('chat_id', currentChatId);
+        formData.append('model', modelSelect.value);
+        formData.append('prompt', userInput);
+
+        try {
+            const response = await fetch('/api/generate_image', { method: 'POST', body: formData });
+            removeTypingIndicator();
+
+            if (!response.ok) {
+                const err = await response.json();
+                addMessageToHistory('bot', `Error: ${err.error || 'Unknown error during image generation'}`);
+                return;
+            }
+
+            const data = await response.json();
+            addMessageToHistory('assistant', data.content); // Let marked render the markdown image link
+
+        } catch (error) {
+            removeTypingIndicator();
+            addMessageToHistory('bot', `Network error: ${error.message}`);
+        } finally {
+            sendBtn.disabled = false;
+            generateImageBtn.disabled = false;
+            chatInput.focus();
+        }
+    }
 
     // --- Initialization ---
     async function loadModels() {

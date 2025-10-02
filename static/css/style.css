@@ -553,7 +553,7 @@ code {
     font-weight: 500;
 }
 
-.message-content img.attached-image {
+.message-content img {
     max-width: 100%;
     border-radius: 0.5rem;
     margin-top: 0.5rem;
