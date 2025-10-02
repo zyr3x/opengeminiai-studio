@@ -43,7 +43,12 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div class="d-flex align-items-center gap-2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <label for="generation-type-select" class="form-label mb-0">Type:</label>
+                                <select id="generation-type-select" class="form-select form-select-sm" style="width: auto;">
+                                    <option value="text" selected>Text</option>
+                                    <option value="image">Image</option>
+                                </select>
                                 <label for="model-select" class="form-label mb-0">Model:</label>
                                 <select id="model-select" class="form-select form-select-sm" style="width: auto;"></select>
                             </div>
@@ -68,10 +73,7 @@
                                     <span class="material-icons">attach_file</span>
                                 </button>
                                 <input type="file" id="file-upload" accept="image/*,application/pdf" style="display: none;" multiple>
-                                <textarea id="chat-input" class="form-control" placeholder="Type a message, or a prompt to generate an image..." rows="1"></textarea>
-                                <button class="btn btn-outline-secondary" type="button" id="generate-image-btn" title="Generate Image">
-                                    <span class="material-icons">image</span>
-                                </button>
+                                <textarea id="chat-input" class="form-control" placeholder="Type a message or a prompt..." rows="1"></textarea>
                                 <button id="send-btn" class="btn btn-primary" type="submit">
                                     <span class="material-icons">send</span>
                                 </button>

@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const mobileChatSelect = document.getElementById('mobile-chat-select'); // Mobile chat dropdown
     const newChatBtnMobile = document.getElementById('new-chat-btn-mobile'); // Mobile new chat button
     const deleteChatBtnUniversal = document.getElementById('delete-chat-btn-universal'); // Universal delete chat button
-    const generateImageBtn = document.getElementById('generate-image-btn');
+    const generationTypeSelect = document.getElementById('generation-type-select');
 
     let currentChatId = null;
     let attachedFiles = [];
@@ -341,112 +341,108 @@ document.addEventListener('DOMContentLoaded', function () {
     chatForm.addEventListener('submit', async function(event) {
         event.preventDefault();
         const userInput = chatInput.value.trim();
-        if (!userInput && attachedFiles.length === 0) return;
+        const generationType = generationTypeSelect.value;
 
-        addMessageToHistory('user', userInput, [...attachedFiles]);
-        const filesToSend = [...attachedFiles];
-        chatInput.value = '';
-        adjustTextareaHeight();
-        clearFiles();
-
-        showTypingIndicator();
-        sendBtn.disabled = true;
-
-        const formData = new FormData();
-        formData.append('chat_id', currentChatId);
-        formData.append('model', modelSelect.value);
-        formData.append('system_prompt_name', systemPromptSelect ? systemPromptSelect.value : '');
-        formData.append('message', userInput);
-        filesToSend.forEach(file => formData.append('file', file));
-
-        try {
-            const response = await fetch('/chat_api', { method: 'POST', body: formData });
-            removeTypingIndicator();
-
-            if (!response.ok) {
-                const err = await response.json();
-                addMessageToHistory('bot', `Error: ${err.error || 'Unknown error'}`);
+        if (generationType === 'image') {
+            if (!userInput) {
+                alert("Please enter a prompt to generate an image.");
                 return;
             }
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let botMessageContent = '';
-            const botMessageDiv = document.createElement('div');
-            botMessageDiv.className = 'message bot-message';
-            const botContentDiv = document.createElement('div');
-            botContentDiv.className = 'message-content';
-            botMessageDiv.appendChild(botContentDiv);
-            chatHistory.appendChild(botMessageDiv);
+            addMessageToHistory('user', userInput);
+            chatInput.value = '';
+            adjustTextareaHeight();
+            clearFiles(); // Ensure no files are lingering from chat mode
 
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                botMessageContent += decoder.decode(value, { stream: true });
-                botContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(botMessageContent, { gfm: true, breaks: true }));
-                if (window.renderMathInElement) renderMathInElement(botContentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
-                chatHistory.scrollTop = chatHistory.scrollHeight;
+            showTypingIndicator();
+            sendBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('chat_id', currentChatId);
+            formData.append('model', modelSelect.value);
+            formData.append('prompt', userInput);
+
+            try {
+                const response = await fetch('/api/generate_image', { method: 'POST', body: formData });
+                removeTypingIndicator();
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    addMessageToHistory('bot', `Error: ${err.error || 'Unknown error during image generation'}`);
+                    return;
+                }
+
+                const data = await response.json();
+                addMessageToHistory('assistant', data.content); // Let marked render the markdown image link
+
+            } catch (error) {
+                removeTypingIndicator();
+                addMessageToHistory('bot', `Network error: ${error.message}`);
+            } finally {
+                sendBtn.disabled = false;
+                chatInput.focus();
             }
+        } else { // 'text'
+            if (!userInput && attachedFiles.length === 0) return;
 
-            if (userInput) { // Only reload chats if there was text, to update title
-                await loadChats();
+            addMessageToHistory('user', userInput, [...attachedFiles]);
+            const filesToSend = [...attachedFiles];
+            chatInput.value = '';
+            adjustTextareaHeight();
+            clearFiles();
+
+            showTypingIndicator();
+            sendBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('chat_id', currentChatId);
+            formData.append('model', modelSelect.value);
+            formData.append('system_prompt_name', systemPromptSelect ? systemPromptSelect.value : '');
+            formData.append('message', userInput);
+            filesToSend.forEach(file => formData.append('file', file));
+
+            try {
+                const response = await fetch('/chat_api', { method: 'POST', body: formData });
+                removeTypingIndicator();
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    addMessageToHistory('bot', `Error: ${err.error || 'Unknown error'}`);
+                    return;
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let botMessageContent = '';
+                const botMessageDiv = document.createElement('div');
+                botMessageDiv.className = 'message bot-message';
+                const botContentDiv = document.createElement('div');
+                botContentDiv.className = 'message-content';
+                botMessageDiv.appendChild(botContentDiv);
+                chatHistory.appendChild(botMessageDiv);
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    botMessageContent += decoder.decode(value, { stream: true });
+                    botContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(botMessageContent, { gfm: true, breaks: true }));
+                    if (window.renderMathInElement) renderMathInElement(botContentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                }
+
+                if (userInput) { // Only reload chats if there was text, to update title
+                    await loadChats();
+                }
+
+            } catch (error) {
+                removeTypingIndicator();
+                addMessageToHistory('bot', `Network error: ${error.message}`);
+            } finally {
+                sendBtn.disabled = false;
+                chatInput.focus();
             }
-
-        } catch (error) {
-            removeTypingIndicator();
-            addMessageToHistory('bot', `Network error: ${error.message}`);
-        } finally {
-            sendBtn.disabled = false;
-            chatInput.focus();
         }
     });
-
-    generateImageBtn.addEventListener('click', handleImageGeneration);
-
-    async function handleImageGeneration(event) {
-        event.preventDefault();
-        const userInput = chatInput.value.trim();
-        if (!userInput) {
-            alert("Please enter a prompt to generate an image.");
-            return;
-        }
-
-        addMessageToHistory('user', userInput);
-        chatInput.value = '';
-        adjustTextareaHeight();
-        clearFiles(); // Ensure no files are lingering from chat mode
-
-        showTypingIndicator();
-        sendBtn.disabled = true;
-        generateImageBtn.disabled = true;
-
-        const formData = new FormData();
-        formData.append('chat_id', currentChatId);
-        formData.append('model', modelSelect.value);
-        formData.append('prompt', userInput);
-
-        try {
-            const response = await fetch('/api/generate_image', { method: 'POST', body: formData });
-            removeTypingIndicator();
-
-            if (!response.ok) {
-                const err = await response.json();
-                addMessageToHistory('bot', `Error: ${err.error || 'Unknown error during image generation'}`);
-                return;
-            }
-
-            const data = await response.json();
-            addMessageToHistory('assistant', data.content); // Let marked render the markdown image link
-
-        } catch (error) {
-            removeTypingIndicator();
-            addMessageToHistory('bot', `Network error: ${error.message}`);
-        } finally {
-            sendBtn.disabled = false;
-            generateImageBtn.disabled = false;
-            chatInput.focus();
-        }
-    }
 
     // --- Initialization ---
     async function loadModels() {
