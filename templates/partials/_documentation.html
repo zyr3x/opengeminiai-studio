@@ -5,22 +5,23 @@
 
     <h2 class="mt-4">✨ What It Does</h2>
     <ul>
-        <li>Accepts requests on OpenAI-like endpoints: <code>/v1/chat/completions</code> and <code>/v1/models</code>.</li>
-        <li>Transforms the request format from OpenAI's structure to Gemini's structure.</li>
-        <li>Handles streaming responses for chat completions.</li>
-        <li>Manages basic conversation history truncation to fit within the model's token limits.</li>
-        <li>Caches model lists to reduce upstream API calls.</li>
-        <li>Supports multimodal requests (text and images).</li>
-        <li>Supports MCP tools for function calling.</li>
+        <li><b>OpenAI API Compatibility:</b> Accepts requests on <code>/v1/chat/completions</code> and <code>/v1/models</code>, transforming them for the Gemini API.</li>
+        <li><b>Streaming & History:</b> Handles streaming responses and automatically truncates conversation history to fit context windows.</li>
+        <li><b>Multimodal Support:</b> Supports image and text inputs. It can even automatically embed local files from your prompts when you use syntax like <code>image_path=/path/to/file.png</code> or <code>pdf_path=/path/to/file.pdf</code>.</li>
+        <li><b>Function Calling:</b> Integrates with external tools via the Multi-Tool Communication Protocol (MCP), with context-aware tool selection to improve accuracy.</li>
+        <li><b>Image Generation:</b> Includes a dedicated UI and API endpoint for generating images with compatible models.</li>
+        <li><b>Advanced Prompt Control:</b> Lets you define and apply both system-level prompts and dynamic prompt overrides based on keywords.</li>
+        <li><b>Multi-Chat UI:</b> The web interface supports multiple, persistent chat sessions, each with its own history and file storage.</li>
+        <li><b>Efficient Caching:</b> Caches model lists to reduce upstream API calls.</li>
     </ul>
 
     <h2 class="mt-4">🌐 Web Interface</h2>
     <p>The proxy includes a comprehensive web interface at the root URL (<code>/</code>) for configuration and testing.</p>
     <ul>
-        <li><strong>Chat:</strong> A simple interface to test models and conversation history.</li>
+        <li><strong>Chat:</strong> An advanced interface for testing models. Features include multi-chat management, conversation history, file uploads, a dedicated image generation mode, system prompts, and manual tool selection for function calls.</li>
         <li><strong>Configuration:</strong> Set your Gemini API Key and Upstream URL. Changes are saved to the <code>.env</code> file.</li>
-        <li><strong>Prompts:</strong> Create, edit, and manage a library of reusable prompts.</li>
-        <li><strong>MCP:</strong> Configure MCP (Multi-Tool Communication Protocol) tools for function calling.</li>
+        <li><strong>Prompts:</strong> Create, edit, and manage libraries of reusable prompt overrides and system prompts.</li>
+        <li><strong>MCP:</strong> Configure MCP (Multi-Tool Communication Protocol) tools for function calling and test them.</li>
         <li><strong>Documentation:</strong> View API endpoint details and setup instructions.</li>
     </ul>
     <p><em>Screenshot of the Web Interface:</em></p>
@@ -59,6 +60,14 @@
     <p class="alert alert-info"><b>Note:</b> The path must end with <code>/v1/</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
     <p class="mt-3"><em>Screenshot of JetBrains AI Assistant settings:</em></p>
     <img src="/static/img/placeholder_jetbrains_config.png" class="img-fluid rounded shadow-sm" alt="JetBrains AI Assistant Configuration">
+
+    <h3 class="mt-4">3. Local File Embedding (via Proxy)</h3>
+    <p>The proxy can automatically embed local image or PDF files into your request. In your prompt, simply specify the path to the file using <code>image_path=</code> or <code>pdf_path=</code>.</p>
+    <pre><code class="language-bash">
+# Example prompt sent to the proxy:
+"Please describe this image: image_path=/Users/me/Pictures/diagram.png"
+    </code></pre>
+    <p>The proxy will read the file, encode it, and include it in the request to the Gemini API as multimodal content. This is especially useful when using the proxy with tools like JetBrains AI Assistant.</p>
 
     <h2 class="mt-4">📡 Available Endpoints</h2>
     <ul>

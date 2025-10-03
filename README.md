@@ -13,12 +13,14 @@ This proxy includes a web interface for easy configuration, chat, and management
 
 ## ✨ Features
 
--   **OpenAI API Compatibility:** Seamlessly use Gemini models with tools built for the OpenAI API.
--   **Web Interface:** A user-friendly UI to configure your API key, manage prompts, define MCP tools, and test models in a chat interface.
--   **MCP Tools Support:** Enables powerful, structured function calling capabilities with Gemini.
--   **Easy Deployment:** Get up and running in minutes with a single Docker command.
+-   **OpenAI API Compatibility:** Seamlessly use Gemini models with tools built for the OpenAI API, including streaming and function calling.
+-   **Advanced Web Interface:** A comprehensive UI featuring multi-chat management, file uploads, an image generation playground, and persistent conversation history.
+-   **Powerful Prompt Control:** Define system prompts to guide model behavior and create dynamic prompt overrides that trigger on keywords.
+-   **Local File Embedding:** Automatically include local images and PDFs in your prompts from any API client using `image_path=` and `pdf_path=` syntax—perfect for IDE integration.
+-   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling.
+-   **Easy Deployment:** Get up and running in minutes with Docker or standard Python setup.
 -   **Flexible Configuration:** Manage settings via the web UI, `.env` file, or environment variables.
--   **Lightweight & Fast:** Built on Flask with a minimal resource footprint using the official Python 3.12 image.
+-   **Lightweight & Fast:** Built on Flask with a minimal resource footprint.
 
 ## 🚀 Quick Start with Docker
 
@@ -105,10 +107,10 @@ The IDE will automatically fetch the model list and route AI Assistant features 
 
 The proxy includes a comprehensive web interface at `http://localhost:8080` for configuration and testing.
 
--   **Chat:** A simple interface to test models and conversation history.
+-   **Chat:** An advanced interface to test models. Features include multi-chat management, persistent conversation history, file uploads, a dedicated image generation mode, system prompts, and manual tool selection.
 -   **Configuration:** Set your Gemini API Key and Upstream URL. Changes are saved to the `.env` file.
--   **Prompts:** Create, edit, and manage a library of reusable prompts.
--   **MCP:** Configure MCP (Multi-Tool Communication Protocol) tools for function calling.
+-   **Prompts:** Create, edit, and manage libraries of reusable system prompts and keyword-based prompt overrides.
+-   **MCP:** Configure MCP (Multi-Tool Communication Protocol) tools for function calling and test their responses.
 -   **Documentation:** View API endpoint details and setup instructions.
 
 *Screenshot of the Web Interface:*
