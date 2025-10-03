@@ -77,6 +77,7 @@ def chat_completions():
                             if start > last_end:
                                 new_content_parts.append({"type": "text", "text": content[last_end:start]})
 
+                            file_type = match.group(1)
                             file_path_str = match.group(2)
                             expanded_path = os.path.expanduser(file_path_str)
 
@@ -92,12 +93,21 @@ def chat_completions():
                                         file_bytes = f.read()
                                     encoded_data = base64.b64encode(file_bytes).decode('utf-8')
 
-                                    # Create a data URI that the existing 'image_url' processing can handle
-                                    data_uri = f"data:{mime_type};base64,{encoded_data}"
-                                    new_content_parts.append({
-                                        "type": "image_url",  # Treated as an image_url part with a data URI
-                                        "image_url": {"url": data_uri}
-                                    })
+                                    if file_type == 'image':
+                                        # Create a data URI that the existing 'image_url' processing can handle
+                                        data_uri = f"data:{mime_type};base64,{encoded_data}"
+                                        new_content_parts.append({
+                                            "type": "image_url",  # Treated as an image_url part with a data URI
+                                            "image_url": {"url": data_uri}
+                                        })
+                                    elif file_type == 'pdf':
+                                        new_content_parts.append({
+                                            "type": "inline_data",
+                                            "source": {
+                                                "media_type": mime_type,
+                                                "data": encoded_data
+                                            }
+                                        })
                                     utils.log(f"Embedded local file: {expanded_path} as {mime_type}")
                                 except Exception as e:
                                     utils.log(f"Error processing local file {expanded_path}: {e}")
@@ -157,6 +167,17 @@ def chat_completions():
                             image_part = utils._process_image_url(part.get("image_url", {}))
                             if image_part:
                                 gemini_parts.append(image_part)
+                        elif part.get("type") == "inline_data":
+                            if text_parts:
+                                gemini_parts.append({"text": "\n".join(text_parts)})
+                                text_parts = []
+                            source = part.get("source", {})
+                            gemini_parts.append({
+                                "inlineData": {
+                                    "mimeType": source.get("media_type"),
+                                    "data": source.get("data")
+                                }
+                            })
 
                     # Add any trailing text parts
                     if text_parts:
