@@ -4,6 +4,9 @@ Flask routes for the OpenAI-compatible proxy endpoints.
 import json
 import os
 import time
+import re
+import base64
+import mimetypes
 import requests
 from flask import Blueprint, request, jsonify, Response
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
@@ -61,7 +64,59 @@ def chat_completions():
                             if find in content:
                                 content = content.replace(find, replace)
 
-                    message['content'] = content
+                    # --- Handle local file paths like image_path=... and pdf_path=... ---
+                    path_pattern = re.compile(r'(image|pdf)_path=([^\s]+)')
+                    matches = list(path_pattern.finditer(content))
+
+                    if matches:
+                        new_content_parts = []
+                        last_end = 0
+                        for match in matches:
+                            start, end = match.span()
+                            # Add preceding text part
+                            if start > last_end:
+                                new_content_parts.append({"type": "text", "text": content[last_end:start]})
+
+                            file_path_str = match.group(2)
+                            expanded_path = os.path.expanduser(file_path_str)
+
+                            if os.path.exists(expanded_path):
+                                try:
+                                    mime_type, _ = mimetypes.guess_type(expanded_path)
+                                    if not mime_type:
+                                        mime_type = 'application/octet-stream'  # Fallback
+                                        if expanded_path.lower().endswith('.pdf'):
+                                            mime_type = 'application/pdf'
+
+                                    with open(expanded_path, 'rb') as f:
+                                        file_bytes = f.read()
+                                    encoded_data = base64.b64encode(file_bytes).decode('utf-8')
+
+                                    # Create a data URI that the existing 'image_url' processing can handle
+                                    data_uri = f"data:{mime_type};base64,{encoded_data}"
+                                    new_content_parts.append({
+                                        "type": "image_url",  # Treated as an image_url part with a data URI
+                                        "image_url": {"url": data_uri}
+                                    })
+                                    utils.log(f"Embedded local file: {expanded_path} as {mime_type}")
+                                except Exception as e:
+                                    utils.log(f"Error processing local file {expanded_path}: {e}")
+                                    new_content_parts.append(
+                                        {"type": "text", "text": match.group(0)})  # Keep original text on error
+                            else:
+                                utils.log(f"Local file not found: {expanded_path}")
+                                new_content_parts.append(
+                                    {"type": "text", "text": match.group(0)})  # Keep original text if not found
+
+                            last_end = end
+
+                        # Add any remaining text after the last match
+                        if last_end < len(content):
+                            new_content_parts.append({"type": "text", "text": content[last_end:]})
+
+                        message['content'] = new_content_parts
+                    else:
+                        message['content'] = content
         else:
             full_prompt_text = ""
         # --- End Prompt Engineering ---
@@ -94,13 +149,18 @@ def chat_completions():
                         if part.get("type") == "text":
                             text_parts.append(part.get("text", ""))
                         elif part.get("type") == "image_url":
+                            # If there is preceding text, add it as a single part before the image
+                            if text_parts:
+                                gemini_parts.append({"text": "\n".join(text_parts)})
+                                text_parts = []
+
                             image_part = utils._process_image_url(part.get("image_url", {}))
                             if image_part:
                                 gemini_parts.append(image_part)
 
-                    # Combine all text parts into a single text part for Gemini
+                    # Add any trailing text parts
                     if text_parts:
-                        gemini_parts.insert(0, {"text": "\n".join(text_parts)})
+                        gemini_parts.append({"text": "\n".join(text_parts)})
 
                 if gemini_parts:
                     mapped_messages.append({"role": role, "parts": gemini_parts})
