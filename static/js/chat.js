@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const mainChatArea = document.getElementById('main-chat-area');
     const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
 
-    let currentChatId = null;
+    let currentChatId = parseInt(localStorage.getItem('currentChatId')) || null;
     let attachedFiles = [];
     const initialBotMessageHTML = `
         <div class="message bot-message">
@@ -240,6 +240,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // If the deleted chat was the active one, clear currentChatId so loadChats will pick a new one.
             if (currentChatId === chatId) {
                 currentChatId = null;
+                localStorage.removeItem('currentChatId');
             }
 
             if (!currentChatId && deleteChatBtnUniversal) {
@@ -259,6 +260,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
         currentChatId = chatId;
+        localStorage.setItem('currentChatId', chatId);
         let newTitle = "AI Chat";
 
         if (deleteChatBtnUniversal) {
