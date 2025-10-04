@@ -80,7 +80,45 @@ document.addEventListener('DOMContentLoaded', function () {
 
         let textContent = '';
         if (role === 'user' || role === 'assistant') { // assistant role from db
-             textContent = DOMPurify.sanitize(marked.parse(content, { gfm: true, breaks: true }));
+             let html = marked.parse(content, { gfm: true, breaks: true });
+             const tempDiv = document.createElement('div');
+             tempDiv.innerHTML = html;
+
+             const replaceWithImage = (element, url) => {
+                try {
+                    // URLs from pollinations sometimes have spaces, encode them.
+                    const encodedUrl = encodeURI(url);
+                    new URL(encodedUrl); // Basic validation
+                    const img = document.createElement('img');
+                    img.src = encodedUrl;
+                    img.alt = "Generated image";
+                    img.style.maxWidth = "100%";
+                    img.style.borderRadius = "0.5rem";
+                    img.style.marginTop = "0.5rem";
+                    element.parentNode.replaceChild(img, element);
+                } catch (e) { /* Ignore failed transformations */ }
+             };
+
+             // Case 1: Correctly formed <a> tags
+             tempDiv.querySelectorAll('a[href*="image.pollinations.ai"]').forEach(a => {
+                // To avoid replacing links that are part of larger text, check if link text is the URL itself
+                if (a.textContent.trim() === a.href) {
+                    replaceWithImage(a, a.href);
+                }
+             });
+
+             // Case 2: URLs as plain text inside <p> or <code> tags
+             tempDiv.querySelectorAll('p, code').forEach(el => {
+                const text = el.textContent.trim();
+                if (text.startsWith('https://image.pollinations.ai') || text.startsWith('http://image.pollinations.ai')) {
+                    // Ensure the element only contains this URL and nothing else.
+                    if (el.childNodes.length === 1 && el.childNodes[0].nodeType === Node.TEXT_NODE) {
+                        replaceWithImage(el, text);
+                    }
+                }
+             });
+
+             textContent = DOMPurify.sanitize(tempDiv.innerHTML);
         } else { // bot role for errors
             textContent = `<p>${escapeHtml(content)}</p>`;
         }
@@ -505,7 +543,45 @@ document.addEventListener('DOMContentLoaded', function () {
                     const { value, done } = await reader.read();
                     if (done) break;
                     botMessageContent += decoder.decode(value, { stream: true });
-                    botContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(botMessageContent, { gfm: true, breaks: true }));
+
+                    let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+
+                    const replaceWithImage = (element, url) => {
+                        try {
+                            // URLs from pollinations sometimes have spaces, encode them.
+                            const encodedUrl = encodeURI(url);
+                            new URL(encodedUrl); // Basic validation
+                            const img = document.createElement('img');
+                            img.src = encodedUrl;
+                            img.alt = "Generated image";
+                            img.style.maxWidth = "100%";
+                            img.style.borderRadius = "0.5rem";
+                            img.style.marginTop = "0.5rem";
+                            element.parentNode.replaceChild(img, element);
+                        } catch (e) { /* Ignore, URL might be incomplete during streaming */ }
+                    };
+
+                    // Case 1: <a> tags
+                    tempDiv.querySelectorAll('a[href*="image.pollinations.ai"]').forEach(a => {
+                        if (a.textContent.trim() === a.href) {
+                            replaceWithImage(a, a.href);
+                        }
+                    });
+
+                    // Case 2: <p> or <code> tags
+                    tempDiv.querySelectorAll('p, code').forEach(el => {
+                        const text = el.textContent.trim();
+                        if (text.startsWith('https://image.pollinations.ai') || text.startsWith('http://image.pollinations.ai')) {
+                            // Ensure the element only contains this URL and nothing else.
+                            if (el.childNodes.length === 1 && el.childNodes[0].nodeType === Node.TEXT_NODE) {
+                                replaceWithImage(el, text);
+                            }
+                        }
+                    });
+
+                    botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML);
                     if (window.renderMathInElement) renderMathInElement(botContentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
                     chatHistory.scrollTop = chatHistory.scrollHeight;
                 }
