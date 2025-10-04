@@ -1,13 +1,4 @@
 <!-- MCP Tools Section -->
-<style>
-    .disabled-item {
-        opacity: 0.6;
-        background-color: #f8f9fa;
-    }
-    .disabled-item > .accordion-header > .accordion-button {
-        background-color: #e9ecef;
-    }
-</style>
 <div id="mcp" class="content-section">
     <h1 class="mt-4">🛠️ MCP Tools Configuration</h1>
     <p>Configure MCP tools by providing a JSON configuration. This will be saved to <code>var/config/mcp.json</code>.</p>
@@ -23,7 +14,7 @@
             <div id="mcp-servers-container" class="accordion mb-3">
                 {% if mcp_config.mcpServers %}
                 {% for server_name, server_details in mcp_config.mcpServers.items() %}
-                <div class="accordion-item rounded mb-3 shadow-sm {% if not server_details.get('enabled', True) %}disabled-item{% endif %}" data-server-name="{{ server_name }}">
+                <div class="accordion-item {% if not server_details.get('enabled', True) %}disabled-item{% endif %}" data-server-name="{{ server_name }}">
                     <h2 class="accordion-header" id="mcp-heading-{{ loop.index }}">
                         <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#mcp-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="mcp-collapse-{{ loop.index }}">
                             {{ server_name }}

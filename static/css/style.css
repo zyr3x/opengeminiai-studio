@@ -315,6 +315,7 @@ hr {
     border-color: var(--btn-primary-hover-border);
     color: var(--btn-primary-color); /* Keep text color consistent on hover */
     box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
 }
 
 .btn-primary.active, .btn-primary:active, .btn-success.active, .btn-success:active {
@@ -334,6 +335,7 @@ hr {
     border-color: var(--btn-danger-hover-border);
     color: var(--btn-danger-color);
     box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
 }
 
 .btn-danger.active, .btn-danger:active {
@@ -880,11 +882,11 @@ pre {
 
 /* Material Design Buttons */
 .btn {
-    border-radius: 4px;
+    border-radius: 0.5rem;
     font-weight: 500;
     padding: 0.5rem 1rem;
     text-transform: none;
-    transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, border-color 0.15s ease-in-out;
+    transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, border-color 0.15s ease-in-out, transform 0.15s ease-in-out;
     border: 1px solid transparent;
     vertical-align: middle;
     line-height: 1.5;
@@ -896,7 +898,7 @@ pre {
 
 .btn:focus, .btn.focus {
     outline: 0;
-    box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--btn-primary-bg);
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), .5);
 }
 
 .btn-lg {
@@ -1080,4 +1082,112 @@ body.chat footer{
 
 #mcp-tools-select + .ts-wrapper {
         min-width: 230px;
+}
+
+/* --- Prompts & MCP Page Styles --- */
+
+/* General container for config sections */
+#prompts, #mcp {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Accordion container styling */
+#prompts .accordion, #mcp .accordion {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    overflow: hidden; /* This is key to making the inner items look like one component */
+}
+
+/* Individual accordion item styling */
+#prompts .accordion-item, #mcp .accordion-item {
+    border: none;
+    border-bottom: 1px solid var(--bs-border-color);
+    background-color: transparent;
+    border-radius: 0; /* Remove individual rounding */
+}
+
+/* Remove border from the last item */
+#prompts .accordion-item:last-child, #mcp .accordion-item:last-child {
+    border-bottom: none;
+}
+
+/* Accordion header and button styling */
+#prompts .accordion-header, #mcp .accordion-header {
+    font-weight: 500;
+}
+
+#prompts .accordion-button, #mcp .accordion-button {
+    background-color: var(--card-bg) !important;
+    color: var(--bs-body-color);
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+}
+#prompts .accordion-button:not(.collapsed),
+#mcp .accordion-button:not(.collapsed) {
+    background-color: var(--bs-tertiary-bg) !important;
+    box-shadow: inset 0 -2px 0 var(--bs-primary); /* Accent line for active item */
+}
+
+#prompts .accordion-button:hover, #mcp .accordion-button:hover {
+    background-color: var(--btn-outline-secondary-hover-bg) !important;
+}
+
+#prompts .accordion-button:focus, #mcp .accordion-button:focus {
+    box-shadow: none;
+}
+
+/* Custom accordion icon */
+[data-bs-theme="dark"] #prompts .accordion-button::after,
+[data-bs-theme="dark"] #mcp .accordion-button::after {
+     filter: invert(1) brightness(2);
+}
+
+/* Accordion body styling */
+#prompts .accordion-body, #mcp .accordion-body {
+    background-color: var(--bs-tertiary-bg);
+    padding: 1rem 1.5rem;
+}
+
+/* More compact form groups inside the accordion */
+#prompts .accordion-body .mb-3, #mcp .accordion-body .mb-3 {
+    margin-bottom: 1rem !important;
+}
+#prompts .accordion-body .form-label, #mcp .accordion-body .form-label {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+}
+
+/* Style for disabled items */
+.disabled-item {
+    opacity: 0.65;
+    background-color: transparent;
+}
+.disabled-item > .accordion-header > .accordion-button {
+    background-color: var(--bs-tertiary-bg) !important;
+    font-style: italic;
+}
+
+/* Compact input groups */
+#prompts .input-group, #mcp .input-group {
+    flex-wrap: nowrap;
+}
+#prompts .input-group .btn, #mcp .input-group .btn {
+    padding: .375rem .5rem;
+}
+#prompts .input-group .material-icons, #mcp .input-group .material-icons {
+    font-size: 1.1rem;
+}
+
+/* Cleanup for the "Advanced JSON" textareas */
+#mcp-advanced-editor, #system-advanced-editor, #advanced-editor {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    overflow: hidden;
+}
+#mcp-advanced-editor textarea, #system-advanced-editor textarea, #advanced-editor textarea {
+    border: none;
+    border-radius: 0;
 }

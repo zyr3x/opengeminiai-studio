@@ -1,13 +1,4 @@
 <!-- Prompt Engineering Section -->
-<style>
-    .disabled-item {
-        opacity: 0.6;
-        background-color: #f8f9fa;
-    }
-    .disabled-item > .accordion-header > .accordion-button {
-        background-color: #e9ecef;
-    }
-</style>
 <div id="prompts" class="content-section">
     <h1 class="mt-4">✍️ Prompt Engineering</h1>
 
@@ -24,7 +15,7 @@
         <div id="system-friendly-editor">
             <div id="system-prompt-profiles-container" class="accordion mb-3">
                 {% for profile_name, profile in system_prompt_profiles.items() %}
-                <div class="accordion-item rounded mb-3 shadow-sm {% if not profile.get('enabled', True) %}disabled-item{% endif %}" data-profile-name="{{ profile_name }}">
+                <div class="accordion-item {% if not profile.get('enabled', True) %}disabled-item{% endif %}" data-profile-name="{{ profile_name }}">
                     <h2 class="accordion-header" id="sys-heading-{{ loop.index }}">
                         <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#sys-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="sys-collapse-{{ loop.index }}">
                             {{ profile_name }}
@@ -87,7 +78,7 @@
         <div id="user-friendly-editor">
             <div id="prompt-profiles-container" class="accordion mb-3">
                 {% for profile_name, profile in prompt_profiles.items() %}
-                <div class="accordion-item rounded mb-3 shadow-sm {% if not profile.get('enabled', True) %}disabled-item{% endif %}" data-profile-name="{{ profile_name }}">
+                <div class="accordion-item {% if not profile.get('enabled', True) %}disabled-item{% endif %}" data-profile-name="{{ profile_name }}">
                     <h2 class="accordion-header" id="heading-{{ loop.index }}">
                         <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-{{ loop.index }}">
                             {{ profile_name }}
