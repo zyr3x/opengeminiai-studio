@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let attachedFiles = [];
     const initialBotMessageHTML = `
         <div class="message bot-message">
+            <div class="avatar"><span class="material-icons">smart_toy</span></div>
             <div class="message-content">
                 <p>Hello! I'm your AI assistant. To start, create a new chat from the sidebar.</p>
             </div>
@@ -63,7 +64,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function addMessageToHistory(role, content, files = []) {
         const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', role === 'user' ? 'user-message' : 'bot-message');
+        const isUser = role === 'user';
+        messageDiv.classList.add('message', isUser ? 'user-message' : 'bot-message');
+
+        // Avatar
+        const avatarDiv = document.createElement('div');
+        avatarDiv.className = 'avatar';
+        const avatarIcon = document.createElement('span');
+        avatarIcon.className = 'material-icons';
+        avatarIcon.textContent = isUser ? 'person' : 'smart_toy';
+        avatarDiv.appendChild(avatarIcon);
 
         const contentDiv = document.createElement('div');
         contentDiv.classList.add('message-content');
@@ -96,6 +106,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         contentDiv.innerHTML = textContent + filesHtml;
 
+        messageDiv.appendChild(avatarDiv);
         messageDiv.appendChild(contentDiv);
         chatHistory.appendChild(messageDiv);
         chatHistory.scrollTop = chatHistory.scrollHeight;
@@ -104,6 +115,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function showTypingIndicator() {
         const indicator = `
             <div class="message bot-message" id="typing-indicator">
+                <div class="avatar"><span class="material-icons">smart_toy</span></div>
                 <div class="message-content">
                     <div class="typing-indicator"><span></span><span></span><span></span></div>
                 </div>
@@ -243,6 +255,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (messages.length === 0) {
                  chatHistory.innerHTML = `
                     <div class="message bot-message">
+                        <div class="avatar"><span class="material-icons">smart_toy</span></div>
                         <div class="message-content"><p>This is a new chat. Ask me anything!</p></div>
                     </div>`;
             } else {
@@ -474,6 +487,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 let botMessageContent = '';
                 const botMessageDiv = document.createElement('div');
                 botMessageDiv.className = 'message bot-message';
+
+                const avatarDiv = document.createElement('div');
+                avatarDiv.className = 'avatar';
+                const avatarIcon = document.createElement('span');
+                avatarIcon.className = 'material-icons';
+                avatarIcon.textContent = 'smart_toy';
+                avatarDiv.appendChild(avatarIcon);
+                botMessageDiv.appendChild(avatarDiv);
+
                 const botContentDiv = document.createElement('div');
                 botContentDiv.className = 'message-content';
                 botMessageDiv.appendChild(botContentDiv);
