@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const attachFileBtn = document.getElementById('attach-file-btn');
     const fileUpload = document.getElementById('file-upload');
     const filePreviewsContainer = document.getElementById('file-previews-container');
+    const recordBtn = document.getElementById('record-btn');
     const chatListContainer = document.getElementById('chat-list-container');
     const chatTitle = document.getElementById('chat-title');
     const mobileChatSelect = document.getElementById('mobile-chat-select'); // Mobile chat dropdown
@@ -27,6 +28,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let currentChatId = parseInt(localStorage.getItem('currentChatId')) || null;
     let attachedFiles = [];
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
     const initialBotMessageHTML = `
         <div class="message bot-message">
             <div class="avatar"><span class="material-icons">smart_toy</span></div>
@@ -216,6 +220,49 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // --- Audio Recording ---
+    async function startRecording() {
+        console.log("Attempting to start recording...");
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.ondataavailable = event => {
+                audioChunks.push(event.data);
+            };
+            mediaRecorder.onstop = () => {
+                console.log("Recording stopped, creating audio file.");
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const audioFile = new File([audioBlob], "voice_recording.webm", { type: 'audio/webm' });
+                console.log("Audio file created:", audioFile);
+                attachedFiles.push(audioFile);
+                createFilePreview(audioFile);
+                filePreviewsContainer.style.display = 'flex';
+                audioChunks = [];
+            };
+            mediaRecorder.start();
+            isRecording = true;
+            console.log("Recording started successfully.");
+            recordBtn.classList.add('btn-danger');
+            recordBtn.classList.remove('btn-outline-secondary');
+            recordBtn.querySelector('.material-icons').textContent = 'stop';
+            recordBtn.title = 'Stop Recording';
+        } catch (err) {
+            console.error("Error accessing microphone:", err);
+            alert("Could not access microphone. Please ensure you have given permission in your browser settings.");
+        }
+    }
+
+    function stopRecording() {
+        console.log("Stopping recording...");
+        mediaRecorder.stop();
+        // Stop all media tracks to turn off the browser's recording indicator
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        isRecording = false;
+        recordBtn.classList.remove('btn-danger');
+        recordBtn.classList.add('btn-outline-secondary');
+        recordBtn.querySelector('.material-icons').textContent = 'mic';
+        recordBtn.title = 'Record Voice';
+    }
 
 
     // --- Chat Management ---
@@ -385,6 +432,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     // --- Event Listeners ---
+
+    if (recordBtn) {
+        recordBtn.addEventListener('click', () => {
+            console.log(`Record button clicked. isRecording: ${isRecording}`);
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+    }
 
     if (toggleSidebarBtn) {
         toggleSidebarBtn.addEventListener('click', toggleSidebar);
