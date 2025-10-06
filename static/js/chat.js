@@ -128,9 +128,16 @@ document.addEventListener('DOMContentLoaded', function () {
         if (files && files.length > 0) {
             filesHtml = '<div class="d-flex flex-wrap gap-2 mt-2">';
             files.forEach(file => {
-                if (file.type.startsWith('image/')) {
-                    const imageUrl = URL.createObjectURL(file);
+                const mimeType = file.type || file.mimetype || '';
+                if (mimeType.startsWith('image/')) {
+                    const imageUrl = file.url || URL.createObjectURL(file);
                     filesHtml += `<img src="${imageUrl}" alt="${escapeHtml(file.name)}" class="attached-image" style="max-width: 150px; border-radius: 0.5rem;">`;
+                } else if (mimeType.startsWith('audio/')) {
+                    filesHtml += `
+                    <div class="attached-file">
+                        <span class="material-icons">audiotrack</span>
+                        <span>${escapeHtml(file.name)}</span>
+                    </div>`;
                 } else {
                     filesHtml += `
                     <div class="attached-file">
@@ -434,6 +441,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const img = document.createElement('img');
             img.src = URL.createObjectURL(file);
             wrapper.appendChild(img);
+        } else if (file.type.startsWith('audio/')) {
+            wrapper.innerHTML = `<span class="material-icons">audiotrack</span>`;
         } else {
             wrapper.innerHTML = `<span class="material-icons">description</span>`;
         }

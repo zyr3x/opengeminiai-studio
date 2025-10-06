@@ -89,12 +89,6 @@ def get_chat_messages(chat_id):
                     })
             message_data['content'] = " ".join(text_parts).strip()
 
-            for file_info in message_data['files']:
-                if 'image' in file_info.get('mimetype', ''):
-                    alt_text = file_info.get('name', 'image')
-                    url = file_info.get('url', '')
-                    message_data['content'] += f"\n\n![{alt_text}]({url})"
-
             if message_data['content'] or message_data['files']:
                 formatted_messages.append(message_data)
         except (json.JSONDecodeError, TypeError):

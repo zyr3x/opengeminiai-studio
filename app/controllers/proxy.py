@@ -65,7 +65,7 @@ def chat_completions():
                                 content = content.replace(find, replace)
 
                     # --- Handle local file paths like image_path=... and pdf_path=... ---
-                    path_pattern = re.compile(r'(image|pdf)_path=([^\s]+)')
+                    path_pattern = re.compile(r'(image|pdf|audio)_path=([^\s]+)')
                     matches = list(path_pattern.finditer(content))
 
                     if matches:
@@ -100,7 +100,7 @@ def chat_completions():
                                             "type": "image_url",  # Treated as an image_url part with a data URI
                                             "image_url": {"url": data_uri}
                                         })
-                                    elif file_type == 'pdf':
+                                    elif file_type == 'pdf' or file_type == 'audio':
                                         new_content_parts.append({
                                             "type": "inline_data",
                                             "source": {
