@@ -8,6 +8,8 @@ import re
 import base64
 import mimetypes
 import requests
+import zipfile
+import io
 from flask import Blueprint, request, jsonify, Response
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 
@@ -83,39 +85,22 @@ def chat_completions():
 
                             if os.path.exists(expanded_path):
                                 if file_type == 'code':
-                                    # Handle code import from file or directory
-                                    MAX_CODE_SIZE_KB = 512
-                                    total_size = 0
-                                    injected_code_parts = []
+                                    # Handle code import from file or directory, optionally zipping large volumes
+                                    MAX_TEXT_SIZE_KB = 512
+                                    MAX_BINARY_SIZE_KB = 8192 # 8 MB limit for binary parts
 
-                                    def read_and_format_code_file(fpath, relative_path):
-                                        nonlocal total_size
-                                        try:
-                                            # Read as text, ignoring errors for robustness against strange encodings
-                                            with open(fpath, 'r', encoding='utf8', errors='ignore') as f:
-                                                code_content = f.read()
+                                    candidate_files = []
+                                    total_raw_size = 0
 
-                                            size = len(code_content.encode('utf-8'))
-                                            if total_size + size > MAX_CODE_SIZE_KB * 1024:
-                                                return None, size # Too large
-
-                                            _, extension = os.path.splitext(fpath)
-                                            lang = extension.lstrip('.') if extension else ''
-
-                                            # Embed content in a markdown code block
-                                            injected_code = (f"\n--- Code File: {relative_path} ---\n"
-                                                             f"```{lang}\n{code_content}\n```\n")
-
-                                            total_size += size
-                                            return injected_code, size
-                                        except Exception as e:
-                                            utils.log(f"Error reading code file {fpath}: {e}")
-                                            return None, 0
-
+                                    # 1. Collect all files and calculate total size
                                     if os.path.isfile(expanded_path):
-                                        result, _ = read_and_format_code_file(expanded_path, os.path.basename(expanded_path))
-                                        if result:
-                                            injected_code_parts.append(result)
+                                        try:
+                                            size = os.path.getsize(expanded_path)
+                                            if size <= MAX_BINARY_SIZE_KB * 1024:
+                                                candidate_files.append((expanded_path, os.path.basename(expanded_path)))
+                                                total_raw_size += size
+                                        except Exception as e:
+                                            utils.log(f"Error checking file size {expanded_path}: {e}")
 
                                     elif os.path.isdir(expanded_path):
                                         for root, _, files in os.walk(expanded_path):
@@ -129,43 +114,103 @@ def chat_completions():
 
                                                 file_path = os.path.join(root, filename)
 
-                                                # Optimization: check file size before reading fully
-                                                if os.path.getsize(file_path) > MAX_CODE_SIZE_KB * 1024:
-                                                    continue
+                                                try:
+                                                    size = os.path.getsize(file_path)
+                                                    if total_raw_size + size <= MAX_BINARY_SIZE_KB * 1024:
+                                                        candidate_files.append((file_path, os.path.relpath(file_path, expanded_path)))
+                                                        total_raw_size += size
+                                                    elif total_raw_size == 0:
+                                                        utils.log(f"Code import skipped: File {file_path} exceeds maximum binary limit of {MAX_BINARY_SIZE_KB} KB.")
+                                                        candidate_files = []
+                                                        total_raw_size = 0
+                                                        break
+                                                    else:
+                                                        utils.log(f"Code import stopped: Adding {file_path} would exceed maximum binary limit of {MAX_BINARY_SIZE_KB} KB.")
+                                                        break # Stop adding files
 
-                                                relative_path = os.path.relpath(file_path, expanded_path)
-                                                result, size = read_and_format_code_file(file_path, relative_path)
+                                                except Exception as e:
+                                                    utils.log(f"Error checking file size {file_path}: {e}")
+                                                    continue # Skip problematic file
 
-                                                if result:
-                                                    injected_code_parts.append(result)
-                                                elif size > 0: # Hit global size limit mid-read
-                                                    utils.log(f"Stopping code injection due to total size limit ({MAX_CODE_SIZE_KB} KB).")
-                                                    break # Stop inner file loop
-
-                                            if total_size > MAX_CODE_SIZE_KB * 1024:
+                                            if total_raw_size > MAX_BINARY_SIZE_KB * 1024:
                                                 break # Stop os.walk loop
 
-                                    if injected_code_parts:
+
+                                    if not candidate_files:
+                                        msg = f"[Could not import code from {file_path_str}: No files found, or exceeded {MAX_BINARY_SIZE_KB} KB limit.]"
+                                        utils.log(msg)
+                                        if os.path.isfile(expanded_path) or os.path.isdir(expanded_path):
+                                            new_content_parts.append({"type": "text", "text": msg})
+                                        else:
+                                            new_content_parts.append({"type": "text", "text": match.group(0)})
+                                        last_end = end
+                                        continue
+
+
+                                    if total_raw_size <= MAX_TEXT_SIZE_KB * 1024:
+                                        # 2. Text Injection Mode (Small files)
+
+                                        injected_code_parts = []
+                                        for fpath, relative_path in candidate_files:
+                                            try:
+                                                with open(fpath, 'r', encoding='utf8', errors='ignore') as f:
+                                                    code_content = f.read()
+
+                                                _, extension = os.path.splitext(fpath)
+                                                lang = extension.lstrip('.') if extension else ''
+
+                                                injected_code = (f"\n--- Code File: {relative_path} ---\n"
+                                                                 f"```{lang}\n{code_content}\n```\n")
+                                                injected_code_parts.append(injected_code)
+                                            except Exception as e:
+                                                utils.log(f"Error reading code file {fpath} for text injection: {e}")
+
                                         full_injection_text = "".join(injected_code_parts)
                                         header = (f"The following context contains code files imported from the path "
-                                                  f"'{file_path_str}' (Total size: {total_size/1024:.2f} KB):\n\n")
+                                                  f"'{file_path_str}' (Total size: {total_raw_size/1024:.2f} KB, TEXT MODE):\n\n")
                                         new_content_parts.append({
                                             "type": "text", 
                                             "text": header + full_injection_text
                                         })
-                                        utils.log(f"Successfully injected {len(injected_code_parts)} code files.")
+                                        utils.log(f"Successfully injected {len(injected_code_parts)} code files in text mode.")
+
                                     else:
-                                        msg = f"[Could not import code from {file_path_str}: No readable files found, or files exceeded {MAX_CODE_SIZE_KB} KB total limit.]"
-                                        utils.log(msg)
-                                        # Only add the message if the path actually pointed to a file/directory structure we tried to process
-                                        if os.path.isfile(expanded_path) or os.path.isdir(expanded_path):
+                                        # 3. Binary Packaging Mode (Large files)
+                                        try:
+                                            # Create ZIP archive in memory
+                                            zip_buffer = io.BytesIO()
+
+                                            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                                                for fpath, relative_path in candidate_files:
+                                                    zf.write(fpath, relative_path)
+
+                                            zip_bytes = zip_buffer.getvalue()
+                                            encoded_data = base64.b64encode(zip_bytes).decode('utf-8')
+
+                                            # Add descriptive text part followed by inline binary part
+                                            instruction = (f"A ZIP archive containing {len(candidate_files)} code files "
+                                                           f"({total_raw_size/1024:.2f} KB raw size) from '{file_path_str}' "
+                                                           f"is attached as a binary input. Analyze the contents of this archive.")
+                                            new_content_parts.append({"type": "text", "text": instruction})
+
+                                            new_content_parts.append({
+                                                "type": "inline_data",
+                                                "source": {
+                                                    "media_type": "application/zip",
+                                                    "data": encoded_data
+                                                }
+                                            })
+                                            utils.log(f"Successfully packaged {len(candidate_files)} code files as ZIP binary input.")
+
+
+                                        except Exception as e:
+                                            utils.log(f"Error packaging code files into ZIP: {e}")
+                                            msg = f"[Failed to package code from {file_path_str} into ZIP archive.]"
                                             new_content_parts.append({"type": "text", "text": msg})
-                                        else:
-                                            # Fallback to original text if path exists but logic failed unexpectedly
-                                            new_content_parts.append({"type": "text", "text": match.group(0)})
 
                                     last_end = end
                                     continue # Skip multimodal logic below
+
 
                                 try:
                                     mime_type, _ = mimetypes.guess_type(expanded_path)
