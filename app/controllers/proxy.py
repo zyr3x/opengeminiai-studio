@@ -65,7 +65,7 @@ def chat_completions():
                                 content = content.replace(find, replace)
 
                     # --- Handle local file paths like image_path=... and pdf_path=... ---
-                    path_pattern = re.compile(r'(image|pdf|audio)_path=([^\s]+)')
+                    path_pattern = re.compile(r'(image|pdf|audio|code)_path=([^\s]+)')
                     matches = list(path_pattern.finditer(content))
 
                     if matches:
@@ -82,6 +82,91 @@ def chat_completions():
                             expanded_path = os.path.expanduser(file_path_str)
 
                             if os.path.exists(expanded_path):
+                                if file_type == 'code':
+                                    # Handle code import from file or directory
+                                    MAX_CODE_SIZE_KB = 512
+                                    total_size = 0
+                                    injected_code_parts = []
+
+                                    def read_and_format_code_file(fpath, relative_path):
+                                        nonlocal total_size
+                                        try:
+                                            # Read as text, ignoring errors for robustness against strange encodings
+                                            with open(fpath, 'r', encoding='utf8', errors='ignore') as f:
+                                                code_content = f.read()
+
+                                            size = len(code_content.encode('utf-8'))
+                                            if total_size + size > MAX_CODE_SIZE_KB * 1024:
+                                                return None, size # Too large
+
+                                            _, extension = os.path.splitext(fpath)
+                                            lang = extension.lstrip('.') if extension else ''
+
+                                            # Embed content in a markdown code block
+                                            injected_code = (f"\n--- Code File: {relative_path} ---\n"
+                                                             f"```{lang}\n{code_content}\n```\n")
+
+                                            total_size += size
+                                            return injected_code, size
+                                        except Exception as e:
+                                            utils.log(f"Error reading code file {fpath}: {e}")
+                                            return None, 0
+
+                                    if os.path.isfile(expanded_path):
+                                        result, _ = read_and_format_code_file(expanded_path, os.path.basename(expanded_path))
+                                        if result:
+                                            injected_code_parts.append(result)
+
+                                    elif os.path.isdir(expanded_path):
+                                        for root, _, files in os.walk(expanded_path):
+                                            # Skip hidden directories
+                                            if any(part.startswith('.') for part in os.path.relpath(root, expanded_path).split(os.sep)):
+                                                continue 
+
+                                            for filename in files:
+                                                if filename.startswith('.'):
+                                                    continue # Skip hidden files
+
+                                                file_path = os.path.join(root, filename)
+
+                                                # Optimization: check file size before reading fully
+                                                if os.path.getsize(file_path) > MAX_CODE_SIZE_KB * 1024:
+                                                    continue
+
+                                                relative_path = os.path.relpath(file_path, expanded_path)
+                                                result, size = read_and_format_code_file(file_path, relative_path)
+
+                                                if result:
+                                                    injected_code_parts.append(result)
+                                                elif size > 0: # Hit global size limit mid-read
+                                                    utils.log(f"Stopping code injection due to total size limit ({MAX_CODE_SIZE_KB} KB).")
+                                                    break # Stop inner file loop
+
+                                            if total_size > MAX_CODE_SIZE_KB * 1024:
+                                                break # Stop os.walk loop
+
+                                    if injected_code_parts:
+                                        full_injection_text = "".join(injected_code_parts)
+                                        header = (f"The following context contains code files imported from the path "
+                                                  f"'{file_path_str}' (Total size: {total_size/1024:.2f} KB):\n\n")
+                                        new_content_parts.append({
+                                            "type": "text", 
+                                            "text": header + full_injection_text
+                                        })
+                                        utils.log(f"Successfully injected {len(injected_code_parts)} code files.")
+                                    else:
+                                        msg = f"[Could not import code from {file_path_str}: No readable files found, or files exceeded {MAX_CODE_SIZE_KB} KB total limit.]"
+                                        utils.log(msg)
+                                        # Only add the message if the path actually pointed to a file/directory structure we tried to process
+                                        if os.path.isfile(expanded_path) or os.path.isdir(expanded_path):
+                                            new_content_parts.append({"type": "text", "text": msg})
+                                        else:
+                                            # Fallback to original text if path exists but logic failed unexpectedly
+                                            new_content_parts.append({"type": "text", "text": match.group(0)})
+
+                                    last_end = end
+                                    continue # Skip multimodal logic below
+
                                 try:
                                     mime_type, _ = mimetypes.guess_type(expanded_path)
                                     if not mime_type:
