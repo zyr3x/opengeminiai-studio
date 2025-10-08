@@ -1,4 +1,4 @@
-# OpenGeminiAI Studio V1.5
+# OpenGeminiAI Studio V1.6
 
 <!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 
-A simple, efficient Python proxy that allows you to use Google's Gemini API with clients and tools designed for the OpenAI API. Bridge the gap and use your favorite OpenAI-native applications with the power of Gemini models.
+An advanced, lightweight proxy that enables seamless integration of Google's Gemini API with any client or tool built for the OpenAI API. Bridge the gap and empower your favorite OpenAI-native applications with the cutting-edge capabilities of Gemini models.
 
 This proxy includes a web interface for easy configuration, chat, and management of MCP (Multi-Tool Communication Protocol) tools for advanced function calling.
 
@@ -16,7 +16,7 @@ This proxy includes a web interface for easy configuration, chat, and management
 -   **OpenAI API Compatibility:** Seamlessly use Gemini models with tools built for the OpenAI API, including streaming and function calling.
 -   **Advanced Web Interface:** A comprehensive UI featuring multi-chat management, file uploads, an image generation playground, and persistent conversation history.
 -   **Powerful Prompt Control:** Define system prompts to guide model behavior and create dynamic prompt overrides that trigger on keywords.
--   **Local File Embedding:** Automatically include local images and PDFs in your prompts from any API client using `image_path=` and `pdf_path=` syntax—perfect for IDE integration.
+-   **Local File & Code Injection:** Automatically embed local images, PDFs, and audio files in your prompts using syntax like `image_path=...`. It also includes a powerful **code injector** (`code_path=...`) to include single source files or entire directories as context—perfect for IDE integration.
 -   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling.
 -   **Easy Deployment:** Get up and running in minutes with Docker or standard Python setup.
 -   **Flexible Configuration:** Manage settings via the web UI, `.env` file, or environment variables.

@@ -1,18 +1,18 @@
 <!-- Documentation Section -->
 <div id="documentation" class="content-section">
     <h1 class="my-4">📚 Documentation</h1>
-    <p class="lead">Dive into the details of OpenGeminiAI Studio v1.5: learn how to set up, configure, and maximize the utility of this powerful proxy for Google's Gemini API.</p>
+    <p class="lead">Dive into the details of OpenGeminiAI Studio v1.6: learn how to set up, configure, and maximize the utility of this powerful proxy for Google's Gemini API.</p>
 
     <h2 class="mt-4">✨ What It Does</h2>
     <ul>
         <li><b>OpenAI API Compatibility:</b> Accepts requests on <code>/v1/chat/completions</code> and <code>/v1/models</code>, transforming them for the Gemini API.</li>
         <li><b>Streaming & History:</b> Handles streaming responses and automatically truncates conversation history to fit context windows.</li>
-        <li><b>Multimodal Support:</b> Supports image and text inputs. It can even automatically embed local files from your prompts when you use syntax like <code>image_path=/path/to/file.png</code> or <code>pdf_path=/path/to/file.pdf</code>.</li>
+        <li><b>Multimodal & Code Injection:</b> Supports image, audio, and PDF file embedding directly from local paths (e.g., <code>image_path=...</code>). It also features a powerful <b>code injector</b> (<code>code_path=...</code>) that can embed single files or entire directory structures as text context in your prompt.</li>
         <li><b>Function Calling:</b> Integrates with external tools via the Multi-Tool Communication Protocol (MCP), with context-aware tool selection to improve accuracy.</li>
         <li><b>Image Generation:</b> Includes a dedicated UI and API endpoint for generating images with compatible models.</li>
         <li><b>Advanced Prompt Control:</b> Lets you define and apply both system-level prompts and dynamic prompt overrides based on keywords.</li>
         <li><b>Multi-Chat UI:</b> The web interface supports multiple, persistent chat sessions, each with its own history and file storage.</li>
-        <li><b>Efficient Caching:</b> Caches model lists to reduce upstream API calls.</li>
+        <li><b>Efficient Caching:</b> Caches model lists and model-specific details (like token limits) to reduce upstream API calls.</li>
     </ul>
 
     <h2 class="mt-4">🌐 Web Interface</h2>
@@ -61,13 +61,28 @@
     <p class="mt-3"><em>Screenshot of JetBrains AI Assistant settings:</em></p>
     <img src="/static/img/placeholder_jetbrains_config.png" class="img-fluid rounded shadow-sm" alt="JetBrains AI Assistant Configuration">
 
-    <h3 class="mt-4">3. Local File Embedding (via Proxy)</h3>
-    <p>The proxy can automatically embed local image or PDF files into your request. In your prompt, simply specify the path to the file using <code>image_path=</code> or <code>pdf_path=</code>.</p>
+    <h3 class="mt-4">3. Local File Embedding & Code Injection (via Proxy)</h3>
+    <p>The proxy can automatically embed local files into your request directly from the prompt. This is especially useful when using the proxy with tools like JetBrains AI Assistant, as it allows you to reference local project files without leaving your IDE.</p>
+
+    <h4>Multimodal Files (image, pdf, audio)</h4>
+    <p>Specify the path to the file using <code>image_path=</code>, <code>pdf_path=</code>, or <code>audio_path=</code>. The proxy will read the file, encode it, and include it as a multimodal part in the request to the Gemini API.</p>
     <pre><code class="language-bash">
-# Example prompt sent to the proxy:
+# Example prompts sent to the proxy:
 "Please describe this image: image_path=/Users/me/Pictures/diagram.png"
+"Summarize this document: pdf_path=~/Documents/report.pdf"
     </code></pre>
-    <p>The proxy will read the file, encode it, and include it in the request to the Gemini API as multimodal content. This is especially useful when using the proxy with tools like JetBrains AI Assistant.</p>
+
+    <h4 class="mt-4">Code Injection (code_path)</h4>
+    <p>Use <code>code_path=</code> to inject source code as plain text context. This is a powerful feature for code analysis, refactoring, or documentation tasks.</p>
+    <ul>
+        <li><b>Single File:</b> Provide a path to a single file (e.g., <code>code_path=app/main.py</code>).</li>
+        <li><b>Entire Directory:</b> Provide a path to a directory (e.g., <code>code_path=app/controllers/</code>). The proxy will recursively read all non-hidden files, format them, and inject them into the prompt.</li>
+    </ul>
+     <pre><code class="language-bash">
+# Example prompt for code analysis:
+"Analyze the following code for potential bugs: code_path=/path/to/my_project/src"
+    </code></pre>
+    <p class="alert alert-info"><b>Note:</b> For performance and to respect context window limits, code injection operates in "TEXT MODE" up to a configurable size limit (default 512 KB). If the total size of files exceeds this, the proxy will inform you in the response instead of attaching the files.</p>
 
     <h2 class="mt-4">📡 Available Endpoints</h2>
     <ul>
