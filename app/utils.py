@@ -164,4 +164,48 @@ def truncate_contents(contents: list, limit: int) -> list:
     return truncated_contents
 
 def pretty_json(data):
-    return json.dumps(data, ensure_ascii=False)
+    """Returns a pretty-printed JSON string."""
+    return json.dumps(data, indent=2, ensure_ascii=False, default=str)
+
+
+def format_tool_output_for_display(tool_parts: list) -> str | None:
+    """
+    Formats the output from tool calls for display, especially when the model is silent.
+    Handles different response payload structures and pretty-prints JSON.
+    """
+    formatted_tool_outputs = []
+    for tool_part in tool_parts:
+        func_resp = tool_part.get('functionResponse', {})
+        name = func_resp.get('name', 'unknown_tool')
+        resp_data = func_resp.get('response', {})
+
+        resp_text = ""
+        if 'text' in resp_data:
+            resp_text = resp_data['text']
+        elif 'content' in resp_data:
+            # Use content field if text is missing (e.g., if output was mapped to 'content')
+            resp_text = str(resp_data['content'])  # Ensure it's a string
+        else:
+            # If neither text nor content, dump the entire response payload dictionary
+            resp_text = pretty_json(resp_data)
+
+        if not resp_text:
+            continue
+
+        try:
+            # Try to parse and pretty-print if it's a JSON string
+            parsed_json = json.loads(resp_text)
+            pretty_text = json.dumps(parsed_json, indent=3, default=str)
+            pretty_text = pretty_text.replace('\\n', '\n')
+        except (json.JSONDecodeError, TypeError):
+            # If it fails, use the response text as is
+            pretty_text = resp_text
+
+        formatted_output = (f'\n<details><summary>Tool Output: `{name}`</summary>\n\n'
+                            f'```json\n{pretty_text}\n```\n\n</details>\n')
+        formatted_tool_outputs.append(formatted_output)
+
+    if formatted_tool_outputs:
+        return "".join(formatted_tool_outputs)
+
+    return None

@@ -175,38 +175,12 @@ def chat_completions():
                                         utils.log(f"Successfully injected {len(injected_code_parts)} code files in text mode.")
 
                                     else:
-                                        # 3. Binary Packaging Mode (Large files)
-                                        try:
-                                            # Create ZIP archive in memory
-                                            zip_buffer = io.BytesIO()
-
-                                            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-                                                for fpath, relative_path in candidate_files:
-                                                    zf.write(fpath, relative_path)
-
-                                            zip_bytes = zip_buffer.getvalue()
-                                            encoded_data = base64.b64encode(zip_bytes).decode('utf-8')
-
-                                            # Add descriptive text part followed by inline binary part
-                                            instruction = (f"A ZIP archive containing {len(candidate_files)} code files "
-                                                           f"({total_raw_size/1024:.2f} KB raw size) from '{file_path_str}' "
-                                                           f"is attached as a binary input. Analyze the contents of this archive.")
-                                            new_content_parts.append({"type": "text", "text": instruction})
-
-                                            new_content_parts.append({
-                                                "type": "inline_data",
-                                                "source": {
-                                                    "media_type": "application/zip",
-                                                    "data": encoded_data
-                                                }
-                                            })
-                                            utils.log(f"Successfully packaged {len(candidate_files)} code files as ZIP binary input.")
-
-
-                                        except Exception as e:
-                                            utils.log(f"Error packaging code files into ZIP: {e}")
-                                            msg = f"[Failed to package code from {file_path_str} into ZIP archive.]"
-                                            new_content_parts.append({"type": "text", "text": msg})
+                                        # 3. Size Limit Exceeded
+                                        msg = (f"[Code import from '{file_path_str}' skipped: "
+                                               f"Total size ({total_raw_size/1024:.2f} KB) exceeds the text injection "
+                                               f"limit of {MAX_TEXT_SIZE_KB} KB.]")
+                                        utils.log(msg)
+                                        new_content_parts.append({"type": "text", "text": msg})
 
                                     last_end = end
                                     continue # Skip multimodal logic below
@@ -443,27 +417,20 @@ def chat_completions():
 
                 if is_after_tool_call and not has_text_in_model_response and not tool_calls:
                     tool_parts_from_history = current_contents[-1].get('parts', [])
-                    formatted_tool_outputs = []
-                    for tool_part in tool_parts_from_history:
-                        func_resp = tool_part.get('functionResponse', {})
-                        name = func_resp.get('name', 'unknown_tool')
-                        resp_text = func_resp.get('response', {}).get('text', '')
-                        if not resp_text:
-                            continue
-                        try:
-                            # Try to parse and pretty-print if it's a JSON string
-                            parsed_json = json.loads(json.loads(resp_text))
-                            pretty_text = json.dumps(parsed_json, indent=3, default=str)
-                            pretty_text = pretty_text.replace('\\n', '\n')
-                        except (json.JSONDecodeError, TypeError):
-                            pretty_text = resp_text
-                        formatted_output = (f'\n<details><summary>Tool Output: `{name}`</summary>\n\n'
-                                            f'```json\n{pretty_text}\n```\n\n</details>\n')
-                        formatted_tool_outputs.append(formatted_output)
-                        if formatted_tool_outputs:
-                            final_text = "".join(formatted_tool_outputs)
-                            model_response_parts = [{'text': final_text}]
-                            yield final_text
+                    final_text = utils.format_tool_output_for_display(tool_parts_from_history)
+
+                    if final_text:
+                        model_response_parts = [{'text': final_text}]
+                        # Stream the generated tool output to the client as an OpenAI chunk
+                        tool_output_chunk = {
+                            "id": f"chatcmpl-{os.urandom(12).hex()}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": COMPLETION_MODEL,
+                            "choices": [{"index": 0, "delta": {"content": final_text}, "finish_reason": None}]
+                        }
+                        utils.log(f"Silent Model Proxy Tool Output Chunk: {utils.pretty_json(tool_output_chunk)}")
+                        yield f"data: {json.dumps(tool_output_chunk)}\n\n"
 
                 if not tool_calls:
                     break
