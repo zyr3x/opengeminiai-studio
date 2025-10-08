@@ -6,6 +6,7 @@ import json
 import requests
 import base64
 import re
+from app.db import get_db_connection, UPLOAD_FOLDER # Import added for new utility functions
 
 # --- Global Settings ---
 VERBOSE_LOGGING = True
@@ -209,3 +210,75 @@ def format_tool_output_for_display(tool_parts: list) -> str | None:
         return "".join(formatted_tool_outputs)
 
     return None
+
+def add_message_to_db(chat_id: int, role: str, parts: list):
+    """Adds a message with its parts to the database."""
+    conn = get_db_connection()
+    conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
+                 (chat_id, role, json.dumps(parts)))
+    conn.commit()
+    conn.close()
+
+def format_message_parts_for_ui(db_parts_json: str) -> dict:
+    """
+    Formats a message's parts (from DB JSON string) for display in the UI.
+    Converts file_data paths to /uploads URLs.
+    """
+    message_data = {'content': '', 'files': []}
+    try:
+        parts = json.loads(db_parts_json)
+        text_parts = []
+        for part in parts:
+            if 'text' in part:
+                text_parts.append(part['text'])
+            elif 'file_data' in part:
+                file_path = part['file_data']['path']
+                if os.path.exists(file_path):
+                    # Create a relative path for the URL
+                    relative_path = os.path.relpath(file_path, UPLOAD_FOLDER)
+                    file_url = f"/uploads/{relative_path.replace(os.sep, '/')}"
+                    message_data['files'].append({
+                        'url': file_url,
+                        'mimetype': part['file_data']['mime_type'],
+                        'name': os.path.basename(file_path)
+                    })
+                else:
+                    text_parts.append(f"[File not found: {os.path.basename(file_path)}]")
+            elif 'functionResponse' in part:
+                # Format tool output for UI display
+                formatted_output = format_tool_output_for_display([part])
+                if formatted_output:
+                    text_parts.append(formatted_output)
+        message_data['content'] = " ".join(text_parts).strip()
+    except (json.JSONDecodeError, TypeError) as e:
+        log(f"Error parsing message parts for UI: {e}. Raw parts: {db_parts_json}")
+        message_data['content'] = f"Error displaying message: {e}"
+    return message_data
+
+def prepare_message_parts_for_gemini(db_parts_json: str) -> list:
+    """
+    Prepares a message's parts (from DB JSON string) for sending to the Gemini API.
+    Reads file_data paths and converts them to Base64 inline_data.
+    """
+    reconstructed_parts = []
+    try:
+        parts = json.loads(db_parts_json)
+        for part in parts:
+            if 'file_data' in part:
+                file_path = part['file_data']['path']
+                if os.path.exists(file_path):
+                    with open(file_path, 'rb') as f:
+                        file_content = f.read()
+                    file_base64 = base64.b64encode(file_content).decode('utf-8')
+                    reconstructed_parts.append({
+                        "inline_data": {"mime_type": part['file_data']['mime_type'], "data": file_base64}
+                    })
+                else:
+                    log(f"File not found when preparing for Gemini API: {file_path}")
+                    reconstructed_parts.append({"text": f"[File not found: {os.path.basename(file_path)}]"})
+            else:
+                reconstructed_parts.append(part)
+    except (json.JSONDecodeError, TypeError) as e:
+        log(f"Error preparing message parts for Gemini API: {e}. Raw parts: {db_parts_json}")
+        reconstructed_parts.append({"text": f"Error preparing message: {e}"})
+    return reconstructed_parts

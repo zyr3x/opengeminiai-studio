@@ -70,29 +70,10 @@ def get_chat_messages(chat_id):
     formatted_messages = []
     for db_message in messages:
         role = 'assistant' if db_message['role'] == 'model' else db_message['role']
-        message_data = {'role': role, 'content': '', 'files': []}
-        try:
-            parts = json.loads(db_message['parts'])
-            text_parts = []
-            for part in parts:
-                if 'text' in part:
-                    text_parts.append(part['text'])
-                elif 'file_data' in part:
-                    file_path = part['file_data']['path']
-                    # Create a relative path for the URL
-                    relative_path = os.path.relpath(file_path, UPLOAD_FOLDER)
-                    file_url = f"/uploads/{relative_path.replace(os.sep, '/')}"
-                    message_data['files'].append({
-                        'url': file_url,
-                        'mimetype': part['file_data']['mime_type'],
-                        'name': os.path.basename(file_path)
-                    })
-            message_data['content'] = " ".join(text_parts).strip()
+        message_data = utils.format_message_parts_for_ui(db_message['parts'])
 
-            if message_data['content'] or message_data['files']:
-                formatted_messages.append(message_data)
-        except (json.JSONDecodeError, TypeError):
-            continue
+        if message_data['content'] or message_data['files']:
+            formatted_messages.append({'role': role, **message_data})
     return jsonify(formatted_messages)
 
 @web_ui_chat_bp.route('/api/generate_image', methods=['POST'])
@@ -110,10 +91,7 @@ def generate_image_api():
 
         # 1. Save user message to DB
         user_parts = [{"text": prompt}]
-        db_conn = get_db_connection()
-        db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)', (chat_id, 'user', json.dumps(user_parts)))
-        db_conn.commit()
-        db_conn.close()
+        utils.add_message_to_db(chat_id, 'user', user_parts)
 
         # 2. Call the image generation model via non-streaming API
         IMAGE_GEN_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
@@ -153,13 +131,10 @@ def generate_image_api():
                     print(f"Failed to download image from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
                     image_data = None  # Ensure image_data is None on failure
 
-        db_conn = get_db_connection()
         if not image_data or not mime_type:
             text_response = " ".join(p.get('text', '') for p in parts).strip() or "Sorry, I couldn't generate an image. The model returned an unexpected response."
             bot_text_parts = [{"text": text_response}]
-            db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)', (chat_id, 'model', json.dumps(bot_text_parts)))
-            db_conn.commit()
-            db_conn.close()
+            utils.add_message_to_db(chat_id, 'model', bot_text_parts)
             return jsonify({'content': text_response})
 
         # 4. Save image and bot message to DB
@@ -183,9 +158,7 @@ def generate_image_api():
             {"text": bot_response_text},
             {"file_data": {"mime_type": mime_type, "path": filepath}}
         ]
-        db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)', (chat_id, 'model', json.dumps(bot_parts)))
-        db_conn.commit()
-        db_conn.close()
+        utils.add_message_to_db(chat_id, 'model', bot_parts)
 
         # 5. Return markdown content to the frontend
         response_content = f"{bot_response_text}\n![{prompt}]({file_url})"
@@ -236,18 +209,15 @@ def chat_api():
                 })
 
         if user_parts:
-            conn = get_db_connection()
-            conn.execute(
-                'INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
-                (chat_id, 'user', json.dumps(user_parts))
-            )
+            utils.add_message_to_db(chat_id, 'user', user_parts)
             if user_message:
+                conn = get_db_connection()
                 message_count = conn.execute('SELECT COUNT(id) FROM messages WHERE chat_id = ? AND role = "user"', (chat_id,)).fetchone()[0]
                 if message_count == 1:
                     new_title = (user_message[:47] + '...') if len(user_message) > 50 else user_message
                     conn.execute('UPDATE chats SET title = ? WHERE id = ?', (new_title, chat_id))
-            conn.commit()
-            conn.close()
+                conn.commit()
+                conn.close()
 
         conn = get_db_connection()
         db_messages = conn.execute(
@@ -275,22 +245,7 @@ def chat_api():
 
         for m in db_messages:
             role = m['role']
-            parts = json.loads(m['parts'])
-            reconstructed_parts = []
-            for part in parts:
-                if 'file_data' in part:
-                    file_path = part['file_data']['path']
-                    if os.path.exists(file_path):
-                        with open(file_path, 'rb') as f:
-                            file_content = f.read()
-                        file_base64 = base64.b64encode(file_content).decode('utf-8')
-                        reconstructed_parts.append({
-                            "inline_data": {"mime_type": part['file_data']['mime_type'], "data": file_base64}
-                        })
-                    else:
-                        reconstructed_parts.append({"text": f"[File not found: {os.path.basename(file_path)}]"})
-                else:
-                    reconstructed_parts.append(part)
+            reconstructed_parts = utils.prepare_message_parts_for_gemini(m['parts'])
             gemini_contents.append({'role': role, 'parts': reconstructed_parts})
 
         full_prompt_text = " ".join(
@@ -381,11 +336,7 @@ def chat_api():
                             yield final_text
 
                 if model_response_parts:
-                    db_conn = get_db_connection()
-                    db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
-                                  (chat_id, 'model', json.dumps(model_response_parts)))
-                    db_conn.commit()
-                    db_conn.close()
+                    utils.add_message_to_db(chat_id, 'model', model_response_parts)
 
                 if not tool_calls: break
 
@@ -413,11 +364,7 @@ def chat_api():
                     })
 
                 if tool_response_parts:
-                    db_conn = get_db_connection()
-                    db_conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
-                                  (chat_id, 'tool', json.dumps(tool_response_parts)))
-                    db_conn.commit()
-                    db_conn.close()
+                    utils.add_message_to_db(chat_id, 'tool', tool_response_parts)
 
                 current_contents.append({"role": "tool", "parts": tool_response_parts})
 
