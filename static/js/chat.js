@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function () {
         contentDiv.classList.add('message-content');
 
         let textContent = '';
-        if (role === 'user' || role === 'assistant') { // assistant role from db
+        if (role === 'user' || role === 'assistant' || role === 'tool') { // assistant role from db
              let html = marked.parse(content, { gfm: true, breaks: true });
              const tempDiv = document.createElement('div');
              tempDiv.innerHTML = html;
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
              });
 
-             textContent = DOMPurify.sanitize(tempDiv.innerHTML);
+             textContent = DOMPurify.sanitize(tempDiv.innerHTML, {ADD_TAGS: ['details', 'summary']});
         } else { // bot role for errors
             textContent = `<p>${escapeHtml(content)}</p>`;
         }
@@ -154,6 +154,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         contentDiv.innerHTML = textContent + filesHtml;
+        if (window.renderMathInElement) renderMathInElement(contentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
 
         messageDiv.appendChild(avatarDiv);
         messageDiv.appendChild(contentDiv);
@@ -650,7 +651,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     });
 
-                    botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML);
+                    botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, {ADD_TAGS: ['details', 'summary']});
                     if (window.renderMathInElement) renderMathInElement(botContentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
                     chatHistory.scrollTop = chatHistory.scrollHeight;
                 }
