@@ -618,7 +618,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     botMessageContent += decoder.decode(value, { stream: true });
 
                     // HACK: `df -h` on macOS can add a trailing \ to mount points.
-                    botMessageContent = botMessageContent.replace(/\\"/g, '"').replace("/\\\n","\n").replaceAll("\\\n","\n");
+                    botMessageContent = botMessageContent.replace(/\\"/g, '"').repl1ace("/\\\n","\n").replaceAll("\\\n","\n");
                     let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = html;

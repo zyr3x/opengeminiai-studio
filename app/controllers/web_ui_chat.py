@@ -376,7 +376,7 @@ def chat_api():
                                     for support in sorted_supports:
                                         end_index = support.get('segment', {}).get('endIndex')
                                         if end_index is not None and 'groundingChunkIndices' in support:
-                                            links = [f"[{i + 1}]({chunks[i].get('web', {}).get('uri')})"
+                                            links = [f"[{chunks[i].get('web', {}).get('title') or i + 1}]({chunks[i].get('web', {}).get('uri')})"
                                                      for i in support['groundingChunkIndices'] if i < len(chunks) and chunks[i].get('web', {}).get('uri')]
                                             if links:
                                                 text = text[:end_index] + " " + ", ".join(links) + text[end_index:]
