@@ -193,6 +193,11 @@ def chat_api():
         system_prompt_name = request.form.get('system_prompt_name')
         selected_mcp_tools = request.form.getlist('mcp_tools')
 
+        utils.log(f"Incoming Web UI Chat Request (Chat ID: {chat_id}): "
+                  f"Model='{model}', User='{user_message[:50]}...', "
+                  f"Files={len(attached_files)}, SystemPrompt='{system_prompt_name}', "
+                  f"Tools='{selected_mcp_tools}'")
+
         # --- Prompt Engineering & Tool Control ---
         # Fetch history to build full context for prompt engineering
         conn = get_db_connection()
@@ -345,6 +350,8 @@ def chat_api():
                             }
                         }
 
+                utils.log(f"Outgoing Gemini Request (Model: {model}, Tools: {bool(final_tools)}): {utils.pretty_json(request_data)}")
+
                 tool_calls, model_response_parts = [], []
 
                 if enable_native_tools:
@@ -354,6 +361,8 @@ def chat_api():
                         response = requests.post(GEMINI_GENERATE_URL, headers=headers, json=request_data, timeout=300)
                         response.raise_for_status()
                         response_data = response.json()
+
+                        utils.log(f"Incoming Gemini Non-Streaming Response: {utils.pretty_json(response_data)}")
 
                         if not response_data.get('candidates'):
                             err_msg = "The model did not return a response. This could be due to a safety filter."
@@ -436,6 +445,7 @@ def chat_api():
 
                 if model_response_parts:
                     utils.add_message_to_db(chat_id, 'model', model_response_parts)
+                    utils.log(f"Model response saved to DB (Chat ID: {chat_id}). Parts: {utils.pretty_json(model_response_parts)}")
 
                 if not tool_calls: break
 
@@ -445,7 +455,9 @@ def chat_api():
                 tool_response_parts = []
                 for tool_call in tool_calls:
                     function_name = tool_call.get("name")
+                    utils.log(f"Executing tool '{function_name}' with args: {utils.pretty_json(tool_call.get('args'))}")
                     output = mcp_handler.execute_mcp_tool(function_name, tool_call.get("args"))
+                    utils.log(f"Tool '{function_name}' execution completed. Output length: {len(str(output))}")
 
                     response_payload = {}
                     if output is not None:
@@ -464,6 +476,7 @@ def chat_api():
 
                 if tool_response_parts:
                     utils.add_message_to_db(chat_id, 'tool', tool_response_parts)
+                    utils.log(f"Tool response saved to DB (Chat ID: {chat_id}). Response Parts: {utils.pretty_json(tool_response_parts)}")
 
                 current_contents.append({"role": "tool", "parts": tool_response_parts})
 
