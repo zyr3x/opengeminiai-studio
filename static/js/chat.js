@@ -84,7 +84,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         let textContent = '';
         if (role === 'user' || role === 'assistant' || role === 'tool') { // assistant role from db
-             let html = marked.parse(content, { gfm: true, breaks: true });
+            // HACK: `df -h` on macOS can add a trailing \ to mount points.
+            content = content.replace(/\\"/g, '"').replace("/\\\n","\n").replaceAll("\\\n","\n");
+
+            let html = marked.parse(content, { gfm: true, breaks: true });
              const tempDiv = document.createElement('div');
              tempDiv.innerHTML = html;
 
@@ -614,6 +617,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (done) break;
                     botMessageContent += decoder.decode(value, { stream: true });
 
+                    // HACK: `df -h` on macOS can add a trailing \ to mount points.
+                    botMessageContent = botMessageContent.replace(/\\"/g, '"').replace("/\\\n","\n").replaceAll("\\\n","\n");
                     let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = html;

@@ -8,8 +8,6 @@ import re
 import base64
 import mimetypes
 import requests
-import zipfile
-import io
 from flask import Blueprint, request, jsonify, Response
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 
