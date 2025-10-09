@@ -1,4 +1,4 @@
-# OpenGeminiAI Studio V1.6
+# OpenGeminiAI Studio V1.7
 
 <!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
@@ -18,6 +18,7 @@ This proxy includes a web interface for easy configuration, chat, and management
 -   **Powerful Prompt Control:** Define system prompts to guide model behavior and create dynamic prompt overrides that trigger on keywords.
 -   **Local File & Code Injection:** Automatically embed local images, PDFs, and audio files in your prompts using syntax like `image_path=...`. It also includes a powerful **code injector** (`code_path=...`) to include single source files or entire directories as context—perfect for IDE integration.
 -   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling.
+-   **Native Google Tools:** Enable built-in Google tools like Search directly within your prompts for enhanced, real-time data retrieval.
 -   **Easy Deployment:** Get up and running in minutes with Docker or standard Python setup.
 -   **Flexible Configuration:** Manage settings via the web UI, `.env` file, or environment variables.
 -   **Lightweight & Fast:** Built on Flask with a minimal resource footprint.

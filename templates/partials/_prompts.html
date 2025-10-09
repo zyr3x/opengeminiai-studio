@@ -44,6 +44,11 @@
                                 <label class="form-check-label" for="sys-disable-tools-{{ loop.index }}">Disable Tools (Commands) when this prompt is active</label>
                             </div>
 
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input system-enable-native-tools-switch" type="checkbox" role="switch" id="sys-enable-native-tools-{{ loop.index }}" {% if profile.get('enable_native_tools') %}checked{% endif %}>
+                                <label class="form-check-label" for="sys-enable-native-tools-{{ loop.index }}">Enable Native Google Tools (e.g., Search)</label>
+                            </div>
+
                             <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
                         </div>
                     </div>
@@ -126,8 +131,13 @@
                             </div>
 
                             <div class="form-check form-switch mb-3">
-                                <input class="form-check-input disable-tools-switch" type="checkbox" role="switch" id="disable-tools-{{ loop.index }}" {% if profile.disable_tools %}checked{% endif %}>
+                                <input class="form-check-input disable-tools-switch" type="checkbox" role="switch" id="disable-tools-{{ loop.index }}" {% if profile.get('disable_tools') %}checked{% endif %}>
                                 <label class="form-check-label" for="disable-tools-{{ loop.index }}">Disable Tools (Commands) for this profile</label>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input enable-native-tools-switch" type="checkbox" role="switch" id="enable-native-tools-{{ loop.index }}" {% if profile.get('enable_native_tools') %}checked{% endif %}>
+                                <label class="form-check-label" for="enable-native-tools-{{ loop.index }}">Enable Native Google Tools (e.g., Search)</label>
                             </div>
 
                             <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>

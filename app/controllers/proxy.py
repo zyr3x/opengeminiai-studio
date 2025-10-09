@@ -33,6 +33,7 @@ def chat_completions():
 
         # --- Prompt Engineering & Tool Control ---
         force_tools_enabled = True  # None: default, True: force, False: disable
+        enable_native_tools = False
 
         if messages:
             active_overrides = {}
@@ -51,9 +52,13 @@ def chat_completions():
                                 if profile_data.get('disable_tools', False):
                                     utils.log(f"MCP Tools Disabled")
                                     force_tools_enabled = False
+                                # Check for a flag to enable native tools
+                                if profile_data.get('enable_native_tools', False):
+                                    utils.log(f"Native Google Tools Enabled")
+                                    enable_native_tools = True
                                 utils.log(f"Prompt profile matched: '{profile_name}'")
                                 break
-                        if active_overrides:
+                        if active_overrides or enable_native_tools:
                             break
 
             # Process all messages: apply overrides
@@ -322,15 +327,28 @@ def chat_completions():
                 if system_instruction:
                     request_data["systemInstruction"] = system_instruction
 
-                # Add tool declarations if MCP tools are configured and enabled for this request
-                tools = mcp_handler.create_tool_declarations(full_prompt_text)
-                if tools and force_tools_enabled:
-                    request_data["tools"] = tools
-                    request_data["tool_config"] = {
-                        "function_calling_config": {
-                            "mode": "AUTO"
+                # --- Tool Configuration ---
+                final_tools = []
+
+                # Add MCP tool declarations if configured and enabled
+                mcp_tools = mcp_handler.create_tool_declarations(full_prompt_text)
+                if mcp_tools and force_tools_enabled:
+                    final_tools.extend(mcp_tools)
+
+                # Add native Google tools if enabled
+                if enable_native_tools:
+                    final_tools.append({"google_search": {}})
+                    final_tools.append({"url_context": {}})
+                    utils.log("Added google_search and url_context to tools.")
+
+                if final_tools:
+                    request_data["tools"] = final_tools
+                    if not enable_native_tools and not force_tools_enabled:
+                        request_data["tool_config"] = {
+                            "function_calling_config": {
+                                "mode": "AUTO"
+                            }
                         }
-                    }
 
                 GEMINI_STREAMING_URL = f"{config.UPSTREAM_URL}/v1beta/models/{COMPLETION_MODEL}:streamGenerateContent"
                 headers = {

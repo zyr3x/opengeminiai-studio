@@ -210,6 +210,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <label class="form-check-label" for="disable-tools-${newProfileIndex}">Disable Tools (Commands) for this profile</label>
                             </div>
 
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input enable-native-tools-switch" type="checkbox" role="switch" id="enable-native-tools-${newProfileIndex}">
+                                <label class="form-check-label" for="enable-native-tools-${newProfileIndex}">Enable Native Google Tools (e.g., Search)</label>
+                            </div>
+
                             <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
                         </div>
                     </div>
@@ -256,6 +261,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input system-disable-tools-switch" type="checkbox" role="switch" id="sys-disable-tools-${profileId}">
                                 <label class="form-check-label" for="sys-disable-tools-${profileId}">Disable Tools (Commands) when this prompt is active</label>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input system-enable-native-tools-switch" type="checkbox" role="switch" id="sys-enable-native-tools-${profileId}">
+                                <label class="form-check-label" for="sys-enable-native-tools-${profileId}">Enable Native Google Tools (e.g., Search)</label>
                             </div>
 
                             <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
@@ -309,6 +319,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const disableToolsSwitch = profileDiv.querySelector('.disable-tools-switch');
                 const disableTools = disableToolsSwitch ? disableToolsSwitch.checked : false;
 
+                const enableNativeToolsSwitch = profileDiv.querySelector('.enable-native-tools-switch');
+                const enableNativeTools = enableNativeToolsSwitch ? enableNativeToolsSwitch.checked : false;
+
                 const enabledSwitch = profileDiv.querySelector('.enabled-switch');
                 const enabled = enabledSwitch ? enabledSwitch.checked : true;
 
@@ -316,7 +329,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     enabled: enabled,
                     triggers: triggers,
                     overrides: overrides,
-                    disable_tools: disableTools
+                    disable_tools: disableTools,
+                    enable_native_tools: enableNativeTools
                 };
             });
 
@@ -350,13 +364,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 const disableToolsSwitch = profileDiv.querySelector('.system-disable-tools-switch');
                 const disableTools = disableToolsSwitch ? disableToolsSwitch.checked : false;
 
+                const enableNativeToolsSwitch = profileDiv.querySelector('.system-enable-native-tools-switch');
+                const enableNativeTools = enableNativeToolsSwitch ? enableNativeToolsSwitch.checked : false;
+
                 const enabledSwitch = profileDiv.querySelector('.system-enabled-switch');
                 const enabled = enabledSwitch ? enabledSwitch.checked : true;
 
                 profiles[newProfileName] = {
                     enabled: enabled,
                     prompt: promptText,
-                    disable_tools: disableTools
+                    disable_tools: disableTools,
+                    enable_native_tools: enableNativeTools
                 };
             });
 

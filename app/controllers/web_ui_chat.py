@@ -227,6 +227,7 @@ def chat_api():
 
         gemini_contents = []
         disable_tools = False
+        enable_native_tools = False
 
         if system_prompt_name and system_prompt_name in utils.system_prompts:
             sp_config = utils.system_prompts[system_prompt_name]
@@ -242,6 +243,9 @@ def chat_api():
                 utils.log(f"Injected system prompt profile: {system_prompt_name}")
 
             disable_tools = sp_config.get('disable_tools', False)
+            enable_native_tools = sp_config.get('enable_native_tools', False)
+            if enable_native_tools:
+                utils.log(f"Native Google tools enabled by system prompt: {system_prompt_name}")
 
         for m in db_messages:
             role = m['role']
@@ -270,24 +274,35 @@ def chat_api():
                     "generationConfig": {"temperature": 0.7, "topP": 1.0, "maxOutputTokens": 2048}
                 }
 
-                tools = None
+                # --- Tool Configuration ---
+                final_tools = []
+                mcp_tools = None
+
                 if selected_mcp_tools:
                     # When tools are selected manually, we force them.
                     # This assumes create_tool_declarations can find tools by their names in text,
                     # and bypasses the 'enabled' check in mcp_handler.
-                    tools = mcp_handler.create_tool_declarations(" ".join(selected_mcp_tools))
+                    mcp_tools = mcp_handler.create_tool_declarations(" ".join(selected_mcp_tools))
                     utils.log(f"Using explicitly selected tools: {selected_mcp_tools}")
                 else:
                     # Standard tool discovery based on full prompt.
-                    tools = mcp_handler.create_tool_declarations(full_prompt_text)
+                    mcp_tools = mcp_handler.create_tool_declarations(full_prompt_text)
 
-                # Add tools to request if they exist and are not disabled by a system prompt
+                # Add MCP tools to request if they exist and are not disabled by a system prompt
                 # (unless they were manually selected, in which case disable_tools is ignored).
-                if tools and (not disable_tools or selected_mcp_tools):
-                    request_data["tools"] = tools
-                    request_data["tool_config"] = {"function_calling_config": {"mode": "AUTO"}}
+                if mcp_tools and (not disable_tools or selected_mcp_tools):
+                    final_tools.extend(mcp_tools)
                 elif disable_tools and not selected_mcp_tools:
-                    utils.log(f"Tools omitted due to selected system prompt: {system_prompt_name}")
+                    utils.log(f"MCP Tools omitted due to selected system prompt: {system_prompt_name}")
+
+                # Add native Google tools if enabled by the system prompt
+                if enable_native_tools:
+                    final_tools.append({"google_search": {}})
+                    final_tools.append({"url_context": {}})
+
+                if final_tools:
+                    request_data["tools"] = final_tools
+                    request_data["tool_config"] = {"function_calling_config": {"mode": "AUTO"}}
 
                 try:
                     response = requests.post(
