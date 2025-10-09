@@ -343,7 +343,7 @@ def chat_completions():
 
                 if final_tools:
                     request_data["tools"] = final_tools
-                    if not enable_native_tools and not force_tools_enabled:
+                    if not enable_native_tools:
                         request_data["tool_config"] = {
                             "function_calling_config": {
                                 "mode": "AUTO"

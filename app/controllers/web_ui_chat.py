@@ -187,11 +187,54 @@ def chat_api():
         if not chat_id:
             return jsonify({"error": "chat_id is required"}), 400
 
-        model = request.form.get('model', 'gemini-1.5-flash-latest')
+        model = request.form.get('model', 'gemini-flash-latest')
         user_message = request.form.get('message', '')
         attached_files = request.files.getlist('file')
         system_prompt_name = request.form.get('system_prompt_name')
         selected_mcp_tools = request.form.getlist('mcp_tools')
+
+        # --- Prompt Engineering & Tool Control ---
+        # Fetch history to build full context for prompt engineering
+        conn = get_db_connection()
+        db_messages_for_prompt = conn.execute(
+            'SELECT parts FROM messages WHERE chat_id = ? ORDER BY id ASC', (chat_id,)
+        ).fetchall()
+        conn.close()
+
+        history_text = " ".join(
+            p.get("text", "")
+            for m in db_messages_for_prompt
+            for p in json.loads(m['parts'])
+            if p.get("text")
+        )
+        full_prompt_for_override_check = f"{history_text} {user_message}".strip()
+
+        active_overrides = {}
+        disable_tools_override = False
+        enable_native_tools_override = False
+
+        if utils.prompt_overrides:
+            for profile_name, profile_data in utils.prompt_overrides.items():
+                if isinstance(profile_data, dict):
+                    for trigger in profile_data.get('triggers', []):
+                        if trigger in full_prompt_for_override_check:
+                            active_overrides = profile_data.get('overrides', {})
+                            if profile_data.get('disable_tools', False):
+                                utils.log(f"MCP Tools Disabled by prompt override profile.")
+                                disable_tools_override = True
+                            if profile_data.get('enable_native_tools', False):
+                                utils.log(f"Native Google Tools Enabled by prompt override profile.")
+                                enable_native_tools_override = True
+                            utils.log(f"Prompt override profile matched: '{profile_name}'")
+                            break
+                    if active_overrides or enable_native_tools_override or disable_tools_override:
+                        break
+
+        if active_overrides and user_message:
+            for find, replace in active_overrides.items():
+                if find in user_message:
+                    user_message = user_message.replace(find, replace)
+        # --- End Prompt Engineering ---
 
         user_parts = []
         if user_message:
@@ -226,8 +269,8 @@ def chat_api():
         conn.close()
 
         gemini_contents = []
-        disable_tools = False
-        enable_native_tools = False
+        disable_tools = disable_tools_override
+        enable_native_tools = enable_native_tools_override
 
         if system_prompt_name and system_prompt_name in utils.system_prompts:
             sp_config = utils.system_prompts[system_prompt_name]
@@ -242,9 +285,10 @@ def chat_api():
                 })
                 utils.log(f"Injected system prompt profile: {system_prompt_name}")
 
-            disable_tools = sp_config.get('disable_tools', False)
-            enable_native_tools = sp_config.get('enable_native_tools', False)
-            if enable_native_tools:
+            # Combine flags: if either system wants to disable/enable, we do.
+            disable_tools = disable_tools or sp_config.get('disable_tools', False)
+            if sp_config.get('enable_native_tools', False):
+                enable_native_tools = True
                 utils.log(f"Native Google tools enabled by system prompt: {system_prompt_name}")
 
         for m in db_messages:
@@ -257,7 +301,6 @@ def chat_api():
         )
 
         def generate():
-            GEMINI_STREAMING_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:streamGenerateContent"
             headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
             current_contents = gemini_contents.copy()
 
@@ -279,76 +322,117 @@ def chat_api():
                 mcp_tools = None
 
                 if selected_mcp_tools:
-                    # When tools are selected manually, we force them.
-                    # This assumes create_tool_declarations can find tools by their names in text,
-                    # and bypasses the 'enabled' check in mcp_handler.
                     mcp_tools = mcp_handler.create_tool_declarations(" ".join(selected_mcp_tools))
                     utils.log(f"Using explicitly selected tools: {selected_mcp_tools}")
                 else:
-                    # Standard tool discovery based on full prompt.
                     mcp_tools = mcp_handler.create_tool_declarations(full_prompt_text)
 
-                # Add MCP tools to request if they exist and are not disabled by a system prompt
-                # (unless they were manually selected, in which case disable_tools is ignored).
                 if mcp_tools and (not disable_tools or selected_mcp_tools):
                     final_tools.extend(mcp_tools)
                 elif disable_tools and not selected_mcp_tools:
                     utils.log(f"MCP Tools omitted due to selected system prompt: {system_prompt_name}")
 
-                # Add native Google tools if enabled by the system prompt
                 if enable_native_tools:
                     final_tools.append({"google_search": {}})
                     final_tools.append({"url_context": {}})
 
                 if final_tools:
                     request_data["tools"] = final_tools
-                    request_data["tool_config"] = {"function_calling_config": {"mode": "AUTO"}}
+                    if not enable_native_tools:
+                        request_data["tool_config"] = {
+                            "function_calling_config": {
+                                "mode": "AUTO"
+                            }
+                        }
 
-                try:
-                    response = requests.post(
-                        GEMINI_STREAMING_URL, headers=headers, json=request_data, stream=True, timeout=300
-                    )
-                    response.raise_for_status()
-                except (HTTPError, ConnectionError, Timeout, RequestException) as e:
-                    yield f"ERROR: Error from upstream Gemini API: {e}"
-                    return
+                tool_calls, model_response_parts = [], []
 
-                buffer, decoder, tool_calls, model_response_parts = "", json.JSONDecoder(), [], []
-                for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
-                    buffer += chunk
-                    while True:
-                        start_index = buffer.find('{')
-                        if start_index == -1:
-                            if len(buffer) > 65536: buffer = buffer[-32768:]
-                            break
-                        buffer = buffer[start_index:]
-                        try:
-                            json_data, end_index = decoder.raw_decode(buffer)
-                            buffer = buffer[end_index:]
-                            if not isinstance(json_data, dict): continue
-                            parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-                            if not parts and 'usageMetadata' in json_data: continue
-                            model_response_parts.extend(parts)
-                            for part in parts:
-                                if 'text' in part:
-                                    yield part['text']
-                                if 'functionCall' in part:
-                                    tool_calls.append(part['functionCall'])
-                        except json.JSONDecodeError:
-                            if len(buffer) > 65536: buffer = buffer[-32768:]
-                            break
+                if enable_native_tools:
+                    # Non-streaming path to support inline citations for native tools
+                    GEMINI_GENERATE_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
+                    try:
+                        response = requests.post(GEMINI_GENERATE_URL, headers=headers, json=request_data, timeout=300)
+                        response.raise_for_status()
+                        response_data = response.json()
 
-                    # If the model is silent after a tool call, construct a response from the tool's output
-                    # to avoid an empty message and ensure the user sees the result.
-                    is_after_tool_call = current_contents and current_contents[-1].get('role') == 'tool'
-                    has_text_in_model_response = any('text' in p for p in model_response_parts)
+                        if not response_data.get('candidates'):
+                            err_msg = "The model did not return a response. This could be due to a safety filter."
+                            model_response_parts = [{'text': err_msg}]
+                            yield err_msg
+                        else:
+                            candidate = response_data.get('candidates', [{}])[0]
+                            model_response_parts = candidate.get('content', {}).get('parts', [])
+                            tool_calls = [p['functionCall'] for p in model_response_parts if 'functionCall' in p]
+                            full_text = " ".join(p.get('text', '') for p in model_response_parts if 'text' in p)
 
-                    if is_after_tool_call and not has_text_in_model_response and not tool_calls:
-                        tool_parts_from_history = current_contents[-1].get('parts', [])
-                        final_text = utils.format_tool_output_for_display(tool_parts_from_history)
-                        if final_text:
-                            model_response_parts = [{'text': final_text}]
-                            yield final_text
+                            if 'groundingMetadata' in candidate and full_text:
+                                try:
+                                    text = full_text
+                                    metadata = candidate['groundingMetadata']
+                                    supports = metadata.get('groundingSupports', [])
+                                    chunks = metadata.get('groundingChunks', [])
+                                    sorted_supports = sorted(supports, key=lambda s: s.get('segment', {}).get('endIndex', 0), reverse=True)
+
+                                    for support in sorted_supports:
+                                        end_index = support.get('segment', {}).get('endIndex')
+                                        if end_index is not None and 'groundingChunkIndices' in support:
+                                            links = [f"[{i + 1}]({chunks[i].get('web', {}).get('uri')})"
+                                                     for i in support['groundingChunkIndices'] if i < len(chunks) and chunks[i].get('web', {}).get('uri')]
+                                            if links:
+                                                text = text[:end_index] + " " + ", ".join(links) + text[end_index:]
+                                    full_text = text
+                                    new_parts = [p for p in model_response_parts if 'text' not in p]
+                                    new_parts.insert(0, {'text': full_text})
+                                    model_response_parts = new_parts
+                                except Exception as e:
+                                    utils.log(f"Error processing citations: {e}")
+                            if full_text:
+                                yield full_text
+                    except (HTTPError, ConnectionError, Timeout, RequestException) as e:
+                        yield f"ERROR: Error from upstream Gemini API: {e}"
+                        return
+                else:
+                    # Original streaming path
+                    GEMINI_STREAMING_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:streamGenerateContent"
+                    try:
+                        response = requests.post(GEMINI_STREAMING_URL, headers=headers, json=request_data, stream=True, timeout=300)
+                        response.raise_for_status()
+                    except (HTTPError, ConnectionError, Timeout, RequestException) as e:
+                        yield f"ERROR: Error from upstream Gemini API: {e}"
+                        return
+
+                    buffer, decoder = "", json.JSONDecoder()
+                    for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
+                        buffer += chunk
+                        while True:
+                            start_index = buffer.find('{')
+                            if start_index == -1:
+                                if len(buffer) > 65536: buffer = buffer[-32768:]
+                                break
+                            buffer = buffer[start_index:]
+                            try:
+                                json_data, end_index = decoder.raw_decode(buffer)
+                                buffer = buffer[end_index:]
+                                if not isinstance(json_data, dict): continue
+                                parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+                                if not parts and 'usageMetadata' in json_data: continue
+                                model_response_parts.extend(parts)
+                                for part in parts:
+                                    if 'text' in part: yield part['text']
+                                    if 'functionCall' in part: tool_calls.append(part['functionCall'])
+                            except json.JSONDecodeError:
+                                if len(buffer) > 65536: buffer = buffer[-32768:]
+                                break
+
+                # Handle silent model response after a tool call
+                is_after_tool_call = current_contents and current_contents[-1].get('role') == 'tool'
+                has_text_in_model_response = any('text' in p for p in model_response_parts)
+                if is_after_tool_call and not has_text_in_model_response and not tool_calls:
+                    tool_parts_from_history = current_contents[-1].get('parts', [])
+                    final_text = utils.format_tool_output_for_display(tool_parts_from_history)
+                    if final_text:
+                        model_response_parts = [{'text': final_text}]
+                        yield final_text
 
                 if model_response_parts:
                     utils.add_message_to_db(chat_id, 'model', model_response_parts)
