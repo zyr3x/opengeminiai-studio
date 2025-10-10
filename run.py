@@ -1,19 +1,8 @@
 """
- BelVG LLC.
+Entry point for the OpenGeminiAI Studio Flask application.
 
- NOTICE OF LICENSE
-
- This source file is subject to the EULA
- that is bundled with this package in the file LICENSE.txt.
- It is also available through the world-wide-web at this URL:
- https://store.belvg.com/BelVG-LICENSE-COMMUNITY.txt
-
- *******************************************************************
- @category   BelVG
- @author     Oleg Semenov
- @copyright  Copyright (c) BelVG LLC. (http://www.belvg.com)
- @license    http://store.belvg.com/BelVG-LICENSE-COMMUNITY.txt
-
+This script initializes the Flask app using the application factory
+and runs it. It's intended to be executed directly.
 """
 from flask import Flask
 from app import run

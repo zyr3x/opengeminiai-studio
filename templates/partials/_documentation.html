@@ -78,11 +78,26 @@
         <li><b>Single File:</b> Provide a path to a single file (e.g., <code>code_path=app/main.py</code>).</li>
         <li><b>Entire Directory:</b> Provide a path to a directory (e.g., <code>code_path=app/controllers/</code>). The proxy will recursively read all non-hidden files, format them, and inject them into the prompt.</li>
     </ul>
-     <pre><code class="language-bash">
+    <pre><code class="language-bash">
 # Example prompt for code analysis:
 "Analyze the following code for potential bugs: code_path=/path/to/my_project/src"
+
+# Example with custom ignores:
+"Refactor this code: code_path=./ ignore_dir=tests ignore_file=*.md"
     </code></pre>
-    <p class="alert alert-info"><b>Note:</b> For performance and to respect context window limits, code injection operates in "TEXT MODE" up to a configurable size limit (default 512 KB). If the total size of files exceeds this, the proxy will inform you in the response instead of attaching the files.</p>
+    <div class="alert alert-info">
+        <h5 class="alert-heading">How Code Injection Works</h5>
+        <p>
+            <b>Intelligent Filtering:</b> The directory scanner is optimized for code analysis and automatically ignores common version control folders (<code>.git</code>), dependency folders (<code>node_modules</code>), build artifacts (<code>dist</code>, <code>target</code>), compiled files (<code>*.pyc</code>), archives, images, and other non-source files to provide clean, relevant context.
+        </p>
+        <p>
+            <b>Custom Ignores:</b> You can add your own ignore patterns directly in the prompt using `ignore_dir=`, `ignore_file=`, and `ignore_type=`. The values can be a single pattern or multiple patterns separated by `|` (e.g., `ignore_file=*.log|*.tmp`).
+        </p>
+        <hr>
+        <p class="mb-0">
+            <b>Size Limits:</b> For performance and to respect context window limits, code injection operates in "TEXT MODE" up to a configurable size limit (default 512 KB). The total size of all files to be injected must not exceed a binary limit of 8MB. If limits are exceeded, the proxy will inform you in the response instead of attaching the files.
+        </p>
+    </div>
 
     <h2 class="mt-4">📡 Available Endpoints</h2>
     <ul>

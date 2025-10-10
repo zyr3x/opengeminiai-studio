@@ -144,9 +144,16 @@ def chat_completions():
                                         ignore_patterns = [
                                             # Common ignores for code projects
                                             '.git', '__pycache__', 'node_modules', 'venv', '.venv',
-                                            'build', 'dist', 'target', '*.egg-info',
+                                            'build', 'dist', 'target', '*.egg-info', 'bin', 'obj',
                                             '.idea', '.vscode',
-                                            '*.log', '*.swp',
+                                            '*.log', '*.swp', '*.pyc',
+                                            # Archives and binaries are not useful context
+                                            '*.zip', '*.tar.gz', '*.rar', '*.7z',
+                                            '*.o', '*.so', '*.dll', '*.exe',
+                                            # Images are handled by image_path, not code_path
+                                            '*.png', '*.jpg', '*.jpeg', '*.gif', '*.svg',
+                                            # Lock files can be huge and less useful than manifests
+                                            'package-lock.json', 'yarn.lock', 'poetry.lock', 'Pipfile.lock',
                                         ]
                                         ignore_patterns.extend(ignore_patterns_from_prompt)
 
