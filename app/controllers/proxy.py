@@ -7,6 +7,7 @@ import time
 import re
 import base64
 import mimetypes
+import fnmatch
 import requests
 from flask import Blueprint, request, jsonify, Response
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
@@ -76,11 +77,44 @@ def chat_completions():
                     if matches:
                         new_content_parts = []
                         last_end = 0
-                        for match in matches:
+                        for i, match in enumerate(matches):
                             start, end = match.span()
                             # Add preceding text part
                             if start > last_end:
                                 new_content_parts.append({"type": "text", "text": content[last_end:start]})
+
+                            # --- Parse ignore patterns ---
+                            ignore_patterns_from_prompt = []
+                            command_end = end # The end of the whole command defaults to end of path match
+
+                            # Define search area for ignore patterns: from end of path to start of next path
+                            next_match_start = len(content) if (i + 1 >= len(matches)) else matches[i+1].start()
+                            search_region = content[end:next_match_start]
+
+                            # Find up to two 'ignore_x=...' parameters immediately following the path.
+                            param_pattern = re.compile(r'\s+(ignore_type|ignore_file|ignore_dir)=([^\s]+)')
+                            last_param_end = 0
+
+                            # Find first ignore parameter
+                            param_match1 = param_pattern.match(search_region) # use match() to ensure it's at the start
+                            if param_match1:
+                                value1 = param_match1.group(2)
+                                ignore_patterns_from_prompt.extend(value1.split('|'))
+                                last_param_end = param_match1.end()
+
+                                # Look for a second one immediately after the first
+                                remaining_search_region = search_region[last_param_end:]
+                                param_match2 = param_pattern.match(remaining_search_region)
+                                if param_match2:
+                                    value2 = param_match2.group(2)
+                                    ignore_patterns_from_prompt.extend(value2.split('|'))
+                                    # Update last_param_end to be relative to the original search_region
+                                    last_param_end += param_match2.end()
+
+
+                            # Update the end of the full command (path + all ignores)
+                            if last_param_end > 0:
+                                command_end = end + last_param_end
 
                             file_type = match.group(1)
                             file_path_str = match.group(2)
@@ -106,14 +140,39 @@ def chat_completions():
                                             utils.log(f"Error checking file size {expanded_path}: {e}")
 
                                     elif os.path.isdir(expanded_path):
-                                        for root, _, files in os.walk(expanded_path):
-                                            # Skip hidden directories
-                                            if any(part.startswith('.') for part in os.path.relpath(root, expanded_path).split(os.sep)):
-                                                continue 
+                                        # Patterns for files and dirs to ignore. Supports fnmatch.
+                                        ignore_patterns = [
+                                            # Common ignores for code projects
+                                            '.git', '__pycache__', 'node_modules', 'venv', '.venv',
+                                            'build', 'dist', 'target', '*.egg-info',
+                                            '.idea', '.vscode',
+                                            '*.log', '*.swp',
+                                        ]
+                                        ignore_patterns.extend(ignore_patterns_from_prompt)
+
+                                        for root, dirs, files in os.walk(expanded_path, topdown=True):
+                                            # Get relative path for matching against patterns
+                                            rel_root = os.path.relpath(root, expanded_path)
+                                            if rel_root == '.':
+                                                rel_root = ''
+
+                                            # Filter out ignored and hidden directories from further traversal
+                                            dirs[:] = [
+                                                d for d in dirs if not (
+                                                    d.startswith('.') or
+                                                    any(fnmatch.fnmatch(os.path.join(rel_root, d).replace(os.sep, '/'), p) for p in ignore_patterns)
+                                                )
+                                            ]
 
                                             for filename in files:
+                                                # Skip hidden files
                                                 if filename.startswith('.'):
-                                                    continue # Skip hidden files
+                                                    continue
+
+                                                # Check if file path or name matches any ignore pattern
+                                                rel_filepath = os.path.join(rel_root, filename).replace(os.sep, '/')
+                                                if any(fnmatch.fnmatch(rel_filepath, p) or fnmatch.fnmatch(filename, p) for p in ignore_patterns):
+                                                    continue
 
                                                 file_path = os.path.join(root, filename)
 
@@ -145,8 +204,8 @@ def chat_completions():
                                         if os.path.isfile(expanded_path) or os.path.isdir(expanded_path):
                                             new_content_parts.append({"type": "text", "text": msg})
                                         else:
-                                            new_content_parts.append({"type": "text", "text": match.group(0)})
-                                        last_end = end
+                                            new_content_parts.append({"type": "text", "text": content[start:command_end]})
+                                        last_end = command_end
                                         continue
 
 
@@ -185,7 +244,7 @@ def chat_completions():
                                         utils.log(msg)
                                         new_content_parts.append({"type": "text", "text": msg})
 
-                                    last_end = end
+                                    last_end = command_end
                                     continue # Skip multimodal logic below
 
 
@@ -219,13 +278,13 @@ def chat_completions():
                                 except Exception as e:
                                     utils.log(f"Error processing local file {expanded_path}: {e}")
                                     new_content_parts.append(
-                                        {"type": "text", "text": match.group(0)})  # Keep original text on error
+                                        {"type": "text", "text": content[start:command_end]})  # Keep original text on error
                             else:
                                 utils.log(f"Local file not found: {expanded_path}")
                                 new_content_parts.append(
-                                    {"type": "text", "text": match.group(0)})  # Keep original text if not found
+                                    {"type": "text", "text": content[start:command_end]})  # Keep original text if not found
 
-                            last_end = end
+                            last_end = command_end
 
                         # Add any remaining text after the last match
                         if last_end < len(content):
