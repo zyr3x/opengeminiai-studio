@@ -1,4 +1,4 @@
-# OpenGeminiAI Studio V1.7
+# OpenGeminiAI Studio V1.8
 
 <!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
