@@ -4,6 +4,11 @@ FROM python:3.12-slim-bullseye
 # Set the working directory in the container
 WORKDIR /app
 
+# Install Node.js 22+ and npx to test mcp tools
+RUN apt-get update && apt-get install -y curl
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+RUN apt-get install -y nodejs
+
 # Copy the requirements file into the container
 COPY requirements.txt .
 
