@@ -144,16 +144,26 @@ def chat_completions():
                                         ignore_patterns = [
                                             # Common ignores for code projects
                                             '.git', '__pycache__', 'node_modules', 'venv', '.venv',
-                                            'build', 'dist', 'target', '*.egg-info', 'bin', 'obj',
-                                            '.idea', '.vscode',
-                                            '*.log', '*.swp', '*.pyc',
+                                            'build', 'dist', 'target', 'out', 'coverage', '.nyc_output', '*.egg-info', 'bin', 'obj', 'pkg', # pkg for Go modules
+                                            '.idea', '.vscode', '.cache', '.pytest_cache',
+                                            '.DS_Store', 'Thumbs.db', # OS/Editor temporary files
+                                            '*.log', '*.swp', '*.pyc', '*~', '*.bak', '*.tmp',
                                             # Archives and binaries are not useful context
                                             '*.zip', '*.tar.gz', '*.rar', '*.7z',
-                                            '*.o', '*.so', '*.dll', '*.exe',
+                                            '*.o', '*.so', '*.dll', '*.exe', '*.a', '*.lib', '*.dylib', # Compiled C/C++/Go libraries
+                                            '*.class', '*.jar', '*.war',
+                                            '*.pdb', '*.nupkg', '*.deps.json', '*.runtimeconfig.json', # .NET artifacts
+                                            # Database files (often large binary structures)
+                                            '*.db', '*.sqlite', '*.sqlite3', 'data.mdb', 'lock.mdb',
                                             # Images are handled by image_path, not code_path
                                             '*.png', '*.jpg', '*.jpeg', '*.gif', '*.svg',
+                                            # Fonts and other binary assets
+                                            '*.woff', '*.woff2', '*.ttf', '*.otf', '*.eot', '*.ico',
+                                            '*.mp3', '*.wav', '*.mp4', '*.mov',
+                                            # Minified assets and source maps
+                                            '*.min.js', '*.min.css', '*.map',
                                             # Lock files can be huge and less useful than manifests
-                                            'package-lock.json', 'yarn.lock', 'poetry.lock', 'Pipfile.lock',
+                                            'package-lock-v1.json', 'package-lock.json', 'yarn.lock', 'poetry.lock', 'Pipfile.lock',
                                         ]
                                         ignore_patterns.extend(ignore_patterns_from_prompt)
 
