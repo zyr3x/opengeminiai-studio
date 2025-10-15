@@ -91,25 +91,29 @@ def chat_completions():
                             next_match_start = len(content) if (i + 1 >= len(matches)) else matches[i+1].start()
                             search_region = content[end:next_match_start]
 
-                            # Find up to two 'ignore_x=...' parameters immediately following the path.
+                            # Find all 'ignore_x=...' parameters immediately following the path.
                             param_pattern = re.compile(r'\s+(ignore_type|ignore_file|ignore_dir)=([^\s]+)')
                             last_param_end = 0
+                            remaining_search_region = search_region
+                            while True:
+                                param_match = param_pattern.match(remaining_search_region)
+                                if not param_match:
+                                    break
 
-                            # Find first ignore parameter
-                            param_match1 = param_pattern.match(search_region) # use match() to ensure it's at the start
-                            if param_match1:
-                                value1 = param_match1.group(2)
-                                ignore_patterns_from_prompt.extend(value1.split('|'))
-                                last_param_end = param_match1.end()
+                                ignore_key = param_match.group(1)
+                                value = param_match.group(2)
+                                patterns = value.split('|')
 
-                                # Look for a second one immediately after the first
-                                remaining_search_region = search_region[last_param_end:]
-                                param_match2 = param_pattern.match(remaining_search_region)
-                                if param_match2:
-                                    value2 = param_match2.group(2)
-                                    ignore_patterns_from_prompt.extend(value2.split('|'))
-                                    # Update last_param_end to be relative to the original search_region
-                                    last_param_end += param_match2.end()
+                                if ignore_key == 'ignore_type':
+                                    # For ignore_type=py|js, create patterns like *.py, *.js
+                                    ignore_patterns_from_prompt.extend([f"*.{p}" for p in patterns])
+                                else:
+                                    # For ignore_file and ignore_dir, use patterns as-is
+                                    ignore_patterns_from_prompt.extend(patterns)
+
+                                match_end_pos = param_match.end()
+                                last_param_end += match_end_pos
+                                remaining_search_region = remaining_search_region[match_end_pos:]
 
 
                             # Update the end of the full command (path + all ignores)

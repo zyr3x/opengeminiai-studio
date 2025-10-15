@@ -1,4 +1,4 @@
-# OpenGeminiAI Studio V1.8
+# OpenGeminiAI Studio V1.9
 
 <!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
@@ -16,7 +16,7 @@ This proxy includes a web interface for easy configuration, chat, and management
 -   **OpenAI API Compatibility:** Seamlessly use Gemini models with tools built for the OpenAI API, including streaming and function calling.
 -   **Advanced Web Interface:** A comprehensive UI featuring multi-chat management, file uploads, an image generation playground, and persistent conversation history.
 -   **Powerful Prompt Control:** Define system prompts to guide model behavior and create dynamic prompt overrides that trigger on keywords.
--   **Local File & Code Injection:** Automatically embed local images, PDFs, and audio files in your prompts using syntax like `image_path=...`. It also includes a powerful **code injector** (`code_path=...`) to include single source files or entire directories as context—perfect for IDE integration. The directory scanner intelligently ignores common build artifacts, version control directories, and other non-essential files (`.git`, `node_modules`, `__pycache__`, `*.pyc`, etc.) to provide cleaner context to the model. You can also add custom ignore patterns directly in your prompt, e.g., `code_path=... ignore_dir=docs ignore_file=*.tmp`.
+-   **Local File & Code Injection:** Automatically embed local images, PDFs, and audio files in your prompts using syntax like `image_path=...`. It also includes a powerful **code injector** (`code_path=...`) to include single source files or entire directories as context—perfect for IDE integration. The directory scanner intelligently ignores common build artifacts, version control directories, and other non-essential files (`.git`, `node_modules`, `__pycache__`, `*.pyc`, etc.) to provide cleaner context to the model. You can also add custom ignore patterns directly in your prompt using `ignore_dir`, `ignore_file`, and `ignore_type` (for file extensions), e.g., `code_path=... ignore_dir=docs ignore_file=*.tmp ignore_type=log`.
 -   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling.
 -   **Native Google Tools:** Enable built-in Google tools like Search directly within your prompts for enhanced, real-time data retrieval.
 -   **Easy Deployment:** Get up and running in minutes with Docker or standard Python setup.

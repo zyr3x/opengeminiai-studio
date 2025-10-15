@@ -1,7 +1,7 @@
 <!-- Documentation Section -->
 <div id="documentation" class="content-section">
     <h1 class="my-4">📚 Documentation</h1>
-    <p class="lead">Dive into the details of OpenGeminiAI Studio v1.8: learn how to set up, configure, and maximize the utility of this powerful proxy for Google's Gemini API.</p>
+    <p class="lead">Dive into the details of OpenGeminiAI Studio v1.9: learn how to set up, configure, and maximize the utility of this powerful proxy for Google's Gemini API.</p>
 
     <h2 class="mt-4">✨ What It Does</h2>
     <ul>
@@ -91,7 +91,12 @@
             <b>Intelligent Filtering:</b> The directory scanner is optimized for code analysis and automatically ignores common version control folders (<code>.git</code>), dependency folders (<code>node_modules</code>), build artifacts (<code>dist</code>, <code>target</code>), compiled files (<code>*.pyc</code>), archives, images, and other non-source files to provide clean, relevant context.
         </p>
         <p>
-            <b>Custom Ignores:</b> You can add your own ignore patterns directly in the prompt using `ignore_dir=`, `ignore_file=`, and `ignore_type=`. The values can be a single pattern or multiple patterns separated by `|` (e.g., `ignore_file=*.log|*.tmp`).
+            <b>Custom Ignores:</b> You can add your own ignore patterns directly in the prompt. Multiple patterns can be separated by <code>|</code>.
+            <ul>
+                <li><code>ignore_file=PATTERN</code>: Ignores files matching the pattern (e.g., <code>*.log|*.tmp</code>).</li>
+                <li><code>ignore_dir=PATTERN</code>: Ignores directories matching the pattern (e.g., <code>docs|build</code>).</li>
+                <li><code>ignore_type=EXT</code>: A shorthand to ignore files by extension (e.g., <code>md|txt</code> becomes patterns <code>*.md</code> and <code>*.txt</code>).</li>
+            </ul>
         </p>
         <hr>
         <p class="mb-0">
