@@ -542,23 +542,14 @@ def chat_completions():
                     function_name = tool_call.get("name")
                     tool_args = tool_call.get("args")
                     output = mcp_handler.execute_mcp_tool(function_name, tool_args)
-                    response_payload = None
-                    if isinstance(output, str):
-                        try:
-                            parsed_output = json.loads(output)
-                            if isinstance(parsed_output, dict):
-                                response_payload = parsed_output
-                            else:
-                                response_payload = {"content": parsed_output}
-                        except json.JSONDecodeError:
-                            response_payload = {"text": output}
+
+                    response_payload = {}
+                    if output is not None:
+                        # Convert any output to a pretty-printed JSON string in the 'text' field.
+                        # This is a robust way to present tool output to the model.
+                        response_payload = {"text": json.dumps(output, indent=2, default=str)}
                     else:
-                        if isinstance(output, dict):
-                            response_payload = output
-                        elif output is None:
-                            response_payload = {"text": ""}
-                        else:
-                            response_payload = {"content": output}
+                        response_payload = {"text": ""}
 
                     tool_response_parts.append({
                         "functionResponse": {
