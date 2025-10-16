@@ -1,0 +1,79 @@
+{
+  "JetBrains / Commit": {
+    "enabled": true,
+    "triggers": [
+      "[Diff]"
+    ],
+    "overrides": {
+      "[Diff]": "[Diff]"
+    },
+    "disable_tools": true,
+    "enable_native_tools": false
+  },
+  "JetBrains / Google": {
+    "enabled": true,
+    "triggers": [
+      "You are an AI Coding Assistant integrated into JetBrains IDEs."
+    ],
+    "overrides": {
+      "Assistant": "Google Gemini Assistant"
+    },
+    "disable_tools": true,
+    "enable_native_tools": false
+  },
+  "image_url=": {
+    "enabled": true,
+    "triggers": [
+      "image_url"
+    ],
+    "overrides": {
+      "image_url": "image_url"
+    },
+    "disable_tools": true,
+    "enable_native_tools": false
+  },
+  "pdf_path=": {
+    "enabled": true,
+    "triggers": [
+      "pdf_path"
+    ],
+    "overrides": {
+      "pdf_path": "pdf_path"
+    },
+    "disable_tools": true,
+    "enable_native_tools": false
+  },
+  "code_path=": {
+    "enabled": true,
+    "triggers": [
+      "code_path"
+    ],
+    "overrides": {
+      "code_path": "code_path"
+    },
+    "disable_tools": true,
+    "enable_native_tools": false
+  },
+  "urlContext=": {
+    "enabled": true,
+    "triggers": [
+      "urlContext="
+    ],
+    "overrides": {
+      "urlContext=": ""
+    },
+    "disable_tools": true,
+    "enable_native_tools": true
+  },
+  "search=": {
+    "enabled": true,
+    "triggers": [
+      "search="
+    ],
+    "overrides": {
+      "search=": ""
+    },
+    "disable_tools": true,
+    "enable_native_tools": true
+  }
+}

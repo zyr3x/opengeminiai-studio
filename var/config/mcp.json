@@ -1,0 +1,51 @@
+{
+  "mcpServers": {
+    "bash": {
+      "command": "npx",
+      "args": [
+        "bash-mcp"
+      ],
+      "env": {},
+      "enabled": false,
+      "priority": 0
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "chrome-devtools-mcp@latest"
+      ],
+      "env": {},
+      "enabled": false,
+      "priority": 0
+    },
+    "youtrack": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "YOUTRACK_API_TOKEN",
+        "-e",
+        "YOUTRACK_URL",
+        "tonyzorin/youtrack-mcp:latest"
+      ],
+      "env": {
+        "YOUTRACK_API_TOKEN": "",
+        "YOUTRACK_URL": ""
+      },
+      "enabled": false,
+      "priority": 0
+    },
+    "pollinations": {
+      "command": "npx",
+      "args": [
+        "@pollinations/model-context-protocol"
+      ],
+      "env": {},
+      "enabled": false,
+      "priority": 0
+    }
+  },
+  "maxFunctionDeclarations": 64
+}
