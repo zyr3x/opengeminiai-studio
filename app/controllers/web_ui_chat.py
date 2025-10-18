@@ -3,9 +3,11 @@ Flask routes for the web chat UI, including the main page and direct chat API.
 """
 import base64
 import json
+import mimetypes
 import shutil
 import requests
 import os
+import re
 from flask import Blueprint, request, jsonify, Response, send_from_directory
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from werkzeug.utils import secure_filename
@@ -242,8 +244,52 @@ def chat_api():
         # --- End Prompt Engineering ---
 
         user_parts = []
+        clean_user_message_for_title = ""
+
         if user_message:
-            user_parts.append({"text": user_message})
+            # Process path injections, which may return multiple parts including text and files
+            processed_parts = utils.process_path_injections(user_message)
+            chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
+            os.makedirs(chat_upload_folder, exist_ok=True)
+
+            for part in processed_parts:
+                part_type = part.get("type")
+                if part_type == "text":
+                    text_content = part.get("text", "")
+                    user_parts.append({"text": text_content})
+                    clean_user_message_for_title += text_content + " "
+                elif part_type == "image_url":
+                    url = part.get("image_url", {}).get("url", "")
+                    if url.startswith("data:"):
+                        try:
+                            match = re.match(r"data:(image/.+);base64,(.+)", url)
+                            if match:
+                                mime_type, base64_data = match.groups()
+                                file_bytes = base64.b64decode(base64_data)
+                                ext = mimetypes.guess_extension(mime_type) or ".png"
+                                filename = f"injected_image_{len(os.listdir(chat_upload_folder))}{ext}"
+                                filepath = os.path.join(chat_upload_folder, filename)
+                                with open(filepath, 'wb') as f:
+                                    f.write(file_bytes)
+                                user_parts.append({"file_data": {"mime_type": mime_type, "path": filepath}})
+                        except Exception as e:
+                            utils.log(f"Could not process injected data URI: {e}")
+                elif part_type == "inline_data":
+                    source = part.get("source", {})
+                    mime_type = source.get("media_type")
+                    base64_data = source.get("data")
+                    if mime_type and base64_data:
+                        try:
+                            file_bytes = base64.b64decode(base64_data)
+                            ext = mimetypes.guess_extension(mime_type) or '.bin'
+                            filename = f"injected_file_{len(os.listdir(chat_upload_folder))}{ext}"
+                            filepath = os.path.join(chat_upload_folder, filename)
+                            with open(filepath, 'wb') as f:
+                                f.write(file_bytes)
+                            user_parts.append({"file_data": {"mime_type": mime_type, "path": filepath}})
+                        except Exception as e:
+                            utils.log(f"Could not process injected inline_data: {e}")
+            clean_user_message_for_title = clean_user_message_for_title.strip()
 
         if attached_files:
             chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
@@ -258,11 +304,11 @@ def chat_api():
 
         if user_parts:
             utils.add_message_to_db(chat_id, 'user', user_parts)
-            if user_message:
+            if clean_user_message_for_title:
                 conn = get_db_connection()
                 message_count = conn.execute('SELECT COUNT(id) FROM messages WHERE chat_id = ? AND role = "user"', (chat_id,)).fetchone()[0]
                 if message_count == 1:
-                    new_title = (user_message[:47] + '...') if len(user_message) > 50 else user_message
+                    new_title = (clean_user_message_for_title[:47] + '...') if len(clean_user_message_for_title) > 50 else clean_user_message_for_title
                     conn.execute('UPDATE chats SET title = ? WHERE id = ?', (new_title, chat_id))
                 conn.commit()
                 conn.close()
