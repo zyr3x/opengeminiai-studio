@@ -32,7 +32,7 @@ def index():
 
     default_prompt_overrides = {
       "default_chat": {"triggers": ["You are a JetBrains AI Assistant for code development."], "overrides": {"Follow the user's requirements carefully & to the letter.": ""}, "enable_native_tools": False},
-      "commit_message": {"triggers": ["[Diff]"], "overrides": {"Write a short and professional commit message for the following changes:": "Write a short and professional commit message for the following changes:"}, "disable_tools": True, "enable_native_tools": False}
+      "commit_message": {"triggers": ["[Diff]"], "overrides": {}, "disable_tools": True, "enable_native_tools": False}
     }
     prompt_profiles = default_prompt_overrides
     if current_prompt_overrides_str.strip():
@@ -56,7 +56,8 @@ def index():
 
     default_mcp_config = {
       "mcpServers": {"youtrack": {"command": "docker", "args": ["run", "--rm", "-i", "-e", "YOUTRACK_API_TOKEN", "-e", "YOUTRACK_URL", "tonyzorin/youtrack-mcp:latest"], "env": {"YOUTRACK_API_TOKEN": "perm-your-token-here", "YOUTRACK_URL": "https://youtrack.example.com/"}}},
-      "maxFunctionDeclarations": mcp_handler.MAX_FUNCTION_DECLARATIONS_DEFAULT
+      "maxFunctionDeclarations": mcp_handler.MAX_FUNCTION_DECLARATIONS_DEFAULT,
+      "disableAllTools": mcp_handler.DISABLE_ALL_MCP_TOOLS_DEFAULT # Include default global disable setting
     }
     mcp_config_data = default_mcp_config
     if current_mcp_config_str.strip():
@@ -64,6 +65,8 @@ def index():
             loaded_mcp_config = json.loads(current_mcp_config_str)
             if "mcpServers" in loaded_mcp_config and isinstance(loaded_mcp_config.get("mcpServers"), dict):
                 mcp_config_data = loaded_mcp_config
+            # Also load the disableAllTools setting if present in the saved config
+            mcp_config_data["disableAllTools"] = loaded_mcp_config.get("disableAllTools", mcp_handler.DISABLE_ALL_MCP_TOOLS_DEFAULT)
         except json.JSONDecodeError: pass
 
     mcp_tools = sorted(list(mcp_config_data.get("mcpServers", {}).keys()))
@@ -79,8 +82,9 @@ def index():
         default_system_prompts_json=utils.pretty_json(default_system_prompts),
         verbose_logging_status=utils.VERBOSE_LOGGING,
         current_max_function_declarations=mcp_config_data.get("maxFunctionDeclarations", mcp_handler.max_function_declarations_limit),
+        current_disable_all_mcp_tools=mcp_handler.disable_all_mcp_tools, # Pass current status of global disable
         current_year=datetime.now().year,
-        mcp_tools=mcp_tools
+            mcp_tools=mcp_tools # Pass available MCP tool names to the template
     )
 
 @web_ui_bp.route('/favicon.ico')

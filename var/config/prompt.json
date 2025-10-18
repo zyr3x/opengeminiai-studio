@@ -8,7 +8,8 @@
       "[Diff]": "[Diff]"
     },
     "disable_tools": true,
-    "enable_native_tools": false
+    "enable_native_tools": false,
+    "selected_mcp_tools": []
   },
   "JetBrains / Google": {
     "enabled": true,
@@ -19,7 +20,8 @@
       "Assistant": "Google Gemini Assistant"
     },
     "disable_tools": true,
-    "enable_native_tools": false
+    "enable_native_tools": false,
+    "selected_mcp_tools": []
   },
   "image_url=": {
     "enabled": true,
@@ -30,7 +32,8 @@
       "image_url": "image_url"
     },
     "disable_tools": true,
-    "enable_native_tools": false
+    "enable_native_tools": false,
+    "selected_mcp_tools": []
   },
   "pdf_path=": {
     "enabled": true,
@@ -41,7 +44,8 @@
       "pdf_path": "pdf_path"
     },
     "disable_tools": true,
-    "enable_native_tools": false
+    "enable_native_tools": false,
+    "selected_mcp_tools": []
   },
   "code_path=": {
     "enabled": true,
@@ -52,7 +56,8 @@
       "code_path": "code_path"
     },
     "disable_tools": true,
-    "enable_native_tools": false
+    "enable_native_tools": false,
+    "selected_mcp_tools": []
   },
   "urlContext=": {
     "enabled": true,
@@ -63,7 +68,8 @@
       "urlContext=": ""
     },
     "disable_tools": true,
-    "enable_native_tools": true
+    "enable_native_tools": true,
+    "selected_mcp_tools": []
   },
   "search=": {
     "enabled": true,
@@ -74,6 +80,7 @@
       "search=": ""
     },
     "disable_tools": true,
-    "enable_native_tools": true
+    "enable_native_tools": true,
+    "selected_mcp_tools": []
   }
 }

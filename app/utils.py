@@ -46,7 +46,15 @@ def load_prompt_config():
                 all_profiles = json.load(f)
 
             prompt_overrides = {
-                name: profile for name, profile in all_profiles.items()
+                name: {
+                    'enabled': profile.get('enabled', True),
+                    'triggers': profile.get('triggers', []),
+                    'overrides': profile.get('overrides', {}),
+                    'disable_tools': profile.get('disable_tools', False),
+                    'enable_native_tools': profile.get('enable_native_tools', False),
+                    'selected_mcp_tools': profile.get('selected_mcp_tools', []) # New field
+                }
+                for name, profile in all_profiles.items()
                 if profile.get('enabled', True)
             }
             log(f"Prompt overrides loaded from {PROMPT_OVERRIDES_FILE}. "
@@ -69,7 +77,14 @@ def load_system_prompt_config():
                 all_profiles = json.load(f)
 
             system_prompts = {
-                name: profile for name, profile in all_profiles.items()
+                name: {
+                    'enabled': profile.get('enabled', True),
+                    'prompt': profile.get('prompt', ''),
+                    'disable_tools': profile.get('disable_tools', False),
+                    'enable_native_tools': profile.get('enable_native_tools', False),
+                    'selected_mcp_tools': profile.get('selected_mcp_tools', []) # New field
+                }
+                for name, profile in all_profiles.items()
                 if profile.get('enabled', True) and profile.get('prompt')
             }
             log(f"System prompts loaded from {SYSTEM_PROMPTS_FILE}. "
@@ -209,7 +224,7 @@ def format_tool_output_for_display(tool_parts: list) -> str | None:
     if formatted_tool_outputs:
         return "".join(formatted_tool_outputs)
 
-    return None
+    return "" # Return empty string instead of None for consistency
 
 def add_message_to_db(chat_id: int, role: str, parts: list):
     """Adds a message with its parts to the database."""

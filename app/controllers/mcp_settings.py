@@ -42,3 +42,14 @@ def mcp_tool_info():
 
     result = mcp_handler.fetch_mcp_tool_list(tool_config)
     return jsonify(result)
+
+@mcp_settings_bp.route('/set_mcp_general_settings', methods=['POST'])
+def set_mcp_general_settings():
+    """
+    Sets general MCP settings, like enabling/disabling all tools.
+    """
+    disable_all_tools_enabled = request.form.get('disable_all_mcp_tools') == 'on'
+    mcp_handler.set_disable_all_mcp_tools(disable_all_tools_enabled)
+    # Reload the entire MCP config to ensure consistency
+    mcp_handler.load_mcp_config()
+    return redirect(url_for('web_ui.index', _anchor='mcp'))

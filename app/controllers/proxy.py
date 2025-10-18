@@ -33,6 +33,13 @@ def chat_completions():
         # --- Prompt Engineering & Tool Control ---
         force_tools_enabled = True  # None: default, True: force, False: disable
         enable_native_tools = False
+        profile_selected_mcp_tools = [] # to store tools explicitly selected by profile
+
+        # Global setting to disable all MCP tools takes highest precedence
+        if mcp_handler.disable_all_mcp_tools:
+            utils.log("All MCP tools globally disabled via general settings.")
+            force_tools_enabled = False
+            profile_selected_mcp_tools = [] # Clear any profile-selected tools
 
         if messages:
             active_overrides = {}
@@ -49,15 +56,22 @@ def chat_completions():
                                 active_overrides = profile_data.get('overrides', {})
                                 # Check for a flag to disable tools
                                 if profile_data.get('disable_tools', False):
-                                    utils.log(f"MCP Tools Disabled")
+                                    utils.log(f"MCP Tools Disabled by prompt override profile '{profile_name}'.")
                                     force_tools_enabled = False
                                 # Check for a flag to enable native tools
                                 if profile_data.get('enable_native_tools', False):
-                                    utils.log(f"Native Google Tools Enabled")
+                                    utils.log(f"Native Google Tools Enabled by prompt override profile '{profile_name}'.")
                                     enable_native_tools = True
+
+                                # If profile explicitly selects tools, use them
+                                if profile_data.get('selected_mcp_tools'):
+                                    utils.log(f"MCP Tools explicitly selected by prompt override profile '{profile_name}': {profile_data['selected_mcp_tools']}")
+                                    profile_selected_mcp_tools = profile_data['selected_mcp_tools']
+                                    force_tools_enabled = True # Explicit selection overrides general disable
+
                                 utils.log(f"Prompt profile matched: '{profile_name}'")
                                 break
-                        if active_overrides or enable_native_tools:
+                        if active_overrides or enable_native_tools or profile_selected_mcp_tools:
                             break
 
             # Process all messages: apply overrides
@@ -252,7 +266,7 @@ def chat_completions():
                                         header = (f"The following context contains code files imported from the path "
                                                   f"'{file_path_str}' (Total size: {total_raw_size/1024:.2f} KB, TEXT MODE):\n\n")
                                         new_content_parts.append({
-                                            "type": "text", 
+                                            "type": "text",
                                             "text": header + full_injection_text
                                         })
                                         utils.log(f"Successfully injected {len(injected_code_parts)} code files in text mode.")
@@ -407,11 +421,22 @@ def chat_completions():
 
                 # --- Tool Configuration ---
                 final_tools = []
+                mcp_declarations_to_use = None
 
-                # Add MCP tool declarations if configured and enabled
-                mcp_tools = mcp_handler.create_tool_declarations(full_prompt_text)
-                if mcp_tools and force_tools_enabled:
-                    final_tools.extend(mcp_tools)
+                # Priority:
+                # 1. Profile-defined selected tools (from prompt override)
+                # 2. Context-aware tools (default, if force_tools_enabled)
+                if profile_selected_mcp_tools:
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
+                    utils.log(f"Using MCP tools defined by prompt override profile: {profile_selected_mcp_tools}")
+                elif force_tools_enabled:
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
+                    utils.log(f"Using context-aware MCP tools (force_tools_enabled).")
+                else:
+                    utils.log(f"MCP Tools explicitly disabled or no tools selected.")
+
+                if mcp_declarations_to_use:
+                    final_tools.extend(mcp_declarations_to_use)
 
                 # Add native Google tools if enabled
                 if enable_native_tools:

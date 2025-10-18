@@ -70,9 +70,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to attach event listeners to a newly added or existing profile div
     function attachProfileEventListeners(profileDiv) {
+        // TomSelect initialization will now happen on 'shown.bs.collapse' event
+        // for existing profiles, or immediately for new ones that start 'show'.
+
         // Delete Profile
         profileDiv.querySelector('.delete-profile-btn')?.addEventListener('click', function() {
             if (confirm('Are you sure you want to delete this profile?')) {
+                // Destroy TomSelect instance before removing the element
+                const mcpToolsSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
+                if (mcpToolsSelect && mcpToolsSelect.tomselect) {
+                    mcpToolsSelect.tomselect.destroy();
+                }
                 profileDiv.remove();
             }
         });
@@ -130,9 +138,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to attach event listeners to a newly added or existing system prompt profile div
     function attachSystemPromptEventListeners(profileDiv) {
+        // TomSelect initialization will now happen on 'shown.bs.collapse' event
+        // for existing profiles, or immediately for new ones that start 'show'.
+
         // Delete Profile
         profileDiv.querySelector('.system-delete-profile-btn')?.addEventListener('click', function() {
             if (confirm('Are you sure you want to delete this System Prompt?')) {
+                // Destroy TomSelect instance before removing the element
+                const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
+                if (sysMcpToolsSelect && sysMcpToolsSelect.tomselect) {
+                    sysMcpToolsSelect.tomselect.destroy();
+                }
                 profileDiv.remove();
             }
         });
@@ -215,14 +231,33 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <label class="form-check-label" for="enable-native-tools-${newProfileIndex}">Enable Native Google Tools (e.g., Search)</label>
                             </div>
 
+                            <div class="mb-3">
+                                <label for="mcp-tools-select-${newProfileIndex}" class="form-label"><b>Select MCP Tools</b> (optional)</label>
+                                <select id="mcp-tools-select-${newProfileIndex}" class="form-select prompt-mcp-tools-select" multiple>
+                                    {% for tool_name in mcp_tools %}
+                                        <option value="{{ tool_name }}">{{ tool_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">If specific tools are selected, only these tools will be enabled when this profile is active. This overrides 'Disable Tools'.</div>
+                            </div>
+
                             <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
                         </div>
                     </div>
                 </div>
             `;
             promptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
+            const newProfileDiv = promptProfilesContainer.lastElementChild;
             // Attach event listeners to the newly added profile
-            attachProfileEventListeners(promptProfilesContainer.lastElementChild);
+            attachProfileEventListeners(newProfileDiv);
+            // Also explicitly initialize TomSelect for the new, shown profile
+            const mcpToolsSelect = newProfileDiv.querySelector('.prompt-mcp-tools-select');
+            if (mcpToolsSelect && !mcpToolsSelect.tomselect) {
+                new TomSelect(mcpToolsSelect, {
+                    plugins: ['remove_button'],
+                    placeholder: 'Select MCP Tools (optional)...',
+                });
+            }
         });
     }
 
@@ -240,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             New System Prompt ${newProfileIndex}
                         </button>
                     </h2>
-                    <div id="sys-collapse-${profileId}" class="accordion-collapse collapse" aria-labelledby="sys-heading-${profileId}" data-bs-parent="#system-prompt-profiles-container">
+                    <div id="sys-collapse-${profileId}" class="accordion-collapse collapse show" aria-labelledby="sys-heading-${profileId}" data-bs-parent="#system-prompt-profiles-container">
                         <div class="accordion-body">
                             <div class="mb-3">
                                 <label class="form-label"><b>Prompt Name</b></label>
@@ -268,14 +303,65 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <label class="form-check-label" for="sys-enable-native-tools-${profileId}">Enable Native Google Tools (e.g., Search)</label>
                             </div>
 
+                            <div class="mb-3">
+                                <label for="sys-mcp-tools-select-${profileId}" class="form-label"><b>Select MCP Tools</b> (optional)</label>
+                                <select id="sys-mcp-tools-select-${profileId}" class="form-select system-mcp-tools-select" multiple>
+                                    {% for tool_name in mcp_tools %}
+                                        <option value="{{ tool_name }}">{{ tool_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">If specific tools are selected, only these tools will be enabled when this system prompt is active. This overrides 'Disable Tools'.</div>
+                            </div>
+
                             <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
                         </div>
                     </div>
                 </div>
             `;
             systemPromptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
+            const newProfileDiv = systemPromptProfilesContainer.lastElementChild;
             // Attach event listeners to the newly added profile
-            attachSystemPromptEventListeners(systemPromptProfilesContainer.lastElementChild);
+            attachSystemPromptEventListeners(newProfileDiv);
+            // Explicitly initialize TomSelect for the new, shown profile
+            const sysMcpToolsSelect = newProfileDiv.querySelector('.system-mcp-tools-select');
+            if (sysMcpToolsSelect && !sysMcpToolsSelect.tomselect) {
+                new TomSelect(sysMcpToolsSelect, {
+                    plugins: ['remove_button'],
+                    placeholder: 'Select MCP Tools (optional)...',
+                });
+            }
+        });
+    }
+
+    // Function to initialize TomSelect for a given element if not already initialized
+    function initTomSelectForElement(selectElement) {
+        if (selectElement && !selectElement.tomselect) {
+            new TomSelect(selectElement, {
+                plugins: ['remove_button'],
+                placeholder: 'Select MCP Tools (optional)...',
+            });
+        }
+    }
+
+    // Listen for Bootstrap's 'shown.bs.collapse' event on the containers
+    // to initialize Tom Select for existing (collapsed) profiles when they are opened.
+    if (promptProfilesContainer) {
+        promptProfilesContainer.addEventListener('shown.bs.collapse', function(event) {
+            const profileDiv = event.target.closest('.accordion-item');
+            if (profileDiv) {
+                const mcpToolsSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
+                initTomSelectForElement(mcpToolsSelect);
+            }
+        });
+    }
+
+    if (systemPromptProfilesContainer) {
+        systemPromptProfilesContainer.addEventListener('shown.bs.collapse', function(event) {
+            const profileDiv = event.target.closest('.accordion-item');
+            if (profileDiv) {
+                const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
+                initTomSelectForElement(sysMcpToolsSelect);
+            }
         });
     }
 
@@ -322,6 +408,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const enableNativeToolsSwitch = profileDiv.querySelector('.enable-native-tools-switch');
                 const enableNativeTools = enableNativeToolsSwitch ? enableNativeToolsSwitch.checked : false;
 
+                const mcpToolsSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
+                const selectedMcpTools = mcpToolsSelect && mcpToolsSelect.tomselect ? mcpToolsSelect.tomselect.getValue() : [];
+
                 const enabledSwitch = profileDiv.querySelector('.enabled-switch');
                 const enabled = enabledSwitch ? enabledSwitch.checked : true;
 
@@ -330,7 +419,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     triggers: triggers,
                     overrides: overrides,
                     disable_tools: disableTools,
-                    enable_native_tools: enableNativeTools
+                    enable_native_tools: enableNativeTools,
+                    selected_mcp_tools: selectedMcpTools // Add selected MCP tools
                 };
             });
 
@@ -367,6 +457,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const enableNativeToolsSwitch = profileDiv.querySelector('.system-enable-native-tools-switch');
                 const enableNativeTools = enableNativeToolsSwitch ? enableNativeToolsSwitch.checked : false;
 
+                const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
+                const selectedMcpTools = sysMcpToolsSelect && sysMcpToolsSelect.tomselect ? sysMcpToolsSelect.tomselect.getValue() : [];
+
                 const enabledSwitch = profileDiv.querySelector('.system-enabled-switch');
                 const enabled = enabledSwitch ? enabledSwitch.checked : true;
 
@@ -374,7 +467,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     enabled: enabled,
                     prompt: promptText,
                     disable_tools: disableTools,
-                    enable_native_tools: enableNativeTools
+                    enable_native_tools: enableNativeTools,
+                    selected_mcp_tools: selectedMcpTools // Add selected MCP tools
                 };
             });
 

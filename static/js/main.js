@@ -69,14 +69,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Initializations ---
 
-    // 1. Check for saved theme preference or system preference
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        setTheme(savedTheme);
-    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        setTheme('dark');
-    } else {
-        setTheme('light');
+     // The theme is now initialized by an inline script in layout.html to prevent flickering.
+    // We only need to set the toggle state based on the current theme attribute.
+    if (darkModeToggle) {
+        darkModeToggle.checked = (htmlElement.getAttribute('data-bs-theme') === 'dark');
+    }
+    if (darkModeIcon) {
+        darkModeIcon.textContent = (htmlElement.getAttribute('data-bs-theme') === 'dark') ? 'dark_mode' : 'light_mode';
     }
 
     // 2. Display the correct content section on load

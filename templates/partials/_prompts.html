@@ -17,7 +17,7 @@
                 {% for profile_name, profile in system_prompt_profiles.items() %}
                 <div class="accordion-item {% if not profile.get('enabled', True) %}disabled-item{% endif %}" data-profile-name="{{ profile_name }}">
                     <h2 class="accordion-header" id="sys-heading-{{ loop.index }}">
-                        <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#sys-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="sys-collapse-{{ loop.index }}">
+                        <button class="accordion-button collapsed bg-body-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#sys-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="sys-collapse-{{ loop.index }}">
                             {{ profile_name }}
                         </button>
                     </h2>
@@ -47,6 +47,20 @@
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input system-enable-native-tools-switch" type="checkbox" role="switch" id="sys-enable-native-tools-{{ loop.index }}" {% if profile.get('enable_native_tools') %}checked{% endif %}>
                                 <label class="form-check-label" for="sys-enable-native-tools-{{ loop.index }}">Enable Native Google Tools (e.g., Search)</label>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label"><b>Select MCP Tools</b> (optional)</label>
+                                {% if mcp_tools %}
+                                <select id="sys-mcp-tools-select-{{ loop.index }}" class="form-select system-mcp-tools-select" multiple>
+                                    {% for tool_name in mcp_tools %}
+                                        <option value="{{ tool_name }}" {% if tool_name in profile.get('selected_mcp_tools', []) %}selected{% endif %}>{{ tool_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">If specific tools are selected, only these tools will be enabled when this system prompt is active. This overrides 'Disable Tools'.</div>
+                                {% else %}
+                                <p class="text-muted small">No MCP tools configured. Go to the <a href="#mcp">MCP section</a> to add tools.</p>
+                                {% endif %}
                             </div>
 
                             <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
@@ -85,7 +99,7 @@
                 {% for profile_name, profile in prompt_profiles.items() %}
                 <div class="accordion-item {% if not profile.get('enabled', True) %}disabled-item{% endif %}" data-profile-name="{{ profile_name }}">
                     <h2 class="accordion-header" id="heading-{{ loop.index }}">
-                        <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-{{ loop.index }}">
+                        <button class="accordion-button collapsed bg-body-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-{{ loop.index }}">
                             {{ profile_name }}
                         </button>
                     </h2>
@@ -138,6 +152,20 @@
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input enable-native-tools-switch" type="checkbox" role="switch" id="enable-native-tools-{{ loop.index }}" {% if profile.get('enable_native_tools') %}checked{% endif %}>
                                 <label class="form-check-label" for="enable-native-tools-{{ loop.index }}">Enable Native Google Tools (e.g., Search)</label>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label"><b>Select MCP Tools</b> (optional)</label>
+                                {% if mcp_tools %}
+                                <select id="mcp-tools-select-{{ loop.index }}" class="form-select prompt-mcp-tools-select" multiple>
+                                    {% for tool_name in mcp_tools %}
+                                        <option value="{{ tool_name }}" {% if tool_name in profile.get('selected_mcp_tools', []) %}selected{% endif %}>{{ tool_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">If specific tools are selected, only these tools will be enabled when this profile is active. This overrides 'Disable Tools'.</div>
+                                {% else %}
+                                <p class="text-muted small">No MCP tools configured. Go to the <a href="#mcp">MCP section</a> to add tools.</p>
+                                {% endif %}
                             </div>
 
                             <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>

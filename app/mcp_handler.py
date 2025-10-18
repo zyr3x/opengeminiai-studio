@@ -22,6 +22,23 @@ mcp_request_id_counter = 1  # Counter for unique JSON-RPC request IDs
 MAX_FUNCTION_DECLARATIONS_DEFAULT = 64 # Default documented limit
 max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT # Configurable limit
 
+DISABLE_ALL_MCP_TOOLS_DEFAULT = False
+disable_all_mcp_tools = DISABLE_ALL_MCP_TOOLS_DEFAULT # Global flag to disable all MCP tools
+
+def set_disable_all_mcp_tools(status: bool):
+    """Sets the global status for disabling all MCP tools and saves it to config."""
+    global disable_all_mcp_tools, mcp_config
+    disable_all_mcp_tools = status
+    # Update the in-memory config and save it
+    mcp_config["disableAllTools"] = status
+    try:
+        with open(MCP_CONFIG_FILE, 'w') as f:
+            json.dump(mcp_config, f, indent=2)
+        log(f"MCP general settings updated and saved to {MCP_CONFIG_FILE}. Disable all tools: {status}")
+    except (IOError, json.JSONDecodeError) as e:
+        print(f"Error saving MCP config: {e}")
+
+
 def get_declarations_from_tool(tool_name, tool_info):
     """Fetches function declaration schema(s) from an MCP tool using MCP protocol."""
     global mcp_function_input_schema_map
@@ -244,7 +261,7 @@ def fetch_mcp_tool_list(tool_info):
 
 def load_mcp_config():
     """Loads MCP tool configuration from file and fetches schemas for all configured tools."""
-    global mcp_config, mcp_function_declarations, mcp_function_to_tool_map, mcp_function_input_schema_map, mcp_tool_processes, max_function_declarations_limit
+    global mcp_config, mcp_function_declarations, mcp_function_to_tool_map, mcp_function_input_schema_map, mcp_tool_processes, max_function_declarations_limit, disable_all_mcp_tools
 
     # Terminate any existing tool processes before reloading config
     for tool_name, process in mcp_tool_processes.items():
@@ -277,6 +294,7 @@ def load_mcp_config():
     else:
         mcp_config = {}
         max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT
+        disable_all_mcp_tools = DISABLE_ALL_MCP_TOOLS_DEFAULT
         log("No MCP config file found, MCP tools disabled.")
         return
 
@@ -285,6 +303,9 @@ def load_mcp_config():
         log(f"Invalid maxFunctionDeclarations in config ({max_function_declarations_limit}). Using default: {MAX_FUNCTION_DECLARATIONS_DEFAULT}")
         max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT
 
+    disable_all_mcp_tools = mcp_config.get("disableAllTools", DISABLE_ALL_MCP_TOOLS_DEFAULT)
+    if disable_all_mcp_tools:
+        log("All MCP tools are globally disabled by configuration.")
 
     if mcp_config.get("mcpServers"):
         # Sort servers by priority (higher first), default 0
@@ -314,6 +335,10 @@ def create_tool_declarations(prompt_text: str = ""):
     only the functions from the relevant tool(s) are sent. Otherwise, it sends all available functions
     up to the API limit.
     """
+    if disable_all_mcp_tools:
+        log("All MCP tools are globally disabled. Returning no declarations.")
+        return None
+
     if not mcp_function_declarations:
         return None
 
@@ -358,6 +383,34 @@ def create_tool_declarations(prompt_text: str = ""):
         return None
 
     return [{"functionDeclarations": final_declarations}]
+
+def create_tool_declarations_from_list(tool_names: list[str]):
+    """
+    Returns tool declarations for the Gemini API, selecting only those from the specified list of tool names.
+    This bypasses context-aware selection and respects the max_function_declarations_limit.
+    """
+    if disable_all_mcp_tools:
+        log("All MCP tools are globally disabled. Returning no declarations.")
+        return None
+
+    if not mcp_function_declarations or not tool_names:
+        return None
+
+    selected_declarations = []
+    for func_decl in mcp_function_declarations:
+        parent_tool_name = mcp_function_to_tool_map.get(func_decl['name'])
+        if parent_tool_name in tool_names:
+            selected_declarations.append(func_decl)
+
+    if len(selected_declarations) > max_function_declarations_limit:
+        log(f"Warning: Number of function declarations ({len(selected_declarations)}) exceeds the limit of {max_function_declarations_limit}. Truncating list.")
+        selected_declarations = selected_declarations[:max_function_declarations_limit]
+
+    if not selected_declarations:
+        return None
+
+    return [{"functionDeclarations": selected_declarations}]
+
 
 def _parse_kwargs_string(s: str) -> dict:
     """

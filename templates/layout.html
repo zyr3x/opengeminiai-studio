@@ -5,6 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenGeminiAI Studio</title>
     <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
+    <!-- Inline script to prevent theme flickering -->
+    <script>
+        (function() {
+            const htmlElement = document.documentElement;
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                htmlElement.setAttribute('data-bs-theme', savedTheme);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                htmlElement.setAttribute('data-bs-theme', 'dark');
+                localStorage.setItem('theme', 'dark'); // Save dark preference if system matches
+            } else {
+                htmlElement.setAttribute('data-bs-theme', 'light');
+                localStorage.setItem('theme', 'light'); // Save light preference
+            }
+        })();
+    </script>
     <!-- Google Fonts and Material Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -61,7 +77,7 @@
 </main>
 
 <!-- Bootstrap Footer -->
-<footer class="footer mt-auto py-3 bg">
+<footer class="footer mt-auto py-3 bg-body">
     <div class="container text-center">
         <span class="text-muted">© {{ current_year }} OpenGeminiAI Studio. All rights reserved.</span><br>
     </div>

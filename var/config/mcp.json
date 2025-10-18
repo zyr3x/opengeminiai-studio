@@ -47,5 +47,6 @@
       "priority": 0
     }
   },
-  "maxFunctionDeclarations": 64
+  "maxFunctionDeclarations": 64,
+  "disableAllTools": false
 }

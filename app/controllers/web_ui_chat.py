@@ -217,6 +217,7 @@ def chat_api():
         active_overrides = {}
         disable_tools_override = False
         enable_native_tools_override = False
+        profile_selected_mcp_tools = [] # New: to store tools explicitly selected by profile
 
         if utils.prompt_overrides:
             for profile_name, profile_data in utils.prompt_overrides.items():
@@ -225,14 +226,21 @@ def chat_api():
                         if trigger in full_prompt_for_override_check:
                             active_overrides = profile_data.get('overrides', {})
                             if profile_data.get('disable_tools', False):
-                                utils.log(f"MCP Tools Disabled by prompt override profile.")
+                                utils.log(f"MCP Tools Disabled by prompt override profile '{profile_name}'.")
                                 disable_tools_override = True
                             if profile_data.get('enable_native_tools', False):
-                                utils.log(f"Native Google Tools Enabled by prompt override profile.")
+                                utils.log(f"Native Google Tools Enabled by prompt override profile '{profile_name}'.")
                                 enable_native_tools_override = True
+
+                            # If profile explicitly selects tools, use them
+                            if profile_data.get('selected_mcp_tools'):
+                                utils.log(f"MCP Tools explicitly selected by prompt override profile '{profile_name}': {profile_data['selected_mcp_tools']}")
+                                profile_selected_mcp_tools = profile_data['selected_mcp_tools']
+                                disable_tools_override = False # Explicit selection overrides general disable
+
                             utils.log(f"Prompt override profile matched: '{profile_name}'")
                             break
-                    if active_overrides or enable_native_tools_override or disable_tools_override:
+                    if active_overrides or enable_native_tools_override or disable_tools_override or profile_selected_mcp_tools:
                         break
 
         if active_overrides and user_message:
@@ -274,8 +282,15 @@ def chat_api():
         conn.close()
 
         gemini_contents = []
+        # Start with overrides from prompt/system config
         disable_tools = disable_tools_override
         enable_native_tools = enable_native_tools_override
+
+        # Global setting to disable all MCP tools takes highest precedence
+        if mcp_handler.disable_all_mcp_tools:
+            utils.log("All MCP tools globally disabled via general settings.")
+            disable_tools = True
+            profile_selected_mcp_tools = [] # Clear any profile-selected tools
 
         if system_prompt_name and system_prompt_name in utils.system_prompts:
             sp_config = utils.system_prompts[system_prompt_name]
@@ -295,6 +310,12 @@ def chat_api():
             if sp_config.get('enable_native_tools', False):
                 enable_native_tools = True
                 utils.log(f"Native Google tools enabled by system prompt: {system_prompt_name}")
+
+            # If system prompt explicitly selects tools, use them, overriding general disable
+            if sp_config.get('selected_mcp_tools'):
+                utils.log(f"MCP Tools explicitly selected by system prompt '{system_prompt_name}': {sp_config['selected_mcp_tools']}")
+                profile_selected_mcp_tools = sp_config['selected_mcp_tools'] # System prompt tools take precedence
+                disable_tools = False # Explicit selection overrides general disable
 
         for m in db_messages:
             role = m['role']
@@ -324,18 +345,27 @@ def chat_api():
 
                 # --- Tool Configuration ---
                 final_tools = []
-                mcp_tools = None
+                mcp_declarations_to_use = None
 
-                if selected_mcp_tools:
-                    mcp_tools = mcp_handler.create_tool_declarations(" ".join(selected_mcp_tools))
-                    utils.log(f"Using explicitly selected tools: {selected_mcp_tools}")
+                # Priority:
+                # 1. Profile-defined selected tools (system prompt or prompt override)
+                # 2. User-selected tools from chat UI
+                # 3. Context-aware tools (default)
+                if profile_selected_mcp_tools:
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
+                    utils.log(f"Using MCP tools defined by profile: {profile_selected_mcp_tools}")
+                elif selected_mcp_tools:
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(selected_mcp_tools)
+                    utils.log(f"Using explicitly selected tools from UI: {selected_mcp_tools}")
+                elif not disable_tools: # Only use context-aware if not explicitly disabled and no specific tools selected
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
+                    utils.log(f"Using context-aware MCP tools (no explicit selection).")
                 else:
-                    mcp_tools = mcp_handler.create_tool_declarations(full_prompt_text)
+                    utils.log(f"MCP Tools explicitly disabled or no tools selected.")
 
-                if mcp_tools and (not disable_tools or selected_mcp_tools):
-                    final_tools.extend(mcp_tools)
-                elif disable_tools and not selected_mcp_tools:
-                    utils.log(f"MCP Tools omitted due to selected system prompt: {system_prompt_name}")
+
+                if mcp_declarations_to_use:
+                    final_tools.extend(mcp_declarations_to_use)
 
                 if enable_native_tools:
                     final_tools.append({"google_search": {}})
@@ -343,6 +373,7 @@ def chat_api():
 
                 if final_tools:
                     request_data["tools"] = final_tools
+                    # Add tool_config only if there are function-callable tools
                     if not enable_native_tools:
                         request_data["tool_config"] = {
                             "function_calling_config": {
