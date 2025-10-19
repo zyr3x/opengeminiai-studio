@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (el) {
        new TomSelect(el, {
-          plugins: ['remove_button', 'optgroup_columns'],
+          plugins: ['remove_button'],
           placeholder: 'Select MCP Functions (optional)...',
           dropdownParent: 'body', // Fixes dropdown being clipped by parent elements
            onChange: function(value) {
