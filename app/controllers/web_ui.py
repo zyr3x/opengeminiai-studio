@@ -69,7 +69,13 @@ def index():
             mcp_config_data["disableAllTools"] = loaded_mcp_config.get("disableAllTools", mcp_handler.DISABLE_ALL_MCP_TOOLS_DEFAULT)
         except json.JSONDecodeError: pass
 
-    mcp_tools = sorted(list(mcp_config_data.get("mcpServers", {}).keys()))
+    mcp_functions_by_tool = {}
+    for func_decl in mcp_handler.mcp_function_declarations:
+        tool_name = mcp_handler.mcp_function_to_tool_map.get(func_decl['name'])
+        if tool_name:
+            if tool_name not in mcp_functions_by_tool:
+                mcp_functions_by_tool[tool_name] = []
+            mcp_functions_by_tool[tool_name].append(func_decl)
 
     return render_template(
         'index.html',
@@ -84,7 +90,7 @@ def index():
         current_max_function_declarations=mcp_config_data.get("maxFunctionDeclarations", mcp_handler.max_function_declarations_limit),
         current_disable_all_mcp_tools=mcp_handler.disable_all_mcp_tools, # Pass current status of global disable
         current_year=datetime.now().year,
-            mcp_tools=mcp_tools # Pass available MCP tool names to the template
+        mcp_functions_by_tool=mcp_functions_by_tool # Pass available MCP functions grouped by tool
     )
 
 @web_ui_bp.route('/favicon.ico')

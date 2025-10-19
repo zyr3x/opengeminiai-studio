@@ -4,12 +4,19 @@ document.addEventListener('DOMContentLoaded', function() {
         return; // Don't run if the prompt editor form is not on the page
     }
 
-    // Helper to generate MCP tool options from the global variable created in the template
+    // Helper to generate MCP function options from the global variable created in the template
     function generateMcpToolOptions() {
-        if (window.mcpTools && Array.isArray(window.mcpTools)) {
-            return window.mcpTools.map(tool => `<option value="${tool}">${tool}</option>`).join('');
+        let options = '<option value="*">All Functions</option>';
+        if (window.mcpFunctionsByTool) {
+            for (const toolName in window.mcpFunctionsByTool) {
+                options += `<optgroup label="${toolName}">`;
+                window.mcpFunctionsByTool[toolName].forEach(func => {
+                    options += `<option value="${func.name}">${func.name}</option>`;
+                });
+                options += `</optgroup>`;
+            }
         }
-        return '';
+        return options;
     }
 
     const promptEditorModeSwitch = document.getElementById('prompt-editor-mode-switch');
@@ -267,11 +274,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
 
                             <div class="mb-3">
-                                <label for="mcp-tools-select-${newProfileIndex}" class="form-label"><b>Select MCP Tools</b> (optional)</label>
+                                <label for="mcp-tools-select-${newProfileIndex}" class="form-label"><b>Select MCP Functions</b> (optional)</label>
                                 <select id="mcp-tools-select-${newProfileIndex}" class="form-select prompt-mcp-tools-select" multiple>
                                     ${mcpToolOptions}
                                 </select>
-                                <div class="form-text">Select specific tools to use. This will only have an effect if tools are enabled for this profile.</div>
+                                <div class="form-text">Select specific functions to use. This will only have an effect if tools are enabled for this profile.</div>
                             </div>
 
                             <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
@@ -285,12 +292,7 @@ document.addEventListener('DOMContentLoaded', function() {
             attachProfileEventListeners(newProfileDiv);
             // Also explicitly initialize TomSelect for the new, shown profile
             const mcpToolsSelect = newProfileDiv.querySelector('.prompt-mcp-tools-select');
-            if (mcpToolsSelect && !mcpToolsSelect.tomselect) {
-                new TomSelect(mcpToolsSelect, {
-                    plugins: ['remove_button'],
-                    placeholder: 'Select MCP Tools (optional)...',
-                });
-            }
+            initTomSelectForElement(mcpToolsSelect);
         });
     }
 
@@ -338,11 +340,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
 
                             <div class="mb-3">
-                                <label for="sys-mcp-tools-select-${profileId}" class="form-label"><b>Select MCP Tools</b> (optional)</label>
+                                <label for="sys-mcp-tools-select-${profileId}" class="form-label"><b>Select MCP Functions</b> (optional)</label>
                                 <select id="sys-mcp-tools-select-${profileId}" class="form-select system-mcp-tools-select" multiple>
                                     ${mcpToolOptions}
                                 </select>
-                                <div class="form-text">Select specific tools to use. This will only have an effect if tools are enabled for this prompt.</div>
+                                <div class="form-text">Select specific functions to use. This will only have an effect if tools are enabled for this prompt.</div>
                             </div>
 
                             <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
@@ -356,12 +358,7 @@ document.addEventListener('DOMContentLoaded', function() {
             attachSystemPromptEventListeners(newProfileDiv);
             // Explicitly initialize TomSelect for the new, shown profile
             const sysMcpToolsSelect = newProfileDiv.querySelector('.system-mcp-tools-select');
-            if (sysMcpToolsSelect && !sysMcpToolsSelect.tomselect) {
-                new TomSelect(sysMcpToolsSelect, {
-                    plugins: ['remove_button'],
-                    placeholder: 'Select MCP Tools (optional)...',
-                });
-            }
+            initTomSelectForElement(sysMcpToolsSelect);
         });
     }
 
@@ -369,8 +366,15 @@ document.addEventListener('DOMContentLoaded', function() {
     function initTomSelectForElement(selectElement) {
         if (selectElement && !selectElement.tomselect) {
             new TomSelect(selectElement, {
-                plugins: ['remove_button'],
-                placeholder: 'Select MCP Tools (optional)...',
+                plugins: ['remove_button', 'optgroup_columns'],
+                placeholder: 'Select MCP Functions (optional)...',
+                dropdownParent: 'body', // Fixes dropdown being clipped by accordion
+                onChange: function(value) {
+                    // if value includes '*' and has other items, just keep '*'
+                    if (Array.isArray(value) && value.includes('*') && value.length > 1) {
+                        this.setValue('*', true); // a silent update
+                    }
+                }
             });
             // After init, check and set the disabled state
             const profileDiv = selectElement.closest('.accordion-item');

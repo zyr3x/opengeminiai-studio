@@ -1085,9 +1085,46 @@ body.chat footer{
     padding-right: 1.25rem;
 }
 
-#mcp-tools-select + .ts-wrapper {
-        min-width: 230px;
+/* --- Tom Select Customization --- */
+.ts-wrapper.form-select, .ts-wrapper.multi {
+    /* Set a reasonable width for prompt/chat function selectors */
+    min-width: 230px;
 }
+.ts-dropdown {
+    max-height: 300px; /* Limit dropdown height to prevent it from going off-screen */
+    overflow-y: auto;  /* Add scrollbar if content overflows */
+    z-index: 1060;     /* Ensure dropdown appears above other elements */
+}
+
+/* Dark Theme Overrides for Tom Select */
+[data-bs-theme="dark"] .ts-control {
+    background-color: var(--form-control-bg) !important;
+    border-color: var(--bs-border-color) !important;
+}
+[data-bs-theme="dark"] .ts-control input {
+    color: var(--form-control-color) !important;
+}
+[data-bs-theme="dark"] .ts-wrapper.multi .ts-control > div {
+    background: var(--bs-primary) !important;
+    color: var(--btn-primary-color) !important;
+}
+[data-bs-theme="dark"] .ts-dropdown {
+    background-color: var(--card-bg);
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+}
+[data-bs-theme="dark"] .ts-dropdown .ts-option:hover {
+    background-color: var(--btn-outline-secondary-hover-bg);
+}
+[data-bs-theme="dark"] .ts-dropdown .ts-option.active {
+    background-color: var(--bs-primary);
+    color: var(--btn-primary-color);
+}
+[data-bs-theme="dark"] .ts-dropdown .optgroup-header {
+    color: var(--footer-text);
+    background-color: var(--bs-tertiary-bg);
+}
+
 
 /* --- Prompts & MCP Page Styles --- */
 

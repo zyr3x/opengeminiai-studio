@@ -384,23 +384,27 @@ def create_tool_declarations(prompt_text: str = ""):
 
     return [{"functionDeclarations": final_declarations}]
 
-def create_tool_declarations_from_list(tool_names: list[str]):
+def create_tool_declarations_from_list(function_names: list[str]):
     """
-    Returns tool declarations for the Gemini API, selecting only those from the specified list of tool names.
+    Returns tool declarations for the Gemini API, selecting only those from the specified list of function names.
     This bypasses context-aware selection and respects the max_function_declarations_limit.
     """
     if disable_all_mcp_tools:
         log("All MCP tools are globally disabled. Returning no declarations.")
         return None
 
-    if not mcp_function_declarations or not tool_names:
+    if not mcp_function_declarations or not function_names:
         return None
 
     selected_declarations = []
-    for func_decl in mcp_function_declarations:
-        parent_tool_name = mcp_function_to_tool_map.get(func_decl['name'])
-        if parent_tool_name in tool_names:
-            selected_declarations.append(func_decl)
+    # Handle sentinel for "all functions"
+    if function_names == ["*"]:
+        log("Selecting all available MCP functions due to '*' sentinel.")
+        selected_declarations = mcp_function_declarations[:]  # Make a copy
+    else:
+        for func_decl in mcp_function_declarations:
+            if func_decl.get('name') in function_names:
+                selected_declarations.append(func_decl)
 
     if len(selected_declarations) > max_function_declarations_limit:
         log(f"Warning: Number of function declarations ({len(selected_declarations)}) exceeds the limit of {max_function_declarations_limit}. Truncating list.")

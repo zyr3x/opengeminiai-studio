@@ -50,14 +50,19 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label"><b>Select MCP Tools</b> (optional)</label>
-                                {% if mcp_tools %}
+                                <label class="form-label"><b>Select MCP Functions</b> (optional)</label>
+                                {% if mcp_functions_by_tool %}
                                 <select id="sys-mcp-tools-select-{{ loop.index }}" class="form-select system-mcp-tools-select" multiple>
-                                    {% for tool_name in mcp_tools %}
-                                        <option value="{{ tool_name }}" {% if tool_name in profile.get('selected_mcp_tools', []) %}selected{% endif %}>{{ tool_name }}</option>
+                                    <option value="*" {% if "*" in profile.get('selected_mcp_tools', []) %}selected{% endif %}>All Functions</option>
+                                    {% for tool_name, functions in mcp_functions_by_tool.items() %}
+                                    <optgroup label="{{ tool_name }}">
+                                        {% for func in functions %}
+                                        <option value="{{ func.name }}" {% if func.name in profile.get('selected_mcp_tools', []) %}selected{% endif %}>{{ func.name }}</option>
+                                        {% endfor %}
+                                    </optgroup>
                                     {% endfor %}
                                 </select>
-                                <div class="form-text">Select specific tools to use. This will only have an effect if tools are enabled for this prompt.</div>
+                                <div class="form-text">Select specific functions to use. This will only have an effect if tools are enabled for this prompt.</div>
                                 {% else %}
                                 <p class="text-muted small">No MCP tools configured. Go to the <a href="#mcp">MCP section</a> to add tools.</p>
                                 {% endif %}
@@ -155,14 +160,19 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label"><b>Select MCP Tools</b> (optional)</label>
-                                {% if mcp_tools %}
+                                <label class="form-label"><b>Select MCP Functions</b> (optional)</label>
+                                {% if mcp_functions_by_tool %}
                                 <select id="mcp-tools-select-{{ loop.index }}" class="form-select prompt-mcp-tools-select" multiple>
-                                    {% for tool_name in mcp_tools %}
-                                        <option value="{{ tool_name }}" {% if tool_name in profile.get('selected_mcp_tools', []) %}selected{% endif %}>{{ tool_name }}</option>
+                                    <option value="*" {% if "*" in profile.get('selected_mcp_tools', []) %}selected{% endif %}>All Functions</option>
+                                    {% for tool_name, functions in mcp_functions_by_tool.items() %}
+                                    <optgroup label="{{ tool_name }}">
+                                        {% for func in functions %}
+                                        <option value="{{ func.name }}" {% if func.name in profile.get('selected_mcp_tools', []) %}selected{% endif %}>{{ func.name }}</option>
+                                        {% endfor %}
+                                    </optgroup>
                                     {% endfor %}
                                 </select>
-                                <div class="form-text">Select specific tools to use. This will only have an effect if tools are enabled for this profile.</div>
+                                <div class="form-text">Select specific functions to use. This will only have an effect if tools are enabled for this profile.</div>
                                 {% else %}
                                 <p class="text-muted small">No MCP tools configured. Go to the <a href="#mcp">MCP section</a> to add tools.</p>
                                 {% endif %}
@@ -188,7 +198,7 @@
 
 </div>
 <script>
-    // Make the list of MCP tools available to the prompt editor script
-    window.mcpTools = {{ mcp_tools | tojson }};
+    // Make the list of MCP functions available to the prompt editor script
+    window.mcpFunctionsByTool = {{ mcp_functions_by_tool | tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/prompt_editor.js') }}" defer></script>

@@ -42,8 +42,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (el) {
        new TomSelect(el, {
-          plugins: ['remove_button'],
-          placeholder: 'Select MCP Tools (optional)...',
+          plugins: ['remove_button', 'optgroup_columns'],
+          placeholder: 'Select MCP Functions (optional)...',
+          dropdownParent: 'body', // Fixes dropdown being clipped by parent elements
+           onChange: function(value) {
+                if (Array.isArray(value) && value.includes('*') && value.length > 1) {
+                    this.setValue('*', true); // silent update
+                }
+            }
        });
     }
 

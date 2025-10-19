@@ -48,12 +48,17 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            {% if mcp_tools %}
+                            {% if mcp_functions_by_tool %}
                             <div class="d-flex align-items-center gap-2">
-                                <label for="mcp-tools-select" class="form-label mb-0">MCP Tools:</label>
+                                <label for="mcp-tools-select" class="form-label mb-0">MCP Functions:</label>
                                 <select id="mcp-tools-select" name="mcp_tools" multiple>
-                                    {% for tool_name in mcp_tools %}
-                                    <option value="{{ tool_name }}">{{ tool_name }}</option>
+                                    <option value="*">All Functions</option>
+                                    {% for tool_name, functions in mcp_functions_by_tool.items() %}
+                                    <optgroup label="{{ tool_name }}">
+                                        {% for func in functions %}
+                                        <option value="{{ func.name }}">{{ func.name }}</option>
+                                        {% endfor %}
+                                    </optgroup>
                                     {% endfor %}
                                 </select>
                             </div>
