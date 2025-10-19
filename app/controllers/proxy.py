@@ -15,6 +15,7 @@ from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestExce
 from app.config import config
 from app import mcp_handler
 from app import utils
+from app import tool_config_utils
 
 proxy_bp = Blueprint('proxy', __name__)
 
@@ -42,37 +43,26 @@ def chat_completions():
             profile_selected_mcp_tools = [] # Clear any profile-selected tools
 
         if messages:
-            active_overrides = {}
             # Identify prompt profile by checking for triggers in the combined text of all messages
             full_prompt_text = " ".join(
                 [m.get('content') for m in messages if isinstance(m.get('content'), str)]
             )
 
-            if utils.prompt_overrides:
-                for profile_name, profile_data in utils.prompt_overrides.items():
-                    if isinstance(profile_data, dict):
-                        for trigger in profile_data.get('triggers', []):
-                            if trigger in full_prompt_text:
-                                active_overrides = profile_data.get('overrides', {})
-                                # Check for a flag to disable tools
-                                if profile_data.get('disable_tools', False):
-                                    utils.log(f"MCP Tools Disabled by prompt override profile '{profile_name}'.")
-                                    force_tools_enabled = False
-                                # Check for a flag to enable native tools
-                                if profile_data.get('enable_native_tools', False):
-                                    utils.log(f"Native Google Tools Enabled by prompt override profile '{profile_name}'.")
-                                    enable_native_tools = True
+            # Apply Prompt Engineering & Tool Control Overrides
+            override_config = tool_config_utils.get_prompt_override_config(full_prompt_text)
+            active_overrides = override_config['active_overrides']
 
-                                # If profile explicitly selects tools, use them
-                                if profile_data.get('selected_mcp_tools'):
-                                    utils.log(f"MCP Tools explicitly selected by prompt override profile '{profile_name}': {profile_data['selected_mcp_tools']}")
-                                    profile_selected_mcp_tools = profile_data['selected_mcp_tools']
-                                    force_tools_enabled = True # Explicit selection overrides general disable
+            # Apply profile flags (these might override initial global disable settings 
+            # if the original flow allowed it, particularly for explicit tool selection)
+            if override_config['disable_mcp_tools_by_profile']:
+                force_tools_enabled = False
 
-                                utils.log(f"Prompt profile matched: '{profile_name}'")
-                                break
-                        if active_overrides or enable_native_tools or profile_selected_mcp_tools:
-                            break
+            if override_config['enable_native_tools_by_profile']:
+                enable_native_tools = True
+
+            if override_config['profile_selected_mcp_tools']:
+                profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
+                force_tools_enabled = True # Explicit selection overrides general disable
 
             # Process all messages: apply overrides
             for message in messages:

@@ -13,6 +13,7 @@ from werkzeug.utils import secure_filename
 from app.config import config
 from app import mcp_handler
 from app import utils
+from app import tool_config_utils
 from app.db import get_db_connection, UPLOAD_FOLDER
 
 
@@ -214,34 +215,13 @@ def chat_api():
         )
         full_prompt_for_override_check = f"{history_text} {user_message}".strip()
 
-        active_overrides = {}
-        disable_tools_override = False
-        enable_native_tools_override = False
-        profile_selected_mcp_tools = [] # New: to store tools explicitly selected by profile
+        # Apply Prompt Engineering & Tool Control Overrides
+        override_config = tool_config_utils.get_prompt_override_config(full_prompt_for_override_check)
 
-        if utils.prompt_overrides:
-            for profile_name, profile_data in utils.prompt_overrides.items():
-                if isinstance(profile_data, dict):
-                    for trigger in profile_data.get('triggers', []):
-                        if trigger in full_prompt_for_override_check:
-                            active_overrides = profile_data.get('overrides', {})
-                            if profile_data.get('disable_tools', False):
-                                utils.log(f"MCP Tools Disabled by prompt override profile '{profile_name}'.")
-                                disable_tools_override = True
-                            if profile_data.get('enable_native_tools', False):
-                                utils.log(f"Native Google Tools Enabled by prompt override profile '{profile_name}'.")
-                                enable_native_tools_override = True
-
-                            # If profile explicitly selects tools, use them
-                            if profile_data.get('selected_mcp_tools'):
-                                utils.log(f"MCP Tools explicitly selected by prompt override profile '{profile_name}': {profile_data['selected_mcp_tools']}")
-                                profile_selected_mcp_tools = profile_data['selected_mcp_tools']
-                                disable_tools_override = False # Explicit selection overrides general disable
-
-                            utils.log(f"Prompt override profile matched: '{profile_name}'")
-                            break
-                    if active_overrides or enable_native_tools_override or disable_tools_override or profile_selected_mcp_tools:
-                        break
+        active_overrides = override_config['active_overrides']
+        disable_tools_override = override_config['disable_mcp_tools_by_profile']
+        enable_native_tools_override = override_config['enable_native_tools_by_profile']
+        profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
 
         if active_overrides and user_message:
             for find, replace in active_overrides.items():
