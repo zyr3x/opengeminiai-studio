@@ -310,40 +310,46 @@ def chat_api():
         conn.close()
 
         gemini_contents = []
-        # Start with overrides from prompt/system config
+        # --- Tool Configuration Logic ---
+        # Start with settings from prompt override profile
         disable_tools = disable_tools_override
         enable_native_tools = enable_native_tools_override
+        # `profile_selected_mcp_tools` is already set from prompt override config
 
-        # Global setting to disable all MCP tools takes highest precedence
-        if mcp_handler.disable_all_mcp_tools:
-            utils.log("All MCP tools globally disabled via general settings.")
-            disable_tools = True
-            profile_selected_mcp_tools = [] # Clear any profile-selected tools
-
+        # System prompt settings take precedence if a system prompt is selected
         if system_prompt_name and system_prompt_name in utils.system_prompts:
             sp_config = utils.system_prompts[system_prompt_name]
             system_prompt_text = sp_config.get('prompt')
 
             if system_prompt_text:
                 # Inject system prompt as the initial message of the conversation history
-                # We use 'user' role for consistency with how Gemini handles system instructions
                 gemini_contents.append({
                     'role': 'user',
                     'parts': [{'text': system_prompt_text}]
                 })
                 utils.log(f"Injected system prompt profile: {system_prompt_name}")
 
-            # Combine flags: if either system wants to disable/enable, we do.
-            disable_tools = disable_tools or sp_config.get('disable_tools', False)
+            # If system prompt explicitly selects tools, use them and enable tools.
+            if sp_config.get('selected_mcp_tools'):
+                utils.log(f"MCP Tools explicitly selected by system prompt '{system_prompt_name}': {sp_config['selected_mcp_tools']}")
+                profile_selected_mcp_tools = sp_config['selected_mcp_tools']
+                disable_tools = False
+            # Else if system prompt explicitly disables tools, it overrides any prompt override settings.
+            elif sp_config.get('disable_tools', False):
+                utils.log(f"MCP Tools disabled by system prompt '{system_prompt_name}'.")
+                disable_tools = True
+                profile_selected_mcp_tools = [] # Clear any tools selected by prompt override
+
+            # For native tools, either a system prompt or prompt override can enable them.
             if sp_config.get('enable_native_tools', False):
                 enable_native_tools = True
                 utils.log(f"Native Google tools enabled by system prompt: {system_prompt_name}")
 
-            # If system prompt explicitly selects tools, use them, overriding general disable
-            if sp_config.get('selected_mcp_tools'):
-                utils.log(f"MCP Tools explicitly selected by system prompt '{system_prompt_name}': {sp_config['selected_mcp_tools']}")
-                profile_selected_mcp_tools = sp_config['selected_mcp_tools'] # System prompt tools take precedence
-                disable_tools = False # Explicit selection overrides general disable
+        # Global setting to disable all MCP tools takes highest precedence
+        if mcp_handler.disable_all_mcp_tools:
+            utils.log("All MCP tools globally disabled via general settings.")
+            disable_tools = True
+            profile_selected_mcp_tools = [] # Clear any profile-selected tools
 
         for m in db_messages:
             role = m['role']
@@ -375,21 +381,21 @@ def chat_api():
                 final_tools = []
                 mcp_declarations_to_use = None
 
-                # Priority:
-                # 1. Profile-defined selected tools (system prompt or prompt override)
-                # 2. User-selected tools from chat UI
+                # Priority for MCP tools:
+                # 1. User-selected tools from chat UI (highest priority)
+                # 2. Profile-defined selected tools (system prompt or prompt override)
                 # 3. Context-aware tools (default)
-                if profile_selected_mcp_tools:
+                if selected_mcp_tools:
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(selected_mcp_tools)
+                    utils.log(f"Using explicitly selected tools from UI (overriding profiles): {selected_mcp_tools}")
+                elif profile_selected_mcp_tools:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
                     utils.log(f"Using MCP tools defined by profile: {profile_selected_mcp_tools}")
-                elif selected_mcp_tools:
-                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(selected_mcp_tools)
-                    utils.log(f"Using explicitly selected tools from UI: {selected_mcp_tools}")
                 elif not disable_tools: # Only use context-aware if not explicitly disabled and no specific tools selected
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
                     utils.log(f"Using context-aware MCP tools (no explicit selection).")
                 else:
-                    utils.log(f"MCP Tools explicitly disabled or no tools selected.")
+                    utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
 
 
                 if mcp_declarations_to_use:
