@@ -175,8 +175,8 @@ def chat_completions():
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
                     utils.log(f"Using MCP tools defined by prompt override profile: {profile_selected_mcp_tools}")
                 elif force_tools_enabled:
-                    mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
-                    utils.log(f"Using context-aware MCP tools (force_tools_enabled).")
+                    mcp_declarations_to_use = None
+                    utils.log(f"No MCP tools explicitly selected. No tools will be sent.")
                 else:
                     utils.log(f"MCP Tools explicitly disabled or no tools selected.")
 
@@ -315,11 +315,14 @@ def chat_completions():
 
                     response_payload = {}
                     if output is not None:
-                        # Convert any output to a pretty-printed JSON string in the 'text' field.
-                        # This is a robust way to present tool output to the model.
-                        response_payload = {"text": json.dumps(output, indent=2, default=str)}
+                        try:
+                            # If tool returns a JSON string, parse it into a JSON object for the API
+                            response_payload = json.loads(output)
+                        except (json.JSONDecodeError, TypeError):
+                            # Otherwise, treat it as plain text and wrap it in a standard 'content' object
+                            response_payload = {"content": str(output)}
                     else:
-                        response_payload = {"text": ""}
+                        response_payload = {} # If there's no output, provide an empty object
 
                     tool_response_parts.append({
                         "functionResponse": {

@@ -356,10 +356,6 @@ def chat_api():
             reconstructed_parts = utils.prepare_message_parts_for_gemini(m['parts'])
             gemini_contents.append({'role': role, 'parts': reconstructed_parts})
 
-        full_prompt_text = " ".join(
-            [p.get("text", "") for m in gemini_contents for p in m.get("parts", []) if "text" in p]
-        )
-
         def generate():
             headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
             current_contents = gemini_contents.copy()
@@ -391,12 +387,14 @@ def chat_api():
                 elif profile_selected_mcp_tools:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
                     utils.log(f"Using MCP tools defined by profile: {profile_selected_mcp_tools}")
-                elif not disable_tools: # Only use context-aware if not explicitly disabled and no specific tools selected
-                    mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
-                    utils.log(f"Using context-aware MCP tools (no explicit selection).")
+                elif not disable_tools:  # Only use context-aware if not explicitly disabled and no specific tools selected
+                    prompt_text_for_tools = " ".join(
+                        [p.get("text", "") for m in current_contents for p in m.get("parts", []) if "text" in p]
+                    )
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations(prompt_text_for_tools)
+                    utils.log(f"Using context-aware tool selection based on prompt.")
                 else:
                     utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
-
 
                 if mcp_declarations_to_use:
                     final_tools.extend(mcp_declarations_to_use)
@@ -408,7 +406,7 @@ def chat_api():
                 if final_tools:
                     request_data["tools"] = final_tools
                     # Add tool_config only if there are function-callable tools
-                    if not enable_native_tools:
+                    if mcp_declarations_to_use:
                         request_data["tool_config"] = {
                             "function_calling_config": {
                                 "mode": "AUTO"
@@ -526,11 +524,14 @@ def chat_api():
 
                     response_payload = {}
                     if output is not None:
-                        # Convert any output to a pretty-printed JSON string in the 'text' field.
-                        # This is a robust way to present tool output to the model.
-                        response_payload = {"text": json.dumps(output, indent=2, default=str)}
+                        try:
+                            # If tool returns a JSON string, parse it into a JSON object for the API
+                            response_payload = json.loads(output)
+                        except (json.JSONDecodeError, TypeError):
+                            # Otherwise, treat it as plain text and wrap it in a standard 'content' object
+                            response_payload = {"content": str(output)}
                     else:
-                        response_payload = {"text": ""}
+                        response_payload = {} # If there's no output, provide an empty object
 
                     tool_response_parts.append({
                         "functionResponse": {

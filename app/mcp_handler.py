@@ -657,14 +657,14 @@ def execute_mcp_tool(function_name, tool_args):
                 if response.get("id") == call_id:
                     if "result" in response:
                         content = response["result"].get("content", [])
-                        result_text = ""
-                        if content:
-                            for item in content:
-                                if item.get("type") == "text":
-                                    result_text += item.get("text", "")
-                            return result_text if result_text else str(response["result"])
-                        else:
-                            return str(response["result"])
+                        # If the content is purely text, concatenate it and return a single string.
+                        is_all_text = content and all(item.get("type") == "text" for item in content)
+                        if is_all_text:
+                            result_text = "".join(item.get("text", "") for item in content)
+                            return result_text
+
+                        # For all other cases (mixed content, structured data), return the entire result object as a JSON string.
+                        return json.dumps(response["result"])
                     elif "error" in response:
                         return f"MCP Error: {response['error'].get('message', 'Unknown error')}"
                     return "Tool returned a response with no result or error."

@@ -583,6 +583,16 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('message', userInput);
             filesToSend.forEach(file => formData.append('file', file));
 
+            // Add selected MCP tools to the form data
+            if (el && el.tomselect) {
+                const selectedTools = el.tomselect.getValue();
+                if (selectedTools && Array.isArray(selectedTools)) {
+                    selectedTools.forEach(tool => {
+                        formData.append('mcp_tools', tool);
+                    });
+                }
+            }
+
             try {
                 const response = await fetch('/chat_api', { method: 'POST', body: formData });
                 removeTypingIndicator();
