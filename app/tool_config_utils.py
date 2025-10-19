@@ -17,7 +17,7 @@ def get_prompt_override_config(full_prompt_text: str) -> dict:
         - profile_selected_mcp_tools (list): Tools explicitly selected by a matched profile.
     """
     active_overrides = {}
-    disable_mcp_tools_by_profile = False
+    disable_mcp_tools_by_profile = True
     enable_native_tools_by_profile = False
     profile_selected_mcp_tools = []
 
@@ -33,6 +33,7 @@ def get_prompt_override_config(full_prompt_text: str) -> dict:
                             utils.log(f"MCP Tools Disabled by prompt override profile '{profile_name}'.")
                             disable_mcp_tools_by_profile = True
                         else:
+                            disable_mcp_tools_by_profile = False
                             # Only if tools are not disabled can we select specific ones.
                             if profile_data.get('selected_mcp_tools'):
                                 utils.log(f"MCP Tools explicitly selected by prompt override profile '{profile_name}': {profile_data['selected_mcp_tools']}")
@@ -52,7 +53,7 @@ def get_prompt_override_config(full_prompt_text: str) -> dict:
 
     return {
         'active_overrides': active_overrides,
-        'disable_mcp_tools_by_profile': False,
+        'disable_mcp_tools_by_profile': True,
         'enable_native_tools_by_profile': False,
         'profile_selected_mcp_tools': []
     }
