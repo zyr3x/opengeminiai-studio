@@ -41,7 +41,7 @@
 
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input system-disable-tools-switch" type="checkbox" role="switch" id="sys-disable-tools-{{ loop.index }}" {% if profile.get('disable_tools') %}checked{% endif %}>
-                                <label class="form-check-label" for="sys-disable-tools-{{ loop.index }}">Disable Tools (Commands) when this prompt is active</label>
+                                <label class="form-check-label" for="sys-disable-tools-{{ loop.index }}">Disable MCP Tools (Commands) when this prompt is active</label>
                             </div>
 
                             <div class="form-check form-switch mb-3">
@@ -57,7 +57,7 @@
                                         <option value="{{ tool_name }}" {% if tool_name in profile.get('selected_mcp_tools', []) %}selected{% endif %}>{{ tool_name }}</option>
                                     {% endfor %}
                                 </select>
-                                <div class="form-text">If specific tools are selected, only these tools will be enabled when this system prompt is active. This overrides 'Disable Tools'.</div>
+                                <div class="form-text">Select specific tools to use. This will only have an effect if tools are enabled for this prompt.</div>
                                 {% else %}
                                 <p class="text-muted small">No MCP tools configured. Go to the <a href="#mcp">MCP section</a> to add tools.</p>
                                 {% endif %}
@@ -146,7 +146,7 @@
 
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input disable-tools-switch" type="checkbox" role="switch" id="disable-tools-{{ loop.index }}" {% if profile.get('disable_tools') %}checked{% endif %}>
-                                <label class="form-check-label" for="disable-tools-{{ loop.index }}">Disable Tools (Commands) for this profile</label>
+                                <label class="form-check-label" for="disable-tools-{{ loop.index }}">Disable MCP Tools (Commands) for this profile</label>
                             </div>
 
                             <div class="form-check form-switch mb-3">
@@ -162,7 +162,7 @@
                                         <option value="{{ tool_name }}" {% if tool_name in profile.get('selected_mcp_tools', []) %}selected{% endif %}>{{ tool_name }}</option>
                                     {% endfor %}
                                 </select>
-                                <div class="form-text">If specific tools are selected, only these tools will be enabled when this profile is active. This overrides 'Disable Tools'.</div>
+                                <div class="form-text">Select specific tools to use. This will only have an effect if tools are enabled for this profile.</div>
                                 {% else %}
                                 <p class="text-muted small">No MCP tools configured. Go to the <a href="#mcp">MCP section</a> to add tools.</p>
                                 {% endif %}
@@ -187,4 +187,8 @@
     </form>
 
 </div>
+<script>
+    // Make the list of MCP tools available to the prompt editor script
+    window.mcpTools = {{ mcp_tools | tojson }};
+</script>
 <script src="{{ url_for('static', filename='js/prompt_editor.js') }}" defer></script>

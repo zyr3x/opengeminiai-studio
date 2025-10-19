@@ -29,14 +29,14 @@ def chat_completions():
         messages = openai_request.get('messages', [])
 
         # --- Prompt Engineering & Tool Control ---
-        force_tools_enabled = True  # None: default, True: force, False: disable
+        disable_mcp_tools = False
         enable_native_tools = False
         profile_selected_mcp_tools = [] # to store tools explicitly selected by profile
 
         # Global setting to disable all MCP tools takes highest precedence
         if mcp_handler.disable_all_mcp_tools:
             utils.log("All MCP tools globally disabled via general settings.")
-            force_tools_enabled = False
+            disable_mcp_tools = True
             profile_selected_mcp_tools = [] # Clear any profile-selected tools
 
         if messages:
@@ -49,17 +49,16 @@ def chat_completions():
             override_config = tool_config_utils.get_prompt_override_config(full_prompt_text)
             active_overrides = override_config['active_overrides']
 
-            # Apply profile flags (these might override initial global disable settings 
-            # if the original flow allowed it, particularly for explicit tool selection)
+            # Apply profile flags
             if override_config['disable_mcp_tools_by_profile']:
-                force_tools_enabled = False
+                disable_mcp_tools = True
 
             if override_config['enable_native_tools_by_profile']:
                 enable_native_tools = True
 
+            # The get_prompt_override_config function ensures this list is empty if disable_tools was true for the profile.
             if override_config['profile_selected_mcp_tools']:
                 profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
-                force_tools_enabled = True # Explicit selection overrides general disable
 
             # Process all messages: apply overrides
             for message in messages:
@@ -168,17 +167,16 @@ def chat_completions():
                 final_tools = []
                 mcp_declarations_to_use = None
 
-                # Priority:
-                # 1. Profile-defined selected tools (from prompt override)
-                # 2. Context-aware tools (default, if force_tools_enabled)
-                if profile_selected_mcp_tools:
+                # Priority for MCP tools:
+                # 1. If not disabled, check for profile-defined selected tools.
+                # Unlike the web UI, the proxy does not perform context-aware tool selection.
+                if not disable_mcp_tools and profile_selected_mcp_tools:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
                     utils.log(f"Using MCP tools defined by prompt override profile: {profile_selected_mcp_tools}")
-                elif force_tools_enabled:
-                    mcp_declarations_to_use = None
-                    utils.log(f"No MCP tools explicitly selected. No tools will be sent.")
-                else:
-                    utils.log(f"MCP Tools explicitly disabled or no tools selected.")
+                elif disable_mcp_tools:
+                    utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
+                else:  # MCP tools are enabled, but no specific tools were selected by a profile.
+                    utils.log(f"MCP tools enabled, but no profile selected specific tools. No MCP tools will be sent to proxy endpoint.")
 
                 if mcp_declarations_to_use:
                     final_tools.extend(mcp_declarations_to_use)

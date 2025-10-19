@@ -4,6 +4,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return; // Don't run if the prompt editor form is not on the page
     }
 
+    // Helper to generate MCP tool options from the global variable created in the template
+    function generateMcpToolOptions() {
+        if (window.mcpTools && Array.isArray(window.mcpTools)) {
+            return window.mcpTools.map(tool => `<option value="${tool}">${tool}</option>`).join('');
+        }
+        return '';
+    }
+
     const promptEditorModeSwitch = document.getElementById('prompt-editor-mode-switch');
     const userFriendlyEditor = document.getElementById('user-friendly-editor');
     const advancedEditor = document.getElementById('advanced-editor');
@@ -134,6 +142,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 headerButton.textContent = this.value || 'Unnamed Profile';
             }
         });
+
+        // Add listener to toggle MCP select based on disable switch
+        const disableToolsSwitch = profileDiv.querySelector('.disable-tools-switch');
+        disableToolsSwitch?.addEventListener('change', function() {
+            const mcpSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
+            if (mcpSelect && mcpSelect.tomselect) {
+                if (this.checked) {
+                    mcpSelect.tomselect.disable();
+                } else {
+                    mcpSelect.tomselect.enable();
+                }
+            }
+        });
     }
 
     // Function to attach event listeners to a newly added or existing system prompt profile div
@@ -160,6 +181,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 headerButton.textContent = this.value || 'Unnamed Prompt';
             }
         });
+
+        // Add listener to toggle MCP select based on disable switch
+        const disableToolsSwitch = profileDiv.querySelector('.system-disable-tools-switch');
+        disableToolsSwitch?.addEventListener('change', function() {
+            const mcpSelect = profileDiv.querySelector('.system-mcp-tools-select');
+            if (mcpSelect && mcpSelect.tomselect) {
+                if (this.checked) {
+                    mcpSelect.tomselect.disable();
+                } else {
+                    mcpSelect.tomselect.enable();
+                }
+            }
+        });
     }
 
     // Attach listeners to initially loaded profiles
@@ -177,6 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
         addProfileBtn.dataset.listenerAttached = 'true';
         addProfileBtn.addEventListener('click', function() {
             const newProfileIndex = promptProfilesContainer.children.length + 1; // Simple incrementing index
+            const mcpToolOptions = generateMcpToolOptions();
             const newProfileHtml = `
                 <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New Profile ${newProfileIndex}">
                     <h2 class="accordion-header" id="heading-${newProfileIndex}">
@@ -223,7 +258,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input disable-tools-switch" type="checkbox" role="switch" id="disable-tools-${newProfileIndex}">
-                                <label class="form-check-label" for="disable-tools-${newProfileIndex}">Disable Tools (Commands) for this profile</label>
+                                <label class="form-check-label" for="disable-tools-${newProfileIndex}">Disable MCP Tools (Commands) for this profile</label>
                             </div>
 
                             <div class="form-check form-switch mb-3">
@@ -234,11 +269,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="mb-3">
                                 <label for="mcp-tools-select-${newProfileIndex}" class="form-label"><b>Select MCP Tools</b> (optional)</label>
                                 <select id="mcp-tools-select-${newProfileIndex}" class="form-select prompt-mcp-tools-select" multiple>
-                                    {% for tool_name in mcp_tools %}
-                                        <option value="{{ tool_name }}">{{ tool_name }}</option>
-                                    {% endfor %}
+                                    ${mcpToolOptions}
                                 </select>
-                                <div class="form-text">If specific tools are selected, only these tools will be enabled when this profile is active. This overrides 'Disable Tools'.</div>
+                                <div class="form-text">Select specific tools to use. This will only have an effect if tools are enabled for this profile.</div>
                             </div>
 
                             <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
@@ -268,6 +301,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!systemPromptProfilesContainer) return;
             const newProfileIndex = systemPromptProfilesContainer.children.length + 1;
             const profileId = `sys-${newProfileIndex}-${Date.now()}`; // Ensure unique IDs
+            const mcpToolOptions = generateMcpToolOptions();
             const newProfileHtml = `
                 <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New System Prompt ${newProfileIndex}">
                     <h2 class="accordion-header" id="sys-heading-${profileId}">
@@ -295,7 +329,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input system-disable-tools-switch" type="checkbox" role="switch" id="sys-disable-tools-${profileId}">
-                                <label class="form-check-label" for="sys-disable-tools-${profileId}">Disable Tools (Commands) when this prompt is active</label>
+                                <label class="form-check-label" for="sys-disable-tools-${profileId}">Disable MCP Tools (Commands) when this prompt is active</label>
                             </div>
 
                             <div class="form-check form-switch mb-3">
@@ -306,11 +340,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="mb-3">
                                 <label for="sys-mcp-tools-select-${profileId}" class="form-label"><b>Select MCP Tools</b> (optional)</label>
                                 <select id="sys-mcp-tools-select-${profileId}" class="form-select system-mcp-tools-select" multiple>
-                                    {% for tool_name in mcp_tools %}
-                                        <option value="{{ tool_name }}">{{ tool_name }}</option>
-                                    {% endfor %}
+                                    ${mcpToolOptions}
                                 </select>
-                                <div class="form-text">If specific tools are selected, only these tools will be enabled when this system prompt is active. This overrides 'Disable Tools'.</div>
+                                <div class="form-text">Select specific tools to use. This will only have an effect if tools are enabled for this prompt.</div>
                             </div>
 
                             <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
@@ -340,6 +372,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 plugins: ['remove_button'],
                 placeholder: 'Select MCP Tools (optional)...',
             });
+            // After init, check and set the disabled state
+            const profileDiv = selectElement.closest('.accordion-item');
+            const switchSelector = selectElement.classList.contains('system-mcp-tools-select') ? '.system-disable-tools-switch' : '.disable-tools-switch';
+            const disableSwitch = profileDiv.querySelector(switchSelector);
+            if (disableSwitch && disableSwitch.checked) {
+                selectElement.tomselect.disable();
+            }
         }
     }
 
