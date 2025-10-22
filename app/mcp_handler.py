@@ -58,7 +58,7 @@ def get_declarations_from_tool(tool_name, tool_info):
             "params": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "gemini-proxy", "version": "1.0.0"}
+                "clientInfo": {"name": "gemini-proxy", "version": "2.1.0"}
             }
         }
 

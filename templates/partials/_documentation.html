@@ -1,14 +1,14 @@
 <!-- Documentation Section -->
 <div id="documentation" class="content-section">
     <h1 class="my-4">📚 Documentation</h1>
-    <p class="lead">Dive into the details of OpenGeminiAI Studio v2.0: learn how to set up, configure, and maximize the utility of this powerful proxy for Google's Gemini API.</p>
+    <p class="lead">Dive into the details of OpenGeminiAI Studio v2.1: learn how to set up, configure, and maximize the utility of this powerful proxy for Google's Gemini API.</p>
 
     <h2 class="mt-4">✨ What It Does</h2>
     <ul>
         <li><b>OpenAI API Compatibility:</b> Accepts requests on <code>/v1/chat/completions</code> and <code>/v1/models</code>, transforming them for the Gemini API.</li>
         <li><b>Streaming & History:</b> Handles streaming responses and automatically truncates conversation history to fit context windows.</li>
         <li><b>Multimodal & Code Injection:</b> Supports image, audio, and PDF file embedding directly from local paths (e.g., <code>image_path=...</code>). It also features a powerful <b>code injector</b> (<code>code_path=...</code>) that can embed single files or entire directory structures as text context in your prompt.</li>
-        <li><b>Function Calling:</b> Integrates with external tools via the Multi-Tool Communication Protocol (MCP), with context-aware tool selection to improve accuracy. It also supports enabling native Google tools like Google Search via prompt profiles.</li>
+        <li><b>Function Calling:</b> Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling. **Tool selection is highly configurable:** profiles (System Prompts/Overrides) can explicitly select or disable specific MCP functions/tools, overriding the default context-aware selection logic. Native Google tools (Search, URL Context) can also be enabled via profiles.</li>
         <li><b>Image Generation:</b> Includes a dedicated UI and API endpoint for generating images with compatible models.</li>
         <li><b>Advanced Prompt Control:</b> Lets you define and apply both system-level prompts and dynamic prompt overrides based on keywords.</li>
         <li><b>Multi-Chat UI:</b> The web interface supports multiple, persistent chat sessions, each with its own history and file storage.</li>

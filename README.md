@@ -1,4 +1,4 @@
-# OpenGeminiAI Studio V2.0
+# OpenGeminiAI Studio V2.1
 
 <!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
@@ -17,7 +17,7 @@ This proxy includes a web interface for easy configuration, chat, and management
 -   **Advanced Web Interface:** A comprehensive UI featuring multi-chat management, file uploads, an image generation playground, and persistent conversation history.
 -   **Powerful Prompt Control:** Define system prompts to guide model behavior and create dynamic prompt overrides that trigger on keywords.
 -   **Local File & Code Injection:** Automatically embed local images, PDFs, and audio files in your prompts using syntax like `image_path=...`. It also includes a powerful **code injector** (`code_path=...`) to include single source files or entire directories as context—perfect for IDE integration. The directory scanner intelligently ignores common build artifacts, version control directories, and other non-essential files (`.git`, `node_modules`, `__pycache__`, `*.pyc`, etc.) to provide cleaner context to the model. You can also add custom ignore patterns directly in your prompt using `ignore_dir`, `ignore_file`, and `ignore_type` (for file extensions), e.g., `code_path=... ignore_dir=docs ignore_file=*.tmp ignore_type=log`.
--   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling.
+-   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling. **Tools/functions can be explicitly selected or disabled via System Prompt and Prompt Override profiles.**
 -   **Native Google Tools:** Enable built-in Google tools like Search directly within your prompts for enhanced, real-time data retrieval.
 -   **Integrated Developer Toolkit:** The container comes with a pre-configured development environment, including **Node.js 22+** and the **Docker CLI**. This allows you to run `npx mcp-tools` directly and manage host Docker containers from within the proxy, streamlining development and automation tasks.
 -   **Easy Deployment:** Get up and running in minutes with Docker or standard Python setup.
