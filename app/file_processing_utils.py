@@ -181,40 +181,80 @@ def process_message_for_paths(content: str):
                     continue
 
 
-                if total_raw_size <= MAX_TEXT_SIZE_KB * 1024:
-                    # 2. Text Injection Mode (Small files)
+                # 2. Text Injection Mode (Small or Large context split into parts)
 
-                    injected_code_parts = []
-                    for fpath, relative_path in candidate_files:
-                        try:
-                            with open(fpath, 'r', encoding='utf8', errors='ignore') as f:
-                                code_content = f.read()
+                MAX_PART_SIZE = MAX_TEXT_SIZE_KB * 1024
+                current_text_part = ""
+                total_parts = []
 
-                            _, extension = os.path.splitext(fpath)
-                            lang = extension.lstrip('.') if extension else ''
+                for fpath, relative_path in candidate_files:
+                    try:
+                        with open(fpath, 'r', encoding='utf8', errors='ignore') as f:
+                            code_content = f.read()
 
-                            injected_code = (f"\n--- Code File: {fpath} ---\n"
-                                              f"```{lang}\n{code_content}\n```\n")
-                            injected_code_parts.append(injected_code)
-                        except Exception as e:
-                            utils.log(f"Error reading code file {fpath} for text injection: {e}")
+                        _, extension = os.path.splitext(fpath)
+                        lang = extension.lstrip('.') if extension else ''
 
-                    full_injection_text = "".join(injected_code_parts)
-                    header = (f"The following context contains code files imported from the path "
-                              f"'{file_path_str}' (Total size: {total_raw_size/1024:.2f} KB, TEXT MODE):\n\n")
-                    new_content_parts.append({
-                        "type": "text",
-                        "text": header + full_injection_text
-                    })
-                    utils.log(f"Successfully injected {len(injected_code_parts)} code files in text mode.")
+                        # Use relative_path for user context
+                        injected_code_snippet = (f"\n--- Code File: {relative_path} ---\n"
+                                                 f"```{lang}\n{code_content}\n```\n")
 
-                else:
-                    # 3. Size Limit Exceeded
-                    msg = (f"[Code import from '{file_path_str}' skipped: "
-                           f"Total size ({total_raw_size/1024:.2f} KB) exceeds the text injection "
-                           f"limit of {MAX_TEXT_SIZE_KB} KB.]")
+                        snippet_bytes = injected_code_snippet.encode('utf-8')
+                        snippet_size = len(snippet_bytes)
+
+                        current_part_bytes_len = len(current_text_part.encode('utf-8'))
+
+                        # Check if adding snippet exceeds limit for current part
+                        if current_part_bytes_len > 0 and current_part_bytes_len + snippet_size > MAX_PART_SIZE:
+                            # Flush existing part
+                            total_parts.append(current_text_part)
+                            current_text_part = injected_code_snippet
+                        elif snippet_size > MAX_PART_SIZE:
+                            # Handle case where a single file exceeds the part limit. 
+                            # It must be sent as its own part, but we warn.
+                            utils.log(f"Warning: Single file snippet '{relative_path}' formatted size ({snippet_size/1024:.2f} KB) exceeds MAX_TEXT_SIZE_KB ({MAX_TEXT_SIZE_KB} KB).")
+                            if current_text_part:
+                                total_parts.append(current_text_part)
+                            total_parts.append(injected_code_snippet)
+                            current_text_part = ""
+                        else:
+                            current_text_part += injected_code_snippet
+
+
+                    except Exception as e:
+                        utils.log(f"Error reading code file {fpath} for text injection: {e}")
+
+                # Flush the last accumulated part
+                if current_text_part:
+                    total_parts.append(current_text_part)
+
+                if not total_parts:
+                    # This means all candidates failed to read, or were single massive files handled above
+                    msg = f"[Code import from '{file_path_str}' failed due to read errors or internal size inconsistencies.]"
                     utils.log(msg)
                     new_content_parts.append({"type": "text", "text": msg})
+                else:
+                    mode_description = "MULTI-PART TEXT MODE" if len(total_parts) > 1 else "TEXT MODE"
+
+                    initial_header = (f"The following context contains code files imported from the path "
+                                      f"'{file_path_str}' (Total size: {total_raw_size/1024:.2f} KB, {mode_description}).\n\n")
+
+                    # Add initial header to the first part
+                    total_parts[0] = initial_header + total_parts[0]
+
+                    for idx, part_text in enumerate(total_parts):
+                        # Add supplementary header for subsequent parts in multi-part mode
+                        if len(total_parts) > 1 and idx > 0:
+                            part_header = (f"\n--- Continuation of code context for '{file_path_str}' "
+                                           f"(Part {idx + 1} of {len(total_parts)}, {mode_description}) ---\n")
+                            part_text = part_header + part_text
+
+                        new_content_parts.append({
+                            "type": "text",
+                            "text": part_text
+                        })
+
+                    utils.log(f"Successfully injected {len(candidate_files)} code files across {len(total_parts)} text parts.")
 
                 last_end = command_end
                 continue # Skip multimodal logic below
