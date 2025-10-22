@@ -193,7 +193,7 @@ def process_message_for_paths(content: str):
                             _, extension = os.path.splitext(fpath)
                             lang = extension.lstrip('.') if extension else ''
 
-                            injected_code = (f"\n--- Code File: {relative_path} ---\n"
+                            injected_code = (f"\n--- Code File: {fpath} ---\n"
                                               f"```{lang}\n{code_content}\n```\n")
                             injected_code_parts.append(injected_code)
                         except Exception as e:
