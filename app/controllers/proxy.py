@@ -141,6 +141,28 @@ def chat_completions():
                     else:
                         gemini_contents.append(mapped_messages[i])
 
+            # Post-process to merge consecutive text parts within each message for efficiency
+            for content in gemini_contents:
+                original_parts = content.get('parts', [])
+                if len(original_parts) > 1:
+                    merged_parts = []
+                    text_buffer = []
+                    for part in original_parts:
+                        # A part is a text part if it only contains the 'text' key.
+                        is_text_part = 'text' in part and len(part) == 1
+                        if is_text_part:
+                            text_buffer.append(part['text'])
+                        else:
+                            if text_buffer:
+                                merged_parts.append({'text': '\n'.join(text_buffer)})
+                                text_buffer = []
+                            merged_parts.append(part)
+
+                    if text_buffer:
+                        merged_parts.append({'text': '\n'.join(text_buffer)})
+
+                    content['parts'] = merged_parts
+
         # --- Token Management ---
         # Get the token limit for the requested model
         token_limit = utils.get_model_input_limit(COMPLETION_MODEL, config.API_KEY, config.UPSTREAM_URL)

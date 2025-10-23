@@ -184,6 +184,29 @@ def pretty_json(data):
     return json.dumps(data, indent=2, ensure_ascii=False, default=str)
 
 
+def save_config_to_file(config_str: str, file_path: str, config_name: str):
+    """Saves a configuration string to a file, validating JSON first."""
+    if not config_str.strip():
+        # Handle case where user clears config in editor
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            log(f"{config_name} config cleared.")
+        return
+
+    # 1. Validate JSON
+    try:
+        json.loads(config_str.strip())
+    except json.JSONDecodeError as e:
+        # Raise as ValueError so Flask controllers can catch it and redirect
+        raise ValueError(f"Invalid JSON in {config_name}: {e}")
+
+    # 2. Save file
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, 'w') as f:
+        f.write(config_str.strip())
+    log(f"{config_name} updated and saved to {file_path}.")
+
+
 def format_tool_output_for_display(tool_parts: list) -> str | None:
     """
     Formats the output from tool calls for display, especially when the model is silent.
