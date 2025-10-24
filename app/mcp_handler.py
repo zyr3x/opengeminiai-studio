@@ -11,6 +11,7 @@ import threading
 import time
 import fnmatch
 import ast
+import re
 
 from .utils import log
 from contextlib import contextmanager
@@ -208,33 +209,6 @@ def get_file_content(path: str) -> str:
     except Exception as e:
         return f"Error reading file '{path}': {e}"
 
-def list_symbols_in_file(path: str) -> str:
-    """
-    Parses a Python file to list top-level functions and classes.
-    This is useful for quickly understanding the structure of a file.
-    """
-    resolved_path = _safe_path_resolve(path)
-    if not resolved_path or not os.path.exists(resolved_path):
-        return f"Error: File '{path}' not found or inaccessible."
-    if not os.path.isfile(resolved_path):
-        return f"Error: Path '{path}' is a directory, not a file."
-
-    try:
-        with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
-            content = f.read()
-        tree = ast.parse(content)
-        symbols = []
-        for node in tree.body:
-            if isinstance(node, ast.FunctionDef):
-                symbols.append(f"  - [Function] {node.name}")
-            elif isinstance(node, ast.ClassDef):
-                symbols.append(f"  - [Class]    {node.name}")
-        if not symbols:
-            return f"File '{path}' does not contain any top-level functions or classes."
-        return f"Symbols in {path}:\n" + "\n".join(symbols)
-    except Exception as e:
-        return f"Error parsing file '{path}': {e}"
-
 def get_code_snippet(path: str, symbol_name: str) -> str:
     """
     Extracts the source code of a specific function or class from a Python file.
@@ -316,8 +290,30 @@ def apply_patch(patch_content: str) -> str:
         return "Error: Patch content must be a non-empty string."
 
     # Clean up potential markdown formatting from the LLM's output
-    if patch_content.strip().startswith("```"):
-        patch_content = "\n".join(patch_content.strip().split('\n')[1:-1])
+    original_content = patch_content
+    patch_content = patch_content.strip()
+    
+    # Remove markdown code blocks (various formats)
+    if patch_content.startswith("```"):
+        lines = patch_content.split('\n')
+        # Remove first line (```diff or ```patch or just ```)
+        lines = lines[1:]
+        # Remove last line if it's ```
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        patch_content = '\n'.join(lines)
+        log(f"Cleaned markdown formatting from patch")
+    
+    # Additional cleanup: remove any remaining stray ```
+    patch_content = patch_content.replace('```', '')
+    
+    # Verify patch format (should start with --- or diff)
+    patch_content = patch_content.strip()
+    if not patch_content:
+        return "Error: Patch content is empty after cleanup."
+    
+    if not (patch_content.startswith('---') or patch_content.startswith('diff ')):
+        log(f"Warning: Patch doesn't start with standard format. First line: {patch_content.split(chr(10))[0][:50]}")
 
     """
     Applies a git-style patch string to the project codebase using the system's `patch` utility.
@@ -358,17 +354,31 @@ def apply_patch(patch_content: str) -> str:
             log(success_message)
             return success_message
         else:
-            error_message = f"Error applying patch. Return code: {result.returncode}"
+            # Build detailed error message
+            error_message = f"Error applying patch. Return code: {result.returncode}\n"
+            
+            # Check for common issues
+            if "malformed patch" in result.stderr.lower():
+                error_message += "\n⚠️  MALFORMED PATCH: The patch format is incorrect.\n"
+                error_message += "Please ensure:\n"
+                error_message += "  1. Remove all markdown formatting (```, ```diff, etc.)\n"
+                error_message += "  2. Use proper unified diff format (from 'git diff')\n"
+                error_message += "  3. Include file paths with 'a/' and 'b/' prefixes\n"
+                error_message += "  4. Each file change should start with '--- a/file' and '+++ b/file'\n\n"
+            
             if result.stderr:
-                error_message += f"\nStderr:\n{result.stderr}"
+                error_message += f"Stderr:\n{result.stderr}\n"
             if result.stdout:
-                error_message += f"\nStdout:\n{result.stdout}"
+                error_message += f"Stdout:\n{result.stdout}\n"
+            
+            # Add first few lines of the patch for debugging
+            patch_preview = '\n'.join(patch_content.split('\n')[:10])
+            error_message += f"\nFirst 10 lines of patch:\n{patch_preview}\n"
+            
             log(error_message)
             return error_message
 
     except Exception as e:
-        if os.path.exists("temp_patch.diff"):
-            os.remove("temp_patch.diff")
         log(f"Failed to execute patch command: {e}")
         return f"Error: An unexpected exception occurred while trying to apply the patch: {e}"
 
@@ -834,7 +844,6 @@ def get_file_stats(path: str) -> str:
 BUILTIN_FUNCTIONS = {
     "list_files": list_files,
     "get_file_content": get_file_content,
-    "list_symbols_in_file": list_symbols_in_file,
     "get_code_snippet": get_code_snippet,
     "search_codebase": search_codebase,
     "apply_patch": apply_patch,
@@ -868,7 +877,7 @@ BUILTIN_DECLARATIONS = [
     },
     {
         "name": "get_code_snippet",
-        "description": "Extracts the source code of a specific function or class from a Python file. Use this after finding a symbol with list_symbols_ in_file.",
+        "description": "Extracts the source code of a specific function or class from a Python file. Use this after finding a symbol with analyze_file_structure.",
         "parameters": {
             "type": "OBJECT",
             "required": ["path", "symbol_name"],
@@ -1026,7 +1035,7 @@ BUILTIN_DECLARATIONS = [
     },
     {
         "name": "analyze_file_structure",
-        "description": "Analyzes a Python file's structure: imports, classes, functions, decorators, and docstrings. More detailed than list_symbols_in_file.",
+        "description": "Analyzes a Python file's structure: imports, classes, functions, decorators, and docstrings.",
         "parameters": {
             "type": "OBJECT",
             "required": ["path"],
@@ -1057,7 +1066,6 @@ BUILTIN_DECLARATIONS = [
 
 
 # --- MCP Tool Configuration ---
-mcp_config = {}
 mcp_config = {}
 MCP_CONFIG_FILE = 'var/config/mcp.json'
 mcp_function_declarations = []  # A flat list of all function declarations from all tools
@@ -1634,6 +1642,7 @@ def execute_mcp_tool(function_name, tool_args):
             return f"Error: Built-in function '{function_name}' not implemented."
 
         normalized_args = _normalize_mcp_args(tool_args)
+        log(f"Normalized args for {function_name}: {normalized_args}")
 
         # Prepare args for the specific built-in function call
         func_args = {}
@@ -1648,37 +1657,31 @@ def execute_mcp_tool(function_name, tool_args):
                         func_args['max_depth'] = int(max_depth_val)
 
             elif function_name == 'get_file_content':
-                path = normalized_args['path']
-                if path is None:
-                    raise TypeError("Path argument cannot be null.")
-                func_args['path'] = path
-
-            elif function_name == 'list_symbols_in_file':
-                path = normalized_args['path']
-                if path is None:
-                    raise TypeError("Path argument cannot be null.")
+                path = normalized_args.get('path')
+                if not path:
+                    raise TypeError("Path argument is required and cannot be null or empty.")
                 func_args['path'] = path
 
             elif function_name == 'get_code_snippet':
-                path = normalized_args['path']
-                symbol_name = normalized_args['symbol_name']
-                if path is None:
-                    raise TypeError("Path argument cannot be null.")
-                if symbol_name is None:
-                    raise TypeError("Symbol name argument cannot be null.")
+                path = normalized_args.get('path')
+                symbol_name = normalized_args.get('symbol_name')
+                if not path:
+                    raise TypeError("Path argument is required and cannot be null or empty.")
+                if not symbol_name:
+                    raise TypeError("Symbol name argument is required and cannot be null or empty.")
                 func_args['path'] = path
                 func_args['symbol_name'] = symbol_name
 
             elif function_name == 'search_codebase':
-                query = normalized_args['query']
-                if query is None:
-                    raise TypeError("Query argument cannot be null.")
+                query = normalized_args.get('query')
+                if not query:
+                    raise TypeError("Query argument is required and cannot be null or empty.")
                 func_args['query'] = query
 
             elif function_name == 'apply_patch':
-                patch_content = normalized_args['patch_content']
-                if patch_content is None:
-                    raise TypeError("Patch content argument cannot be null.")
+                patch_content = normalized_args.get('patch_content')
+                if not patch_content:
+                    raise TypeError("Patch content argument is required and cannot be null or empty.")
                 func_args['patch_content'] = patch_content
             
             # Git operations
