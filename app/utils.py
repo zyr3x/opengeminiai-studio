@@ -181,6 +181,8 @@ def truncate_contents(contents: list, limit: int) -> list:
     """
     Truncates the 'contents' list by removing older messages (but keeping the first one)
     until the estimated token count is within the specified limit.
+    
+    NEW: Uses smart truncation with summarization when available.
     """
     estimated_tokens = estimate_token_count(contents)
     if estimated_tokens <= limit:
@@ -188,6 +190,17 @@ def truncate_contents(contents: list, limit: int) -> list:
 
     log(f"Estimated token count ({estimated_tokens}) exceeds limit ({limit}). Truncating...")
 
+    # Try smart truncation first (with summarization)
+    try:
+        from . import optimization
+        truncated = optimization.smart_truncate_contents(contents, limit, keep_recent=5)
+        final_tokens = estimate_token_count(truncated)
+        log(f"Smart truncation complete. Final estimated token count: {final_tokens}")
+        return truncated
+    except Exception as e:
+        log(f"Smart truncation failed, falling back to simple truncation: {e}")
+
+    # Fallback to simple truncation
     # Keep the first message (often a system prompt) and the most recent ones.
     # We will remove messages from the second position (index 1).
     truncated_contents = contents.copy()
@@ -206,7 +219,33 @@ def pretty_json(data):
 def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bool = False, timeout: int = 300) -> requests.Response:
     """
     Makes a POST request with retry logic for 429 and connection errors.
+    OPTIMIZED: Uses connection pooling for better performance.
     """
+    # Используем оптимизированную сессию с connection pooling
+    try:
+        from . import optimization
+        session = optimization.get_http_session()
+        rate_limiter = optimization.get_rate_limiter()
+        
+        # Применяем rate limiting
+        rate_limiter.wait_if_needed()
+        
+        # Выполняем запрос с переиспользованием соединений
+        response = session.post(
+            url,
+            headers=headers,
+            json=json_data,
+            stream=stream,
+            timeout=timeout
+        )
+        response.raise_for_status()
+        return response
+        
+    except ImportError:
+        # Fallback если optimization модуль недоступен
+        pass
+    
+    # Оригинальная логика с retry (fallback)
     retries = 5
     backoff_factor = 1.0  # seconds
 

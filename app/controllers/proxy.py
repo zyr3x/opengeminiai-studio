@@ -12,6 +12,7 @@ from app.config import config
 from app import mcp_handler
 from app import utils
 from app import tool_config_utils
+from app import optimization
 import traceback
 from app import file_processing_utils
 
@@ -63,6 +64,7 @@ def chat_completions():
 
             # Process all messages: apply overrides
             code_tools_requested = False
+            code_project_root = None  # Store the project root path for the entire request
             processed_messages = []
 
             for message in messages:
@@ -79,10 +81,13 @@ def chat_completions():
                     processed_result = file_processing_utils.process_message_for_paths(content)
 
                     if isinstance(processed_result, tuple):
-                        # (parts, code_tools_requested)
-                        message['content'], requested = processed_result
-                        if requested:
+                        # (parts, code_path_or_bool)
+                        message['content'], code_path_value = processed_result
+                        if code_path_value:
                             code_tools_requested = True
+                            # If code_path_value is a string (path), save it for the entire request
+                            if isinstance(code_path_value, str):
+                                code_project_root = code_path_value
                     else:
                         message['content'] = processed_result
 
@@ -199,7 +204,38 @@ def chat_completions():
                 request_data = {
                     "contents": current_contents
                 }
+                
+                # --- OPTIMIZATION: Prompt Caching ---
+                # Пытаемся использовать кэшированный контекст для системной инструкции
+                cached_context_id = None
                 if system_instruction:
+                    # Извлекаем текст системной инструкции
+                    system_text = ""
+                    for part in system_instruction.get("parts", []):
+                        if "text" in part:
+                            system_text += part["text"]
+                    
+                    # Пытаемся получить/создать кэшированный контекст
+                    if system_text and len(system_text) > 500:  # Кэшируем только длинные промпты
+                        try:
+                            cached_context_id = optimization.get_cached_context_id(
+                                config.API_KEY,
+                                config.UPSTREAM_URL,
+                                COMPLETION_MODEL,
+                                system_text
+                            )
+                            if cached_context_id:
+                                utils.log(f"✓ Using cached context: {cached_context_id}")
+                                request_data["cachedContent"] = cached_context_id
+                            else:
+                                # Если не получилось кэшировать, используем обычный способ
+                                request_data["systemInstruction"] = system_instruction
+                        except Exception as e:
+                            utils.log(f"Failed to use cached context, falling back to normal: {e}")
+                            request_data["systemInstruction"] = system_instruction
+                    else:
+                        request_data["systemInstruction"] = system_instruction
+                elif system_instruction:
                     request_data["systemInstruction"] = system_instruction
 
                 # --- Tool Configuration ---
@@ -365,35 +401,85 @@ def chat_completions():
                 })
 
                 tool_response_parts = []
-                for tool_call in tool_calls:
-                    function_name = tool_call.get("name")
-                    tool_args = tool_call.get("args")
-
-                    # --- User Feedback for Tool Call ---
-                    args_str = json.dumps(tool_args)
-                    feedback_message = f"🔍 Assistant is using tool: {function_name}({args_str})"
-                    utils.log(feedback_message)
-                    # --- End User Feedback ---
-
-                    output = mcp_handler.execute_mcp_tool(function_name, tool_args)
-
-                    response_payload = {}
-                    if output is not None:
-                        try:
-                            # If tool returns a JSON string, parse it into a JSON object for the API
-                            response_payload = json.loads(output)
-                        except (json.JSONDecodeError, TypeError):
-                            # Otherwise, treat it as plain text and wrap it in a standard 'content' object
-                            response_payload = {"content": str(output)}
+                
+                # --- OPTIMIZATION: Parallel tool execution ---
+                # Проверяем, можно ли выполнить инструменты параллельно
+                if optimization.can_execute_parallel(tool_calls):
+                    utils.log(f"✓ Executing {len(tool_calls)} tools in parallel")
+                    
+                    # Подготавливаем tool calls для параллельного выполнения
+                    parallel_calls = []
+                    for tool_call in tool_calls:
+                        parallel_calls.append({
+                            'name': tool_call.get("name"),
+                            'args': tool_call.get("args")
+                        })
+                    
+                    # Выполняем параллельно с учетом project root
+                    if code_project_root:
+                        with mcp_handler.set_project_root(code_project_root):
+                            results = optimization.execute_tools_parallel(parallel_calls)
                     else:
-                        response_payload = {} # If there's no output, provide an empty object
+                        results = optimization.execute_tools_parallel(parallel_calls)
+                    
+                    # Обрабатываем результаты
+                    for tool_call_data, output in results:
+                        function_name = tool_call_data['name']
+                        
+                        response_payload = {}
+                        if output is not None:
+                            try:
+                                response_payload = json.loads(output)
+                            except (json.JSONDecodeError, TypeError):
+                                response_payload = {"content": str(output)}
+                        else:
+                            response_payload = {}
+                        
+                        tool_response_parts.append({
+                            "functionResponse": {
+                                "name": function_name,
+                                "response": response_payload
+                            }
+                        })
+                
+                else:
+                    # Последовательное выполнение (оригинальная логика)
+                    utils.log(f"✓ Executing {len(tool_calls)} tools sequentially")
+                    
+                    for tool_call in tool_calls:
+                        function_name = tool_call.get("name")
+                        tool_args = tool_call.get("args")
 
-                    tool_response_parts.append({
-                        "functionResponse": {
-                            "name": function_name,
-                            "response": response_payload
-                        }
-                    })
+                        # --- User Feedback for Tool Call ---
+                        args_str = json.dumps(tool_args)
+                        feedback_message = f"🔍 Assistant is using tool: {function_name}({args_str})"
+                        utils.log(feedback_message)
+                        # --- End User Feedback ---
+
+                        # Set project root context for built-in tools if code_path was used
+                        if code_project_root:
+                            with mcp_handler.set_project_root(code_project_root):
+                                output = mcp_handler.execute_mcp_tool(function_name, tool_args)
+                        else:
+                            output = mcp_handler.execute_mcp_tool(function_name, tool_args)
+
+                        response_payload = {}
+                        if output is not None:
+                            try:
+                                # If tool returns a JSON string, parse it into a JSON object for the API
+                                response_payload = json.loads(output)
+                            except (json.JSONDecodeError, TypeError):
+                                # Otherwise, treat it as plain text and wrap it in a standard 'content' object
+                                response_payload = {"content": str(output)}
+                        else:
+                            response_payload = {} # If there's no output, provide an empty object
+
+                        tool_response_parts.append({
+                            "functionResponse": {
+                                "name": function_name,
+                                "response": response_payload
+                            }
+                        })
 
                 current_contents.append({
                     "role": "tool",

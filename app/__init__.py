@@ -14,6 +14,7 @@ def create(app: Flask):
     from app.controllers.prompt_settings import prompt_settings_bp
     from app.controllers.web_ui import web_ui_bp
     from app.controllers.web_ui_chat import web_ui_chat_bp
+    from app.controllers.metrics import metrics_bp
     from app.db import init_db
 
     init_db()
@@ -29,6 +30,7 @@ def create(app: Flask):
     app.register_blueprint(prompt_settings_bp)
     app.register_blueprint(web_ui_bp)
     app.register_blueprint(web_ui_chat_bp)
+    app.register_blueprint(metrics_bp)
 
     return app
 

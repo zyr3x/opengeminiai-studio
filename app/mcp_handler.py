@@ -14,6 +14,7 @@ import ast
 
 from .utils import log
 from contextlib import contextmanager
+from . import optimization
 
 # --- BUILT-IN CODE NAVIGATION TOOL DEFINITIONS ---
 BUILTIN_TOOL_NAME = "__builtin_code_navigator"
@@ -371,13 +372,480 @@ def apply_patch(patch_content: str) -> str:
         log(f"Failed to execute patch command: {e}")
         return f"Error: An unexpected exception occurred while trying to apply the patch: {e}"
 
+
+# --- GIT OPERATIONS ---
+def git_status() -> str:
+    """
+    Shows the working tree status including staged, unstaged, and untracked files.
+    This is useful for understanding what changes exist before committing.
+    """
+    try:
+        result = subprocess.run(
+            ['git', 'status', '--short', '--branch'],
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10
+        )
+
+        if result.returncode != 0:
+            return f"Error: Not a git repository or git command failed.\n{result.stderr}"
+
+        if not result.stdout.strip():
+            return "Working tree is clean (no changes)."
+
+        return f"Git Status:\n```\n{result.stdout.strip()}\n```"
+    except subprocess.TimeoutExpired:
+        return "Error: git status command timed out."
+    except FileNotFoundError:
+        return "Error: git command not found. Please ensure git is installed."
+    except Exception as e:
+        return f"Error running git status: {e}"
+
+
+def git_log(max_count: int = 10, path: str = None) -> str:
+    """
+    Shows the commit history with author, date, and commit message.
+    Optionally filter by a specific file path.
+    """
+    try:
+        max_count = int(max_count) if max_count else 10
+        max_count = min(max(1, max_count), 50)  # Limit between 1 and 50
+
+        cmd = ['git', 'log', f'--max-count={max_count}', '--oneline', '--graph', '--decorate']
+        if path:
+            resolved_path = _safe_path_resolve(path)
+            if not resolved_path:
+                return f"Error: Invalid or unsafe path '{path}'."
+            cmd.extend(['--', resolved_path])
+
+        result = subprocess.run(
+            cmd,
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15
+        )
+
+        if result.returncode != 0:
+            return f"Error: git log failed.\n{result.stderr}"
+
+        if not result.stdout.strip():
+            return "No commits found." if not path else f"No commits found for path '{path}'."
+
+        header = f"Last {max_count} commits" + (f" for {path}" if path else "") + ":\n"
+        return f"{header}```\n{result.stdout.strip()}\n```"
+    except Exception as e:
+        return f"Error running git log: {e}"
+
+
+def git_diff(staged: bool = False, path: str = None) -> str:
+    """
+    Shows changes in the working directory or staged area.
+    Use staged=True to see changes in the staging area (git diff --cached).
+    """
+    try:
+        cmd = ['git', 'diff']
+        if staged:
+            cmd.append('--cached')
+
+        if path:
+            resolved_path = _safe_path_resolve(path)
+            if not resolved_path:
+                return f"Error: Invalid or unsafe path '{path}'."
+            cmd.extend(['--', resolved_path])
+
+        result = subprocess.run(
+            cmd,
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30
+        )
+
+        if result.returncode != 0:
+            return f"Error: git diff failed.\n{result.stderr}"
+
+        if not result.stdout.strip():
+            area = "staged area" if staged else "working directory"
+            return f"No changes in {area}." + (f" for path '{path}'." if path else "")
+
+        # Limit output size
+        output = result.stdout
+        if len(output) > 50000:  # ~50KB limit
+            output = output[:50000] + "\n... (output truncated, diff is too large)"
+
+        return f"Git Diff:\n```diff\n{output}\n```"
+    except Exception as e:
+        return f"Error running git diff: {e}"
+
+
+def git_show(commit: str = "HEAD", path: str = None) -> str:
+    """
+    Shows the contents of a specific commit.
+    Optionally filter by a specific file path to see only changes to that file.
+    """
+    try:
+        if not commit:
+            commit = "HEAD"
+
+        # Security: sanitize commit reference
+        if not re.match(r'^[a-zA-Z0-9_\-\.\/]+$', commit):
+            return f"Error: Invalid commit reference '{commit}'."
+
+        cmd = ['git', 'show', commit, '--stat']
+        if path:
+            resolved_path = _safe_path_resolve(path)
+            if not resolved_path:
+                return f"Error: Invalid or unsafe path '{path}'."
+            # For git show, we need relative path from git root
+            try:
+                git_root = subprocess.run(
+                    ['git', 'rev-parse', '--show-toplevel'],
+                    cwd=get_project_root(),
+                    capture_output=True,
+                    text=True,
+                    check=True
+                ).stdout.strip()
+                rel_path = os.path.relpath(resolved_path, git_root)
+                cmd.extend(['--', rel_path])
+            except Exception:
+                return f"Error: Could not determine git root for path '{path}'."
+
+        result = subprocess.run(
+            cmd,
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15
+        )
+
+        if result.returncode != 0:
+            return f"Error: git show failed. Commit '{commit}' may not exist.\n{result.stderr}"
+
+        output = result.stdout
+        if len(output) > 30000:
+            output = output[:30000] + "\n... (output truncated)"
+
+        return f"Commit {commit}:\n```\n{output}\n```"
+    except Exception as e:
+        return f"Error running git show: {e}"
+
+
+def git_blame(path: str, start_line: int = None, end_line: int = None) -> str:
+    """
+    Shows who last modified each line of a file and when.
+    Optionally specify line range with start_line and end_line.
+    """
+    resolved_path = _safe_path_resolve(path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        return f"Error: File '{path}' not found or inaccessible."
+
+    if not os.path.isfile(resolved_path):
+        return f"Error: Path '{path}' is not a file."
+
+    try:
+        cmd = ['git', 'blame', '--date=short']
+
+        if start_line is not None and end_line is not None:
+            start_line = int(start_line)
+            end_line = int(end_line)
+            if start_line > 0 and end_line >= start_line:
+                cmd.extend(['-L', f'{start_line},{end_line}'])
+
+        # Get relative path from git root
+        git_root = subprocess.run(
+            ['git', 'rev-parse', '--show-toplevel'],
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            check=True
+        ).stdout.strip()
+        rel_path = os.path.relpath(resolved_path, git_root)
+        cmd.append(rel_path)
+
+        result = subprocess.run(
+            cmd,
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15
+        )
+
+        if result.returncode != 0:
+            if "not a git repository" in result.stderr.lower():
+                return f"Error: '{path}' is not in a git repository."
+            return f"Error: git blame failed.\n{result.stderr}"
+
+        output = result.stdout
+        if len(output) > 20000:
+            lines = output.split('\n')
+            output = '\n'.join(lines[:200]) + f"\n... (showing first 200 lines, total {len(lines)} lines)"
+
+        return f"Git Blame for {path}:\n```\n{output}\n```"
+    except Exception as e:
+        return f"Error running git blame: {e}"
+
+
+def list_recent_changes(days: int = 7, max_files: int = 20) -> str:
+    """
+    Lists files that were modified in the last N days using git log.
+    Useful for understanding recent development activity.
+    """
+    try:
+        days = int(days) if days else 7
+        days = min(max(1, days), 90)  # Limit between 1 and 90 days
+
+        max_files = int(max_files) if max_files else 20
+        max_files = min(max(1, max_files), 100)
+
+        result = subprocess.run(
+            ['git', 'log', f'--since={days} days ago', '--name-only', '--pretty=format:', '--'],
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15
+        )
+
+        if result.returncode != 0:
+            return f"Error: git log failed.\n{result.stderr}"
+
+        # Parse unique files from output
+        files = set()
+        for line in result.stdout.strip().split('\n'):
+            line = line.strip()
+            if line and not line.startswith('#'):
+                files.add(line)
+
+        if not files:
+            return f"No files modified in the last {days} days."
+
+        files_list = sorted(files)[:max_files]
+        count_str = f" (showing {len(files_list)} of {len(files)})" if len(files) > max_files else ""
+
+        return f"Files modified in the last {days} days{count_str}:\n```\n" + '\n'.join(files_list) + "\n```"
+    except Exception as e:
+        return f"Error listing recent changes: {e}"
+
+
+# --- FILE ANALYSIS ---
+def analyze_file_structure(path: str) -> str:
+    """
+    Analyzes a Python file to extract comprehensive structural information:
+    imports, functions, classes, decorators, and docstrings.
+    """
+    resolved_path = _safe_path_resolve(path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        return f"Error: File '{path}' not found or inaccessible."
+
+    if not os.path.isfile(resolved_path):
+        return f"Error: Path '{path}' is not a file."
+
+    try:
+        with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+
+        tree = ast.parse(content)
+
+        # Extract imports
+        imports = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports.append(f"import {alias.name}" + (f" as {alias.asname}" if alias.asname else ""))
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                for alias in node.names:
+                    imports.append(
+                        f"from {module} import {alias.name}" + (f" as {alias.asname}" if alias.asname else ""))
+
+        # Extract top-level definitions
+        functions = []
+        classes = []
+
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef):
+                # Extract function signature
+                args_str = ", ".join([arg.arg for arg in node.args.args])
+                decorators = [d.id if isinstance(d, ast.Name) else ast.unparse(d) for d in node.decorator_list]
+
+                func_info = f"def {node.name}({args_str})"
+                if decorators:
+                    func_info = f"@{', @'.join(decorators)}\n  {func_info}"
+
+                # Add docstring if present
+                docstring = ast.get_docstring(node)
+                if docstring:
+                    # Truncate long docstrings
+                    if len(docstring) > 100:
+                        docstring = docstring[:100] + "..."
+                    func_info += f"\n    \"\"\"{docstring}\"\"\""
+
+                functions.append(func_info)
+
+            elif isinstance(node, ast.ClassDef):
+                # Extract class info
+                bases = [ast.unparse(base) for base in node.bases]
+                bases_str = f"({', '.join(bases)})" if bases else ""
+
+                class_info = f"class {node.name}{bases_str}"
+
+                # Count methods
+                methods = [n for n in node.body if isinstance(n, ast.FunctionDef)]
+                class_info += f"  # {len(methods)} method(s)"
+
+                # Add docstring
+                docstring = ast.get_docstring(node)
+                if docstring:
+                    if len(docstring) > 80:
+                        docstring = docstring[:80] + "..."
+                    class_info += f"\n    \"\"\"{docstring}\"\"\""
+
+                classes.append(class_info)
+
+        # Build result
+        result = [f"File Structure Analysis: {path}", "=" * 50, ""]
+
+        if imports:
+            result.append("IMPORTS:")
+            for imp in imports[:20]:  # Limit to first 20
+                result.append(f"  {imp}")
+            if len(imports) > 20:
+                result.append(f"  ... and {len(imports) - 20} more")
+            result.append("")
+
+        if classes:
+            result.append(f"CLASSES ({len(classes)}):")
+            for cls in classes:
+                result.append(f"  {cls}")
+            result.append("")
+
+        if functions:
+            result.append(f"FUNCTIONS ({len(functions)}):")
+            for func in functions:
+                result.append(f"  {func}")
+            result.append("")
+
+        if not imports and not classes and not functions:
+            result.append("No top-level imports, classes, or functions found.")
+
+        return "\n".join(result)
+
+    except SyntaxError as e:
+        return f"Error: File '{path}' has syntax errors and cannot be parsed.\nLine {e.lineno}: {e.msg}"
+    except Exception as e:
+        return f"Error analyzing file structure: {e}"
+
+
+def get_file_stats(path: str) -> str:
+    """
+    Returns statistics about a file: size, lines, language, last modified date, and git info.
+    """
+    resolved_path = _safe_path_resolve(path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        return f"Error: File '{path}' not found or inaccessible."
+
+    if not os.path.isfile(resolved_path):
+        return f"Error: Path '{path}' is not a file."
+
+    try:
+        stats = os.stat(resolved_path)
+        file_size = stats.st_size
+        modified_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(stats.st_mtime))
+
+        # Detect language by extension
+        _, ext = os.path.splitext(resolved_path)
+        lang_map = {
+            '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
+            '.java': 'Java', '.cpp': 'C++', '.c': 'C', '.go': 'Go',
+            '.rs': 'Rust', '.rb': 'Ruby', '.php': 'PHP', '.swift': 'Swift',
+            '.kt': 'Kotlin', '.cs': 'C#', '.html': 'HTML', '.css': 'CSS',
+            '.md': 'Markdown', '.json': 'JSON', '.xml': 'XML', '.yaml': 'YAML',
+            '.sh': 'Shell', '.sql': 'SQL', '.r': 'R', '.m': 'MATLAB'
+        }
+        language = lang_map.get(ext.lower(), 'Unknown')
+
+        # Count lines
+        try:
+            with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+                total_lines = len(lines)
+                code_lines = sum(1 for line in lines if line.strip() and not line.strip().startswith('#'))
+                blank_lines = sum(1 for line in lines if not line.strip())
+                comment_lines = total_lines - code_lines - blank_lines
+        except:
+            total_lines = code_lines = blank_lines = comment_lines = 0
+
+        # Git info
+        git_info = ""
+        try:
+            # Get relative path from git root
+            git_root = subprocess.run(
+                ['git', 'rev-parse', '--show-toplevel'],
+                cwd=get_project_root(),
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5
+            ).stdout.strip()
+            rel_path = os.path.relpath(resolved_path, git_root)
+
+            # Last commit for this file
+            last_commit = subprocess.run(
+                ['git', 'log', '-1', '--pretty=format:%h - %an, %ar: %s', '--', rel_path],
+                cwd=get_project_root(),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5
+            )
+            if last_commit.returncode == 0 and last_commit.stdout.strip():
+                git_info = f"Last Commit:     {last_commit.stdout.strip()}"
+        except:
+            git_info = "Git Info:        Not in a git repository or git not available"
+
+        # Format output
+        result = [
+            f"File Statistics: {path}",
+            "=" * 60,
+            f"Language:        {language}",
+            f"Size:            {file_size:,} bytes ({file_size / 1024:.2f} KB)",
+            f"Last Modified:   {modified_time}",
+            f"Total Lines:     {total_lines:,}",
+            f"Code Lines:      {code_lines:,}",
+            f"Blank Lines:     {blank_lines:,}",
+            f"Comment Lines:   {comment_lines:,}",
+        ]
+
+        if git_info:
+            result.append(git_info)
+
+        return "\n".join(result)
+
+    except Exception as e:
+        return f"Error getting file stats: {e}"
+
 BUILTIN_FUNCTIONS = {
     "list_files": list_files,
     "get_file_content": get_file_content,
     "list_symbols_in_file": list_symbols_in_file,
     "get_code_snippet": get_code_snippet,
     "search_codebase": search_codebase,
-    "apply_patch": apply_patch
+    "apply_patch": apply_patch,
+    "git_status": git_status,
+    "git_log": git_log,
+    "git_diff": git_diff,
+    "git_show": git_show,
+    "git_blame": git_blame,
+    "list_recent_changes": list_recent_changes,
+    "analyze_file_structure": analyze_file_structure,
+    "get_file_stats": get_file_stats
 }
 
 BUILTIN_DECLARATIONS = [
@@ -456,6 +924,132 @@ BUILTIN_DECLARATIONS = [
                 }
             },
             "required": ["patch_content"]
+        }
+    },
+    {
+        "name": "git_status",
+        "description": "Shows the working tree status including staged, unstaged, and untracked files. Essential for understanding current changes before committing.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {}
+        }
+    },
+    {
+        "name": "git_log",
+        "description": "Shows commit history with messages and metadata. Optionally filter by file path to see commits affecting a specific file.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "max_count": {
+                    "type": "INTEGER",
+                    "description": "Maximum number of commits to show (1-50, default 10)."
+                },
+                "path": {
+                    "type": "STRING",
+                    "description": "Optional file path to filter commits that modified this file."
+                }
+            }
+        }
+    },
+    {
+        "name": "git_diff",
+        "description": "Shows changes in the working directory or staging area. Use staged=True to see what will be committed.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "staged": {
+                    "type": "BOOLEAN",
+                    "description": "If true, shows staged changes (git diff --cached). If false or omitted, shows unstaged changes."
+                },
+                "path": {
+                    "type": "STRING",
+                    "description": "Optional file path to show diff only for this file."
+                }
+            }
+        }
+    },
+    {
+        "name": "git_show",
+        "description": "Shows the content and metadata of a specific commit. Use this to inspect what changed in a commit.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "commit": {
+                    "type": "STRING",
+                    "description": "Commit reference (hash, branch name, or 'HEAD'). Default is 'HEAD'."
+                },
+                "path": {
+                    "type": "STRING",
+                    "description": "Optional file path to show changes only for this file in the commit."
+                }
+            }
+        }
+    },
+    {
+        "name": "git_blame",
+        "description": "Shows who last modified each line of a file and when. Useful for understanding code history and authorship.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["path"],
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Path to the file to blame."
+                },
+                "start_line": {
+                    "type": "INTEGER",
+                    "description": "Optional starting line number for blame range."
+                },
+                "end_line": {
+                    "type": "INTEGER",
+                    "description": "Optional ending line number for blame range."
+                }
+            }
+        }
+    },
+    {
+        "name": "list_recent_changes",
+        "description": "Lists files modified in the last N days based on git history. Useful for understanding recent development activity.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "days": {
+                    "type": "INTEGER",
+                    "description": "Number of days to look back (1-90, default 7)."
+                },
+                "max_files": {
+                    "type": "INTEGER",
+                    "description": "Maximum number of files to return (1-100, default 20)."
+                }
+            }
+        }
+    },
+    {
+        "name": "analyze_file_structure",
+        "description": "Analyzes a Python file's structure: imports, classes, functions, decorators, and docstrings. More detailed than list_symbols_in_file.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["path"],
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Path to the Python file to analyze."
+                }
+            }
+        }
+    },
+    {
+        "name": "get_file_stats",
+        "description": "Returns comprehensive file statistics: size, lines of code, language, modification date, and git history.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["path"],
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Path to the file to analyze."
+                }
+            }
         }
     }
 ]
@@ -1012,6 +1606,7 @@ def execute_mcp_tool(function_name, tool_args):
     Executes an MCP tool function using MCP protocol and returns its output.
     This function maintains a pool of long-running tool processes and reuses them for subsequent calls.
     If a process for a tool is not running, it will be started and initialized.
+    Includes caching and optimization for performance.
     """
     global mcp_tool_processes, mcp_request_id_counter
 
@@ -1020,6 +1615,17 @@ def execute_mcp_tool(function_name, tool_args):
     tool_name = mcp_function_to_tool_map.get(function_name)
     if not tool_name:
         return f"Error: Function '{function_name}' not found in any configured MCP tool."
+
+    # --- OPTIMIZATION: Check cache first ---
+    if optimization.should_cache_tool(function_name):
+        cached_output = optimization.get_cached_tool_output(function_name, tool_args)
+        if cached_output is not None:
+            log(f"✓ Cache HIT for {function_name}")
+            optimization.record_cache_hit()
+            return cached_output
+        else:
+            log(f"✗ Cache MISS for {function_name}")
+            optimization.record_cache_miss()
 
     # Handle built-in tools (executed locally)
     if tool_name == BUILTIN_TOOL_NAME:
@@ -1073,8 +1679,60 @@ def execute_mcp_tool(function_name, tool_args):
                 patch_content = normalized_args['patch_content']
                 if patch_content is None:
                     raise TypeError("Patch content argument cannot be null.")
-                result = apply_patch(patch_content=patch_content)
-                return result
+                func_args['patch_content'] = patch_content
+            
+            # Git operations
+            elif function_name == 'git_status':
+                # No arguments needed
+                pass
+            
+            elif function_name == 'git_log':
+                if 'max_count' in normalized_args:
+                    func_args['max_count'] = normalized_args.get('max_count')
+                if 'path' in normalized_args:
+                    func_args['path'] = normalized_args.get('path')
+            
+            elif function_name == 'git_diff':
+                if 'staged' in normalized_args:
+                    func_args['staged'] = bool(normalized_args.get('staged'))
+                if 'path' in normalized_args:
+                    func_args['path'] = normalized_args.get('path')
+            
+            elif function_name == 'git_show':
+                if 'commit' in normalized_args:
+                    func_args['commit'] = normalized_args.get('commit')
+                if 'path' in normalized_args:
+                    func_args['path'] = normalized_args.get('path')
+            
+            elif function_name == 'git_blame':
+                path = normalized_args.get('path')
+                if not path:
+                    raise TypeError("Path argument is required.")
+                func_args['path'] = path
+                if 'start_line' in normalized_args:
+                    func_args['start_line'] = normalized_args.get('start_line')
+                if 'end_line' in normalized_args:
+                    func_args['end_line'] = normalized_args.get('end_line')
+            
+            elif function_name == 'list_recent_changes':
+                if 'days' in normalized_args:
+                    func_args['days'] = normalized_args.get('days')
+                if 'max_files' in normalized_args:
+                    func_args['max_files'] = normalized_args.get('max_files')
+            
+            # File analysis
+            elif function_name == 'analyze_file_structure':
+                path = normalized_args.get('path')
+                if not path:
+                    raise TypeError("Path argument is required.")
+                func_args['path'] = path
+            
+            elif function_name == 'get_file_stats':
+                path = normalized_args.get('path')
+                if not path:
+                    raise TypeError("Path argument is required.")
+                func_args['path'] = path
+
         except KeyError as e:
             log(f"Error: Missing required argument '{e.args[0]}' for function '{function_name}'. Normalized args: {normalized_args}")
             return f"Error: Missing required argument '{e.args[0]}' for function '{function_name}'."
@@ -1084,7 +1742,22 @@ def execute_mcp_tool(function_name, tool_args):
 
         try:
             result = builtin_func(**func_args)
-            return result
+            
+            # --- OPTIMIZATION: Optimize output and cache it ---
+            optimized_result = optimization.optimize_tool_output(result, function_name)
+            
+            # Record tokens saved
+            if len(optimized_result) < len(result):
+                tokens_saved = optimization.estimate_tokens(result) - optimization.estimate_tokens(optimized_result)
+                optimization.record_tokens_saved(tokens_saved)
+                log(f"✓ Optimized output: saved ~{tokens_saved} tokens")
+            
+            # Cache the result if appropriate
+            if optimization.should_cache_tool(function_name):
+                optimization.cache_tool_output(function_name, tool_args, optimized_result)
+            
+            optimization.record_optimization()
+            return optimized_result
         except Exception as e:
             log(f"Error executing built-in tool {function_name} with args {func_args}: {type(e).__name__}: {e}")
             return f"Error executing built-in function '{function_name}': {e}"
