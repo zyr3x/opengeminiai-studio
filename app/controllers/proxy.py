@@ -229,14 +229,13 @@ def chat_completions():
 
                 response = None
                 try:
-                    response = requests.post(
-                        GEMINI_STREAMING_URL,
+                    response = utils.make_request_with_retry(
+                        url=GEMINI_STREAMING_URL,
                         headers=headers,
-                        json=request_data,
+                        json_data=request_data,
                         stream=True,
                         timeout=300
                     )
-                    response.raise_for_status()
                 except (HTTPError, ConnectionError, Timeout, RequestException) as e:
                     error_message = f"Error from upstream Gemini API: {e}"
                     print(error_message)
@@ -269,6 +268,20 @@ def chat_completions():
                             json_data, end_index = decoder.raw_decode(buffer)
                             buffer = buffer[end_index:]
                             if not isinstance(json_data, dict): continue
+
+                            if 'error' in json_data:
+                                error_message = "Error from upstream Gemini API: " + json.dumps(json_data['error'])
+                                print(error_message)
+                                error_chunk = {
+                                    "id": f"chatcmpl-{os.urandom(12).hex()}",
+                                    "object": "chat.completion.chunk",
+                                    "created": int(time.time()),
+                                    "model": COMPLETION_MODEL,
+                                    "choices": [{"index": 0, "delta": {"content": error_message}, "finish_reason": "stop"}]
+                                }
+                                yield f"data: {json.dumps(error_chunk)}\n\n"
+                                yield "data: [DONE]\n\n"
+                                return
 
                             parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
 

@@ -421,8 +421,13 @@ def chat_api():
                     # Non-streaming path to support inline citations for native tools
                     GEMINI_GENERATE_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
                     try:
-                        response = requests.post(GEMINI_GENERATE_URL, headers=headers, json=request_data, timeout=300)
-                        response.raise_for_status()
+                        response = utils.make_request_with_retry(
+                            url=GEMINI_GENERATE_URL,
+                            headers=headers,
+                            json_data=request_data,
+                            stream=False,
+                            timeout=300
+                        )
                         response_data = response.json()
 
                         utils.log(f"Incoming Gemini Non-Streaming Response: {utils.pretty_json(response_data)}")
@@ -467,8 +472,13 @@ def chat_api():
                     # Original streaming path
                     GEMINI_STREAMING_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:streamGenerateContent"
                     try:
-                        response = requests.post(GEMINI_STREAMING_URL, headers=headers, json=request_data, stream=True, timeout=300)
-                        response.raise_for_status()
+                        response = utils.make_request_with_retry(
+                            url=GEMINI_STREAMING_URL,
+                            headers=headers,
+                            json_data=request_data,
+                            stream=True,
+                            timeout=300
+                        )
                     except (HTTPError, ConnectionError, Timeout, RequestException) as e:
                         yield f"ERROR: Error from upstream Gemini API: {e}"
                         return
@@ -486,6 +496,13 @@ def chat_api():
                                 json_data, end_index = decoder.raw_decode(buffer)
                                 buffer = buffer[end_index:]
                                 if not isinstance(json_data, dict): continue
+
+                                if 'error' in json_data:
+                                    error_message = "ERROR: Error from upstream Gemini API: " + json.dumps(json_data['error'])
+                                    utils.log(error_message)
+                                    yield error_message
+                                    return
+
                                 parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
                                 if not parts and 'usageMetadata' in json_data: continue
                                 model_response_parts.extend(parts)

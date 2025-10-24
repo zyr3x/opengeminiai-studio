@@ -6,6 +6,8 @@ import json
 import requests
 import base64
 import re
+import time
+import random
 from app.db import get_db_connection, UPLOAD_FOLDER # Import added for new utility functions
 
 # --- Global Settings ---
@@ -182,6 +184,51 @@ def truncate_contents(contents: list, limit: int) -> list:
 def pretty_json(data):
     """Returns a pretty-printed JSON string."""
     return json.dumps(data, indent=2, ensure_ascii=False, default=str)
+
+def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bool = False, timeout: int = 300) -> requests.Response:
+    """
+    Makes a POST request with retry logic for 429 and connection errors.
+    """
+    retries = 5
+    backoff_factor = 1.0  # seconds
+
+    for i in range(retries):
+        try:
+            response = requests.post(
+                url,
+                headers=headers,
+                json=json_data,
+                stream=stream,
+                timeout=timeout
+            )
+            response.raise_for_status()
+            return response
+        except requests.exceptions.HTTPError as e:
+            # For 429, we retry with backoff. For other HTTP errors, we fail immediately.
+            if e.response.status_code == 429 and i < retries - 1:
+                wait_time = backoff_factor * (2 ** i) + random.uniform(0, 0.5)
+                log(f"Rate limit (429) exceeded. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
+                time.sleep(wait_time)
+                continue
+            else:
+                log(f"HTTP Error: {e}")
+                raise  # Re-raise the exception to be handled by the caller
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            if i < retries - 1:
+                wait_time = backoff_factor * (2 ** i) + random.uniform(0, 0.5)
+                log(f"Connection/Timeout error. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
+                time.sleep(wait_time)
+                continue
+            else:
+                log(f"Connection/Timeout Error after final retry: {e}")
+                raise  # Re-raise
+        except requests.exceptions.RequestException as e:
+            log(f"An unexpected request exception occurred: {e}")
+            raise  # Re-raise
+
+    # This part should not be reached if logic is correct, but as a fallback
+    raise requests.exceptions.RequestException(f"All {retries} retries failed.")
+
 
 
 def save_config_to_file(config_str: str, file_path: str, config_name: str):
