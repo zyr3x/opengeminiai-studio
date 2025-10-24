@@ -630,52 +630,66 @@ def execute_mcp_tool(function_name, tool_args):
         process.stdin.write(json.dumps(mcp_call_request) + "\n")
         process.stdin.flush()
 
-        # Read stdout until we get a response with the matching ID or timeout
+        # Read stdout/stderr until we get a response with the matching ID or timeout
         deadline = time.time() + 120
         while time.time() < deadline:
-            ready, _, _ = select.select([process.stdout], [], [], 0.5)
-            if not ready:
+            # Watch both stdout and stderr to prevent stderr buffer from filling up and causing a deadlock
+            ready_to_read, _, _ = select.select([process.stdout, process.stderr], [], [], 0.5)
+
+            if not ready_to_read:
+                # If select times out, check if the process has terminated
                 if process.poll() is not None:
                     print(f"Tool '{tool_name}' process terminated while waiting for response.")
+                    stderr_output = process.stderr.read()
+                    if stderr_output:
+                        print(f"Stderr from '{tool_name}': {stderr_output.strip()}")
                     if tool_name in mcp_tool_processes:
                         del mcp_tool_processes[tool_name]
                     return f"Error: Tool '{tool_name}' terminated unexpectedly."
-                continue
+                continue  # Continue waiting for I/O
 
-            line = process.stdout.readline()
-            if not line: # EOF
-                print(f"Tool '{tool_name}' process closed stdout. Assuming termination.")
-                if tool_name in mcp_tool_processes:
-                    del mcp_tool_processes[tool_name]
-                break
+            # Drain stderr to prevent blocking
+            if process.stderr in ready_to_read:
+                err_line = process.stderr.readline()
+                if err_line:
+                    print(f"Warning (stderr from '{tool_name}'): {err_line.strip()}")
 
-            line = line.strip()
-            if not line:
-                continue
+            # Process stdout for the response
+            if process.stdout in ready_to_read:
+                line = process.stdout.readline()
+                if not line:  # EOF
+                    print(f"Tool '{tool_name}' process closed stdout. Assuming termination.")
+                    if tool_name in mcp_tool_processes:
+                        del mcp_tool_processes[tool_name]
+                    break
 
-            try:
-                if line.startswith('\ufeff'):
-                    line = line.lstrip('\ufeff')
-                response = json.loads(line)
+                line = line.strip()
+                if not line:
+                    continue
 
-                if response.get("id") == call_id:
-                    if "result" in response:
-                        content = response["result"].get("content", [])
-                        # If the content is purely text, concatenate it and return a single string.
-                        is_all_text = content and all(item.get("type") == "text" for item in content)
-                        if is_all_text:
-                            result_text = "".join(item.get("text", "") for item in content)
-                            return result_text
+                try:
+                    if line.startswith('\ufeff'):
+                        line = line.lstrip('\ufeff')
+                    response = json.loads(line)
 
-                        # For all other cases (mixed content, structured data), return the entire result object as a JSON string.
-                        return json.dumps(response["result"])
-                    elif "error" in response:
-                        return f"MCP Error: {response['error'].get('message', 'Unknown error')}"
-                    return "Tool returned a response with no result or error."
+                    if response.get("id") == call_id:
+                        if "result" in response:
+                            content = response["result"].get("content", [])
+                            # If the content is purely text, concatenate it and return a single string.
+                            is_all_text = content and all(item.get("type") == "text" for item in content)
+                            if is_all_text:
+                                result_text = "".join(item.get("text", "") for item in content)
+                                return result_text
 
-            except json.JSONDecodeError:
-                print(f"Warning: Could not decode JSON from tool '{tool_name}': {line}")
-                continue
+                            # For all other cases (mixed content, structured data), return the entire result object as a JSON string.
+                            return json.dumps(response["result"])
+                        elif "error" in response:
+                            return f"MCP Error: {response['error'].get('message', 'Unknown error')}"
+                        return "Tool returned a response with no result or error."
+
+                except json.JSONDecodeError:
+                    print(f"Warning: Could not decode JSON from tool '{tool_name}': {line}")
+                    continue
 
         # Timeout occurred
         return f"Error: Function '{function_name}' timed out after 120 seconds."
