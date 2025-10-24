@@ -222,10 +222,12 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
             response.raise_for_status()
             return response
         except requests.exceptions.HTTPError as e:
-            # For 429, we retry with backoff. For other HTTP errors, we fail immediately.
-            if e.response.status_code == 429 and i < retries - 1:
+            # For 429 (rate limit) and 5xx (server errors), we retry with backoff.
+            # For other HTTP errors, we fail immediately.
+            status_code = e.response.status_code
+            if (status_code == 429 or status_code >= 500) and i < retries - 1:
                 wait_time = backoff_factor * (2 ** i) + random.uniform(0, 0.5)
-                log(f"Rate limit (429) exceeded. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
+                log(f"Received status {status_code}. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
                 time.sleep(wait_time)
                 continue
             else:
