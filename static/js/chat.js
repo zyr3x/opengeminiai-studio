@@ -631,12 +631,39 @@ document.addEventListener('DOMContentLoaded', function () {
                  const botContentDiv = botMessageDiv.querySelector('.message-content');
                  botContentDiv.innerHTML = ''; // Clear initial content
 
+                // Smart scroll check: only auto-scroll if user is already at the bottom
+                const isScrolledToBottom = chatHistory.scrollHeight - chatHistory.clientHeight <= chatHistory.scrollTop + 1;
+
                  try {
                      while (true) {
                          const { value, done } = await reader.read();
                          if (done) break;
-                         botMessageContent += decoder.decode(value, { stream: true });
 
+                         const chunk = decoder.decode(value, { stream: true });
+
+                         // Check for special events from the backend
+                         if (chunk.startsWith('__LLM_EVENT__')) {
+                             try {
+                                 const eventData = JSON.parse(chunk.replace('__LLM_EVENT__', ''));
+                                 if (eventData.type === 'message_id' && eventData.id) {
+                                     const actionsDiv = botMessageDiv.querySelector('.message-actions');
+                                     if (actionsDiv && !actionsDiv.querySelector('.delete-message-btn')) {
+                                         const deleteBtn = document.createElement('button');
+                                         deleteBtn.className = 'btn btn-sm btn-outline-danger p-0 px-1 delete-message-btn';
+                                         deleteBtn.innerHTML = '<span class="material-icons fs-6">delete</span>';
+                                         deleteBtn.title = 'Delete Message';
+                                         deleteBtn.dataset.messageId = eventData.id;
+                                         actionsDiv.appendChild(deleteBtn);
+                                     }
+                                 }
+                             } catch (e) {
+                                 console.error("Failed to parse LLM event:", e);
+                             }
+                             continue; // Skip processing this chunk as text
+                         }
+
+
+                         botMessageContent += chunk;
                          botMessageContent = botMessageContent.replace(/\\"/g, '"').replace("/\\\n", "\n").replaceAll("\\\n", "\n");
                          let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
 
@@ -645,7 +672,10 @@ document.addEventListener('DOMContentLoaded', function () {
                          // Image replacement logic (same as before) ...
                          botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, { ADD_TAGS: ['details', 'summary'] });
                          if (window.renderMathInElement) renderMathInElement(botContentDiv);
-                         chatHistory.scrollTop = chatHistory.scrollHeight;
+
+                         if (isScrolledToBottom) {
+                            chatHistory.scrollTop = chatHistory.scrollHeight;
+                         }
                      }
                  } catch (streamError) {
                      console.error("Streaming error:", streamError);

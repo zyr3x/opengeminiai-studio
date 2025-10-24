@@ -557,8 +557,11 @@ def chat_api():
                         yield final_text
 
                 if model_response_parts:
-                    utils.add_message_to_db(chat_id, 'model', model_response_parts)
+                    bot_message_id = utils.add_message_to_db(chat_id, 'model', model_response_parts)
                     utils.log(f"Model response saved to DB (Chat ID: {chat_id}). Parts: {utils.pretty_json(model_response_parts)}")
+                    # Yield a special event with the message ID so the frontend can add a delete button
+                    yield f'__LLM_EVENT__{json.dumps({"type": "message_id", "id": bot_message_id})}'
+
 
                 if not tool_calls: break
 
