@@ -103,8 +103,13 @@ def generate_image_api():
             "contents": [{"parts": [{"text": f"Generate an image of: {prompt}"}]}],
         }
 
-        response = requests.post(IMAGE_GEN_URL, headers=headers, json=request_data, timeout=300)
-        response.raise_for_status()
+        response = utils.make_request_with_retry(
+            url=IMAGE_GEN_URL,
+            headers=headers,
+            json_data=request_data,
+            stream=False,
+            timeout=300
+        )
         response_data = response.json()
 
         # 3. Process the response
