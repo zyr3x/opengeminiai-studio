@@ -197,7 +197,22 @@ def chat_completions():
             while True:  # Loop to handle sequential tool calls
                 # Truncate messages before each call to ensure they fit within the token limit
                 original_message_count = len(current_contents)
-                current_contents = utils.truncate_contents(current_contents, safe_limit)
+                
+                # PHASE 3: Extract current query for selective context
+                current_query = ""
+                if current_contents:
+                    # Get the last user message
+                    for msg in reversed(current_contents):
+                        if msg.get('role') == 'user':
+                            parts = msg.get('parts', [])
+                            for part in parts:
+                                if 'text' in part:
+                                    current_query = part['text']
+                                    break
+                            if current_query:
+                                break
+                
+                current_contents = utils.truncate_contents(current_contents, safe_limit, current_query=current_query)
                 if len(current_contents) < original_message_count:
                     utils.log(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages to fit context window.")
 

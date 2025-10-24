@@ -12,10 +12,13 @@ import time
 import fnmatch
 import ast
 import re
+from typing import Generator
 
 from .utils import log
 from contextlib import contextmanager
 from . import optimization
+from .optimization import record_tool_call # Explicitly import for clarity
+from .streaming import stream_file_content, stream_string
 
 # --- BUILT-IN CODE NAVIGATION TOOL DEFINITIONS ---
 BUILTIN_TOOL_NAME = "__builtin_code_navigator"
@@ -101,12 +104,16 @@ def _generate_tree_local(file_paths, root_name):
     return "\n".join(tree_lines)
 
 
-def list_files(path: str = ".", max_depth: int = -1) -> str:
+def list_files(path: str = ".", max_depth: int = -1) -> str | Generator[str, None, None]:
     """
     Lists files and directories recursively for code context.
     Respects common ignore patterns. Returns an ASCII tree structure.
     An optional max_depth can be specified to limit traversal depth (e.g., max_depth=3).
+
+    PHASE 3 - STAGE 2: Now with progress feedback for better UX.
     """
+    from app.config import config
+    
     resolved_path = _safe_path_resolve(path)
     if not resolved_path or not os.path.exists(resolved_path):
         return f"Error: Path '{path}' not found or inaccessible."
@@ -114,10 +121,15 @@ def list_files(path: str = ".", max_depth: int = -1) -> str:
     if os.path.isfile(resolved_path):
         return f"Path '{path}' is a file, not a directory. Use get_file_content."
 
+    # Progress feedback (if enabled)
+    if config.STREAMING_PROGRESS_ENABLED:
+        log(f"🔍 Scanning directory: {path}")
+
     relative_paths = []
     MAX_FILES_LISTED = 500
     file_count = 0
     start_level = resolved_path.count(os.sep)
+    last_progress_report = 0
 
     try:
         for root, dirs, files in os.walk(resolved_path, topdown=True):
@@ -152,14 +164,22 @@ def list_files(path: str = ".", max_depth: int = -1) -> str:
 
                 relative_paths.append(rel_filepath_fs)
                 file_count += 1
+                
+                # Progress feedback every 50 files
+                if config.STREAMING_PROGRESS_ENABLED and file_count - last_progress_report >= 50:
+                    log(f"  📂 Found {file_count} files so far...")
+                    last_progress_report = file_count
 
             if file_count >= MAX_FILES_LISTED:
-                log(f"Warning: List files stopped at {MAX_FILES_LISTED} files to prevent large context.")
+                log(f"⚠️  Stopped at {MAX_FILES_LISTED} files to prevent large context.")
                 break
     except Exception as e:
         log(f"Error during file listing for path '{path}': {e}")
         return f"Error: Failed to list directory contents due to system error."
 
+    # Final progress
+    if config.STREAMING_PROGRESS_ENABLED:
+        log(f"✅ Scan complete: {file_count} files found")
 
     # Determine the name to display as the root of the tree
     tree_root_name = path if path != "." else os.path.basename(get_project_root())
@@ -167,7 +187,8 @@ def list_files(path: str = ".", max_depth: int = -1) -> str:
     if not relative_paths:
         return f"Directory '{path}' is empty or contains only ignored files."
 
-    return "Project structure:\n" + _generate_tree_local(relative_paths, tree_root_name)
+    full_tree_content = "Project structure:\n" + _generate_tree_local(relative_paths, tree_root_name)
+    return stream_string(full_tree_content)
 
 def get_file_content(path: str) -> str:
     """
@@ -194,19 +215,22 @@ def get_file_content(path: str) -> str:
             if b'\0' in chunk:
                 return f"Error: File '{path}' appears to be a binary file. Cannot read."
 
-        # Read content (assuming UTF-8, ignore errors)
-        with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
-            code_content = f.read()
-
         _, extension = os.path.splitext(resolved_path)
         lang = extension.lstrip('.') if extension else ''
 
+        # Read the entire file content as a single string
+        with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
+            file_content = f.read()
+
         return (
             f"\n--- Code File: {path} ({file_size / 1024:.2f} KB) ---\n"
-            f"```{lang}\n{code_content}\n```\n"
+            f"```{lang}\n"
+            f"{file_content}\n"
+            f"```\n"
         )
 
     except Exception as e:
+        # Return the error as a string, as no generator was started.
         return f"Error reading file '{path}': {e}"
 
 def get_code_snippet(path: str, symbol_name: str) -> str:
@@ -243,14 +267,26 @@ def search_codebase(query: str) -> str:
     Searches the entire project codebase for a specific query string.
     Uses 'ripgrep' (rg) if available for speed and .gitignore support, otherwise falls back to 'grep'.
     Returns a formatted list of matches, including file paths and line numbers.
+    
+    PHASE 3 - STAGE 2: Now with progress feedback for better UX.
     """
+    from app.config import config
+    
     MAX_SEARCH_RESULTS = 100
+    
+    if config.STREAMING_PROGRESS_ENABLED:
+        log(f"🔍 Searching codebase for: '{query}'")
+    
     try:
         # Check if ripgrep (rg) is installed. We prefer it for its speed and gitignore handling.
         subprocess.run(['rg', '--version'], check=True, capture_output=True)
         # Use ripgrep with vimgrep format (file:line:col:text), which is structured and easy for an LLM to parse.
         command = ['rg', '--vimgrep', '--max-count', str(MAX_SEARCH_RESULTS), '--', query, '.']
         log(f"Using ripgrep for search with command: {' '.join(command)}")
+        
+        if config.STREAMING_PROGRESS_ENABLED:
+            log(f"  📍 Searching with ripgrep...")
+        
         result = subprocess.run(
             command, cwd=get_project_root(), capture_output=True, text=True, check=False
         )
@@ -262,6 +298,10 @@ def search_codebase(query: str) -> str:
         ]]
         command = ['grep', '-r', '-n', '-I'] + exclude_dirs + ['-e', query, '.']
         log(f"Using grep for search with command: {' '.join(command)}")
+        
+        if config.STREAMING_PROGRESS_ENABLED:
+            log(f"  📍 Searching with grep...")
+        
         result = subprocess.run(
             command, cwd=get_project_root(), capture_output=True, text=True, check=False
         )
@@ -271,9 +311,16 @@ def search_codebase(query: str) -> str:
 
     output = result.stdout.strip()
     if not output:
+        if config.STREAMING_PROGRESS_ENABLED:
+            log(f"  📭 No results found")
         return f"No results found for query: '{query}'"
 
     lines = output.split('\n')
+    match_count = len(lines)
+    
+    if config.STREAMING_PROGRESS_ENABLED:
+        log(f"  ✅ Found {match_count} matches")
+    
     if len(lines) > MAX_SEARCH_RESULTS:
         output = "\n".join(lines[:MAX_SEARCH_RESULTS])
         output += f"\n... (truncated to {MAX_SEARCH_RESULTS} results)"
@@ -1066,7 +1113,6 @@ BUILTIN_DECLARATIONS = [
 
 
 # --- MCP Tool Configuration ---
-mcp_config = {}
 MCP_CONFIG_FILE = 'var/config/mcp.json'
 mcp_function_declarations = []  # A flat list of all function declarations from all tools
 mcp_function_to_tool_map = {}   # Maps a function name to its parent tool name (from mcpServers)
@@ -1590,8 +1636,8 @@ def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
         if "kwargs" in normalized_args:
             result["kwargs"] = _ensure_dict(normalized_args.get("kwargs"))
         else:
-            # Use entire flat normalized_args as kwargs if non-empty
-            result["kwargs"] = normalized_args if isinstance(normalized_args, dict) else {}
+            # Use entire flat normalized_args as kwargs
+            result["kwargs"] = normalized_args
 
     # Handle args
     if "args" in props or "args" in required:
@@ -1621,6 +1667,11 @@ def execute_mcp_tool(function_name, tool_args):
     log(f"Executing MCP function: {function_name} with args: {tool_args}")
     function_name = function_name.replace("default_api:", "")
     tool_name = mcp_function_to_tool_map.get(function_name)
+
+    # Record the tool execution
+    is_builtin = (tool_name == BUILTIN_TOOL_NAME)
+    record_tool_call(is_builtin=is_builtin)
+
     if not tool_name:
         return f"Error: Function '{function_name}' not found in any configured MCP tool."
 
@@ -1746,7 +1797,13 @@ def execute_mcp_tool(function_name, tool_args):
         try:
             result = builtin_func(**func_args)
             
-            # --- OPTIMIZATION: Optimize output and cache it ---
+            # Check if the result is a generator (a streaming result).
+            # We check for a generator type object.
+            if hasattr(result, '__iter__') and not isinstance(result, (str, dict, list)):
+                log(f"Returning streaming result for built-in function: {function_name}")
+                return result
+
+            # --- OPTIMIZATION: Optimize output and cache it (only for non-streaming results) ---
             optimized_result = optimization.optimize_tool_output(result, function_name)
             
             # Record tokens saved

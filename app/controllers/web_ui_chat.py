@@ -418,7 +418,21 @@ def chat_api():
                 token_limit = utils.get_model_input_limit(model, config.API_KEY, config.UPSTREAM_URL)
                 safe_limit = int(token_limit * utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
                 original_message_count = len(current_contents)
-                current_contents = utils.truncate_contents(current_contents, safe_limit)
+                
+                current_query = ""
+                if current_contents:
+                    # Get the last user message
+                    for msg in reversed(current_contents):
+                        if msg.get('role') == 'user':
+                            parts = msg.get('parts', [])
+                            for part in parts:
+                                if 'text' in part:
+                                    current_query = part['text']
+                                    break
+                            if current_query:
+                                break
+                
+                current_contents = utils.truncate_contents(current_contents, safe_limit, current_query=current_query)
                 if len(current_contents) < original_message_count:
                     utils.log(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages.")
 

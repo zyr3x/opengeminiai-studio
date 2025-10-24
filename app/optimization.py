@@ -1,7 +1,7 @@
 """
-Модуль оптимизации для снижения использования токенов и повышения производительности.
-ФАЗА 1: Кэширование, оптимизация вывода, умное усечение
-ФАЗА 2: Connection pooling, rate limiting, prompt caching, parallel execution
+Optimization module to reduce token usage and improve performance.
+PHASE 1: Caching, output optimization, smart truncation
+PHASE 2: Connection pooling, rate limiting, prompt caching, parallel execution
 """
 import hashlib
 import json
@@ -16,18 +16,18 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# --- Кэш для результатов инструментов ---
+# --- Tool Result Cache ---
 _tool_output_cache = {}
-CACHE_TTL = 300  # 5 минут
-CACHE_MAX_SIZE = 100  # Максимум записей в кэше
+CACHE_TTL = 300  # 5 minutes
+CACHE_MAX_SIZE = 100  # Maximum entries in the cache
 
-# --- Константы для оптимизации ---
-MAX_TOOL_OUTPUT_TOKENS = 1000  # Максимальный размер вывода инструмента
-MAX_FILE_PREVIEW_LINES = 50    # Максимум строк для preview файла
-MAX_DIFF_LINES = 100           # Максимум строк для diff
+# --- Optimization Constants ---
+MAX_TOOL_OUTPUT_TOKENS = 1000  # Maximum size of tool output
+MAX_FILE_PREVIEW_LINES = 50    # Maximum lines for file preview
+MAX_DIFF_LINES = 100           # Maximum lines for diff
 
 def clean_cache():
-    """Очищает устаревшие записи из кэша"""
+    """Cleans up expired entries from the cache"""
     global _tool_output_cache
     now = time.time()
     expired_keys = [
@@ -36,14 +36,14 @@ def clean_cache():
     ]
     for key in expired_keys:
         del _tool_output_cache[key]
-    
-    # Если кэш слишком большой, удаляем самые старые записи
+
+    # If the cache is too large, remove the oldest entries
     if len(_tool_output_cache) > CACHE_MAX_SIZE:
         sorted_items = sorted(
             _tool_output_cache.items(),
-            key=lambda x: x[1][1]  # Сортируем по timestamp
+            key=lambda x: x[1][1]  # Sort by timestamp
         )
-        # Оставляем только CACHE_MAX_SIZE самых свежих
+        # Keep only the CACHE_MAX_SIZE newest entries
         _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
 
 def get_cache_key(function_name: str, tool_args: dict) -> str:
@@ -72,11 +72,11 @@ def cache_tool_output(function_name: str, tool_args: dict, output: str):
     _tool_output_cache[cache_key] = (output, time.time())
 
 def should_cache_tool(function_name: str) -> bool:
-    """Определяет, нужно ли кэшировать результаты этого инструмента"""
-    # Не кэшируем изменяющие операции
+    """Determines whether to cache the results of this tool"""
+    # Do not cache modifying operations
     non_cacheable = ['apply_patch', 'git_status']
-    
-    # Кэшируем операции чтения
+
+    # Cache read operations
     cacheable = [
         'list_files', 'get_file_content', 'list_symbols_in_file',
         'get_code_snippet', 'search_codebase', 'git_log', 'git_diff',
@@ -86,25 +86,25 @@ def should_cache_tool(function_name: str) -> bool:
     
     return function_name in cacheable
 
-# --- Оптимизация вывода инструментов ---
+# --- Tool Output Optimization ---
 
 def estimate_tokens(text: str) -> int:
-    """Улучшенная оценка количества токенов"""
-    # Более точная формула с учетом пробелов и специальных символов
-    # Примерно 3.5 символа на токен для смешанного текста
+    """Improved token estimation"""
+    # More accurate formula considering spaces and special characters
+    # Approximately 3.5 characters per token for mixed text
     return int(len(text) / 3.5)
 
 def optimize_code_output(code: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) -> str:
-    """Оптимизирует вывод кода"""
+    """Optimizes code output"""
     tokens = estimate_tokens(code)
-    
+
     if tokens <= max_tokens:
         return code
-    
+
     lines = code.split('\n')
     total_lines = len(lines)
-    
-    # Показываем начало и конец файла
+
+    # Show file beginning and end
     keep_lines = int((max_tokens * 3.5) / (len(code) / total_lines))
     head_lines = keep_lines // 2
     tail_lines = keep_lines // 2
@@ -119,25 +119,25 @@ def optimize_code_output(code: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) ->
     return result
 
 def optimize_diff_output(diff: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) -> str:
-    """Оптимизирует вывод git diff"""
+    """Optimizes git diff output"""
     tokens = estimate_tokens(diff)
-    
+
     if tokens <= max_tokens:
         return diff
-    
+
     lines = diff.split('\n')
-    
-    # Для diff приоритет - измененные строки (+ и -)
+
+    # For diff, the priority is changed lines (+ and -)
     important_lines = []
     context_lines = []
-    
+
     for i, line in enumerate(lines):
         if line.startswith(('+', '-', '@@', 'diff', 'index')):
             important_lines.append((i, line))
-        elif line.strip():  # Контекстные строки
+        elif line.strip():  # Context lines
             context_lines.append((i, line))
-    
-    # Берем все важные строки и немного контекста
+
+    # Take all important lines and a bit of context
     max_lines = int((max_tokens * 3.5) / (len(diff) / len(lines)))
     
     if len(important_lines) <= max_lines:
@@ -154,16 +154,16 @@ def optimize_diff_output(diff: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) ->
     return result
 
 def optimize_list_output(text: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) -> str:
-    """Оптимизирует вывод списков файлов"""
+    """Optimizes file list output"""
     tokens = estimate_tokens(text)
-    
+
     if tokens <= max_tokens:
         return text
-    
+
     lines = text.split('\n')
     total_lines = len(lines)
-    
-    # Для списков - показываем начало
+
+    # For lists - show the beginning
     max_lines = int((max_tokens * 3.5) / (len(text) / total_lines))
     
     if total_lines <= max_lines:
@@ -176,60 +176,60 @@ def optimize_list_output(text: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) ->
 
 def optimize_tool_output(output: str, function_name: str) -> str:
     """
-    Интеллектуально оптимизирует вывод инструмента для снижения использования токенов.
+    Intelligently optimizes tool output to reduce token usage.
     """
     if not output or not isinstance(output, str):
         return output
-    
+
     tokens = estimate_tokens(output)
-    
-    # Если вывод маленький, не трогаем
+
+    # If the output is small, do not modify
     if tokens <= MAX_TOOL_OUTPUT_TOKENS:
         return output
-    
-    # Определяем тип вывода и применяем соответствующую стратегию
+
+    # Determine the output type and apply the appropriate strategy
     if '```diff' in output or 'git diff' in output.lower():
         return optimize_diff_output(output)
-    
-    elif '```' in output:  # Блок кода
-        # Извлекаем код между ```
+
+    elif '```' in output:  # Code block
+        # Extract code between ```
         code_match = re.search(r'```[\w]*\n(.*?)\n```', output, re.DOTALL)
         if code_match:
             code = code_match.group(1)
             optimized_code = optimize_code_output(code)
             return output.replace(code, optimized_code)
         return optimize_code_output(output)
-    
+
     elif function_name in ['list_files', 'list_recent_changes', 'list_symbols_in_file']:
         return optimize_list_output(output)
-    
+
     else:
-        # Общее усечение для других типов
+        # General truncation for other types
         max_chars = MAX_TOOL_OUTPUT_TOKENS * 4
         if len(output) > max_chars:
             return output[:max_chars] + f"\n\n... [Output truncated from {len(output)} to {max_chars} chars]"
     
     return output
 
-# --- Интеллектуальное сжатие истории ---
+# --- Smart History Truncation ---
 
 def summarize_message(message: dict) -> str:
-    """Создает краткое резюме сообщения"""
+    """Creates a brief summary of the message"""
     role = message.get('role', 'unknown')
     parts = message.get('parts', [])
-    
-    # Извлекаем текст
+
+    # Extract text
     text_parts = []
     for part in parts:
         if 'text' in part:
             text_parts.append(part['text'])
-    
+
     full_text = ' '.join(text_parts)
-    
-    # Ограничиваем длину резюме
+
+    # Limit summary length
     max_summary_length = 100
     if len(full_text) > max_summary_length:
-        # Берем первые слова
+        # Take the first words
         words = full_text.split()
         summary = ' '.join(words[:15]) + '...'
     else:
@@ -239,27 +239,27 @@ def summarize_message(message: dict) -> str:
 
 def smart_truncate_contents(contents: list, limit: int, keep_recent: int = 5) -> list:
     """
-    Интеллектуально сжимает историю сообщений вместо удаления.
-    Сохраняет системный промпт, последние N сообщений, и создает краткое резюме остальных.
+    Intelligently compresses message history instead of deleting it.
+    Keeps the system prompt, the last N messages, and creates a brief summary of the rest.
     """
     from app.utils import estimate_token_count
-    
+
     tokens = estimate_token_count(contents)
-    
+
     if tokens <= limit:
         return contents
-    
+
     if len(contents) <= keep_recent + 1:
-        # Слишком мало сообщений, просто обрезаем
+        # Too few messages, just truncate
         return contents[:1] + contents[-(keep_recent-1):]
-    
-    # Всегда сохраняем системный промпт (первое сообщение)
+
+    # Always keep the system prompt (first message)
     result = [contents[0]]
-    
-    # Последние keep_recent сообщений тоже сохраняем
+
+    # The last keep_recent messages are also kept
     recent_messages = contents[-keep_recent:]
-    
-    # Средние сообщения сжимаем в краткое резюме
+
+    # Middle messages are compressed into a brief summary
     middle_messages = contents[1:-keep_recent]
     
     if middle_messages:
@@ -271,49 +271,57 @@ def smart_truncate_contents(contents: list, limit: int, keep_recent: int = 5) ->
             "parts": [{"text": summary_text}]
         })
     
-    # Добавляем последние сообщения
+    # Add recent messages
     result.extend(recent_messages)
-    
-    # Проверяем, уместились ли мы в лимит
+
+    # Check if we fit within the limit
     new_tokens = estimate_token_count(result)
-    
+
     if new_tokens > limit:
-        # Если все еще не умещаемся, уменьшаем keep_recent
+        # If still not fitting, decrease keep_recent
         if keep_recent > 2:
             return smart_truncate_contents(contents, limit, keep_recent - 1)
         else:
-            # Последняя мера - обычное усечение
+            # Last resort - simple truncation
             return result[:1] + result[-2:]
-    
+
     return result
 
-# --- Статистика и метрики ---
+# --- Stats and Metrics ---
 
 _metrics = {
     'cache_hits': 0,
     'cache_misses': 0,
     'tokens_saved': 0,
-    'requests_optimized': 0
+    'requests_optimized': 0,
+    'tool_calls_total': 0,  # New metric for total tool execution count
+    'tool_calls_external': 0, # New metric for external (non-builtin) tool execution
 }
 
+def record_tool_call(is_builtin: bool = True):
+    """Records a tool call"""
+    _metrics['tool_calls_total'] += 1
+    if not is_builtin:
+        _metrics['tool_calls_external'] += 1
+
 def record_cache_hit():
-    """Записывает попадание в кэш"""
+    """Records a cache hit"""
     _metrics['cache_hits'] += 1
 
 def record_cache_miss():
-    """Записывает промах кэша"""
+    """Records a cache miss"""
     _metrics['cache_misses'] += 1
 
 def record_tokens_saved(count: int):
-    """Записывает сэкономленные токены"""
+    """Records tokens saved"""
     _metrics['tokens_saved'] += count
 
 def record_optimization():
-    """Записывает оптимизированный запрос"""
+    """Records an optimized request"""
     _metrics['requests_optimized'] += 1
 
 def get_metrics() -> dict:
-    """Возвращает метрики оптимизации"""
+    """Returns optimization metrics"""
     total_cache_requests = _metrics['cache_hits'] + _metrics['cache_misses']
     cache_hit_rate = (_metrics['cache_hits'] / total_cache_requests * 100) if total_cache_requests > 0 else 0
     
@@ -330,8 +338,14 @@ def reset_metrics():
         'cache_hits': 0,
         'cache_misses': 0,
         'tokens_saved': 0,
-        'requests_optimized': 0
+        'requests_optimized': 0,
+        'tool_calls_total': 0,
+        'tool_calls_external': 0,
     }
+
+    # Placeholder for the actual tool cache implementation (e.g., LRUCache)
+    # Using a simple dictionary for demonstration/metrics calculation.
+    _tool_output_cache = {} 
 
 # ============================================================================
 # ФАЗА 2: ПРОДВИНУТАЯ ОПТИМИЗАЦИЯ
@@ -344,42 +358,42 @@ _session_lock = threading.Lock()
 
 def get_http_session() -> requests.Session:
     """
-    Возвращает настроенную HTTP сессию с connection pooling и retry стратегией.
-    Переиспользует соединения для повышения производительности.
+    Returns a configured HTTP session with connection pooling and a retry strategy.
+    Reuses connections to improve performance.
     """
     global _http_session
-    
+
     if _http_session is None:
         with _session_lock:
             # Double-check locking pattern
             if _http_session is None:
                 session = requests.Session()
-                
-                # Настройка retry стратегии
+
+                # Configure retry strategy
                 retry_strategy = Retry(
                     total=3,
                     status_forcelist=[429, 500, 502, 503, 504],
                     backoff_factor=1,
                     allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"]
                 )
-                
-                # Адаптер с connection pooling
+
+                # Adapter with connection pooling
                 adapter = HTTPAdapter(
-                    pool_connections=10,    # Количество connection pools
-                    pool_maxsize=20,        # Максимум соединений в пуле
+                    pool_connections=10,    # Number of connection pools
+                    pool_maxsize=20,        # Maximum connections in the pool
                     max_retries=retry_strategy,
-                    pool_block=False        # Не блокировать при достижении лимита
+                    pool_block=False        # Do not block when limit is reached
                 )
-                
+
                 session.mount("http://", adapter)
                 session.mount("https://", adapter)
-                
+
                 _http_session = session
-    
+
     return _http_session
 
 def close_http_session():
-    """Закрывает HTTP сессию (вызывается при shutdown)"""
+    """Closes the HTTP session (called on shutdown)"""
     global _http_session
     if _http_session is not None:
         _http_session.close()
@@ -451,7 +465,7 @@ class RateLimiter:
 _gemini_rate_limiter = None
 
 def get_rate_limiter(max_calls: int = 60, period: int = 60) -> RateLimiter:
-    """Возвращает глобальный rate limiter"""
+    """Returns the global rate limiter"""
     global _gemini_rate_limiter
     if _gemini_rate_limiter is None:
         _gemini_rate_limiter = RateLimiter(max_calls, period)
@@ -528,18 +542,18 @@ def execute_tools_parallel(tool_calls: List[Dict]) -> List[Tuple[Dict, str]]:
 
 def can_execute_parallel(tool_calls: List[Dict]) -> bool:
     """
-    Определяет, можно ли выполнить tool calls параллельно.
-    Некоторые инструменты должны выполняться последовательно (например, apply_patch).
+    Determines if tool calls can be executed in parallel.
+    Some tools must be executed sequentially (e.g., apply_patch).
     """
-    # Инструменты, которые нельзя выполнять параллельно
+    # Tools that cannot be executed in parallel
     sequential_only = {'apply_patch'}
-    
-    # Если есть хотя бы один последовательный инструмент, выполняем все последовательно
+
+    # If there is at least one sequential tool, execute all sequentially
     for tool_call in tool_calls:
         if tool_call.get('name') in sequential_only:
             return False
-    
-    # Можно выполнять параллельно если больше одного инструмента
+
+    # Can execute in parallel if there is more than one tool
     return len(tool_calls) > 1
 
 # --- Prompt Caching (Gemini Context Caching API) ---

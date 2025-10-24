@@ -16,6 +16,12 @@ class AppConfig:
         self.SERVER_PORT = int(os.getenv("SERVER_PORT", 8080))
         if not self.UPSTREAM_URL:
             raise ValueError("UPSTREAM_URL environment variable not set")
+        
+        self.SELECTIVE_CONTEXT_ENABLED = os.getenv("SELECTIVE_CONTEXT_ENABLED", "true").lower() == "true"
+        self.CONTEXT_MIN_RELEVANCE_SCORE = float(os.getenv("CONTEXT_MIN_RELEVANCE_SCORE", "0.3"))
+        self.CONTEXT_ALWAYS_KEEP_RECENT = int(os.getenv("CONTEXT_ALWAYS_KEEP_RECENT", "5"))
+        self.STREAMING_ENABLED = os.getenv("STREAMING_ENABLED", "true").lower() == "true"
+        self.STREAMING_PROGRESS_ENABLED = os.getenv("STREAMING_PROGRESS_ENABLED", "true").lower() == "true"
 
     def set_api_key(self, new_key: str):
         """Updates the API key in memory and in the .env file."""

@@ -93,7 +93,7 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
                 f"Here is the project's file structure (limited to a depth of 3 for brevity):\n\n"
                 f"{project_tree}\n\n"
                 f"The agent should now analyze this tree. If more detail is needed in a specific subdirectory, use the `list_files` tool again with a deeper path and/or a larger `max_depth`. "
-                f"Otherwise, use other tools like `list_symbols_in_file` or `get_file_content` to inspect files."
+                f"Otherwise, use other tools like `analyze_file_structure` or `get_file_content` to inspect files."
             )
             new_content_parts.append({"type": "text", "text": context_text})
 

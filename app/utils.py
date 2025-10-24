@@ -177,12 +177,17 @@ def estimate_token_count(contents: list) -> int:
                 total_chars += len(part.get("text", ""))
     return total_chars // 4
 
-def truncate_contents(contents: list, limit: int) -> list:
+def truncate_contents(contents: list, limit: int, current_query: str = None) -> list:
     """
     Truncates the 'contents' list by removing older messages (but keeping the first one)
     until the estimated token count is within the specified limit.
     
     NEW: Uses smart truncation with summarization when available.
+    
+    Args:
+        contents: List of messages
+        limit: Token limit
+        current_query: Current user query (optional) - enables selective context
     """
     estimated_tokens = estimate_token_count(contents)
     if estimated_tokens <= limit:
@@ -190,7 +195,29 @@ def truncate_contents(contents: list, limit: int) -> list:
 
     log(f"Estimated token count ({estimated_tokens}) exceeds limit ({limit}). Truncating...")
 
-    # Try smart truncation first (with summarization)
+    # PHASE 3: Try Selective Context first if enabled and query is provided
+    from app import config as app_config
+    if current_query and app_config.config.SELECTIVE_CONTEXT_ENABLED:
+        try:
+            from app import context_selector
+            
+            selected = context_selector.smart_context_window(
+                messages=contents,
+                current_query=current_query,
+                max_tokens=limit,
+                enabled=True
+            )
+            
+            final_tokens = estimate_token_count(selected)
+            if final_tokens <= limit:
+                log(f"✓ Selective Context applied. Final estimated token count: {final_tokens}")
+                return selected
+            else:
+                log(f"⚠ Selective Context result still exceeds limit, falling back...")
+        except Exception as e:
+            log(f"Selective Context failed, falling back: {e}")
+
+    # Try smart truncation (with summarization) as fallback
     try:
         from . import optimization
         truncated = optimization.smart_truncate_contents(contents, limit, keep_recent=5)

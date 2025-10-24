@@ -9,6 +9,7 @@ from flask import Blueprint, Response, render_template
 from app.config import config
 from app import mcp_handler
 from app import utils
+from .metrics import get_metrics
 
 web_ui_bp = Blueprint('web_ui', __name__)
 
@@ -90,7 +91,8 @@ def index():
         current_max_function_declarations=mcp_config_data.get("maxFunctionDeclarations", mcp_handler.max_function_declarations_limit),
         current_disable_all_mcp_tools=mcp_handler.disable_all_mcp_tools, # Pass current status of global disable
         current_year=datetime.now().year,
-        mcp_functions_by_tool=mcp_functions_by_tool # Pass available MCP functions grouped by tool
+        mcp_functions_by_tool=mcp_functions_by_tool, # Pass available MCP functions grouped by tool
+        metrics=get_metrics()
     )
 
 @web_ui_bp.route('/favicon.ico')
