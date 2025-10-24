@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', function () {
         contentDiv.innerHTML = textContent + filesHtml;
         if (window.renderMathInElement) renderMathInElement(contentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
         addCopyButtonsToCodeBlocks(contentDiv);
+        renderMermaidDiagrams(contentDiv);
 
         messageDiv.appendChild(avatarDiv);
         messageDiv.appendChild(contentDiv);
@@ -190,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function addCopyButtonsToCodeBlocks(container) {
-        const codeBlocks = container.querySelectorAll('pre');
+        const codeBlocks = container.querySelectorAll('pre:not(:has(code.language-mermaid))');
         codeBlocks.forEach(pre => {
             const copyBtn = document.createElement('button');
             copyBtn.className = 'btn btn-sm btn-outline-secondary copy-code-btn';
@@ -211,6 +212,26 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             });
         });
+    }
+
+    function renderMermaidDiagrams(container) {
+        if (window.mermaid) {
+            const codeBlocks = container.querySelectorAll('pre code.language-mermaid');
+            codeBlocks.forEach(block => {
+                const pre = block.parentElement;
+                const mermaidContainer = document.createElement('div');
+                mermaidContainer.className = 'mermaid';
+                mermaidContainer.textContent = block.textContent;
+                pre.parentNode.replaceChild(mermaidContainer, pre);
+            });
+            try {
+                window.mermaid.run({
+                    nodes: container.querySelectorAll('.mermaid')
+                });
+            } catch(e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
     }
 
     function showTypingIndicator() {
@@ -723,12 +744,15 @@ document.addEventListener('DOMContentLoaded', function () {
                          tempDiv.innerHTML = html;
                          // Image replacement logic (same as before) ...
                          botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, { ADD_TAGS: ['details', 'summary'] });
-                         if (window.renderMathInElement) renderMathInElement(botContentDiv);
 
                          if (isScrolledToBottom) {
                             chatHistory.scrollTop = chatHistory.scrollHeight;
                          }
                      }
+                     // After the stream is complete, apply post-processing for code blocks, math, and diagrams
+                     if (window.renderMathInElement) renderMathInElement(botContentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
+                     addCopyButtonsToCodeBlocks(botContentDiv);
+                     renderMermaidDiagrams(botContentDiv);
                  } catch (streamError) {
                      console.error("Streaming error:", streamError);
                      botContentDiv.innerHTML += `<p class="text-danger small mt-2"><strong>Error:</strong> The connection was interrupted during the response.</p>`;

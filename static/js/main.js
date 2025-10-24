@@ -17,6 +17,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (darkModeIcon) { // Ensure icon exists before trying to set its content
             darkModeIcon.textContent = (theme === 'dark') ? 'dark_mode' : 'light_mode';
         }
+        // Re-initialize and re-render mermaid diagrams with the new theme
+        if (window.mermaid) {
+            window.mermaid.initialize({ startOnLoad: false, theme: theme });
+            // This will re-render all diagrams on the page with the new theme.
+             try {
+                window.mermaid.run({
+                    nodes: document.querySelectorAll('.mermaid')
+                });
+            } catch(e) {
+                console.error("Failed to re-render mermaid diagrams on theme change:", e);
+            }
+        }
     }
 
     // Function to show/hide content sections based on hash
