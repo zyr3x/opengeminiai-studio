@@ -1,8 +1,8 @@
 """
-Модуль для инкрементального стриминга результатов инструментов.
+Module for incremental streaming of tool results.
 
-Вместо ожидания полного результата инструмента, стримим результаты
-по мере их получения для улучшения UX и снижения perceived latency.
+Instead of waiting for the full tool result, we stream the results
+as they are received to improve UX and reduce perceived latency.
 """
 import os
 import io

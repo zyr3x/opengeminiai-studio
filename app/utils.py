@@ -272,7 +272,7 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
         # Fallback если optimization модуль недоступен
         pass
     
-    # Оригинальная логика с retry (fallback)
+    # Original logic with retry (fallback)
     retries = 5
     backoff_factor = 1.0  # seconds
 

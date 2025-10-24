@@ -100,71 +100,71 @@ def extract_keywords(text: str) -> List[str]:
 
 def calculate_relevance(message: dict, keywords: List[str]) -> float:
     """
-    Вычисляет релевантность сообщения относительно ключевых слов.
-    
-    Алгоритм:
-    - Извлекаем текст из всех частей сообщения
-    - Подсчитываем количество вхождений ключевых слов
-    - Нормализуем score по длине текста и количеству ключевых слов
-    
+    Calculates the relevance of a message relative to a list of keywords.
+
+    Algorithm:
+    - Extracts text from all parts of the message.
+    - Counts the number of keyword occurrences.
+    - Normalizes the score by text length and keyword count.
+
     Args:
-        message: Сообщение в формате Gemini API
-        keywords: Список ключевых слов
-        
+        message: Message in Gemini API format.
+        keywords: List of keywords.
+
     Returns:
-        Relevance score от 0.0 до 1.0
+        Relevance score from 0.0 to 1.0
     """
     if not keywords:
         return 0.0
-    
-    # Извлекаем текст из сообщения
+
+    # Extract text from the message
     parts = message.get('parts', [])
     text_parts = []
-    
+
     for part in parts:
         if 'text' in part:
             text_parts.append(part['text'])
         elif 'functionCall' in part:
-            # Учитываем вызовы функций
+            # Account for function calls
             func_call = part['functionCall']
             text_parts.append(func_call.get('name', ''))
         elif 'functionResponse' in part:
-            # Учитываем ответы функций
+            # Account for function responses
             func_resp = part['functionResponse']
             text_parts.append(func_resp.get('name', ''))
-    
+
     if not text_parts:
         return 0.0
-    
+
     full_text = ' '.join(text_parts).lower()
-    
+
     if not full_text:
         return 0.0
-    
-    # Подсчитываем совпадения ключевых слов
+
+    # Count keyword matches
     matches = 0
     total_keyword_occurrences = 0
-    
+
     for keyword in keywords:
-        # Ищем вхождения ключевого слова как отдельного слова
+        # Search for keyword occurrences as separate words
         pattern = r'\b' + re.escape(keyword) + r'\b'
         occurrences = len(re.findall(pattern, full_text))
         if occurrences > 0:
             matches += 1
             total_keyword_occurrences += occurrences
-    
+
     if matches == 0:
         return 0.0
-    
-    # Вычисляем score
-    # Фактор 1: Процент найденных ключевых слов (0-1)
+
+    # Calculate score
+    # Factor 1: Percentage of keywords found (0-1)
     keyword_coverage = matches / len(keywords)
-    
-    # Фактор 2: Плотность вхождений относительно длины текста (0-1)
-    # Нормализуем, чтобы 5+ вхождений = 1.0
+
+    # Factor 2: Density of occurrences relative to text length (0-1)
+    # Normalize such that 5+ occurrences = 1.0
     density = min(total_keyword_occurrences / 5.0, 1.0)
-    
-    # Комбинируем факторы (70% coverage, 30% density)
+
+    # Combine factors (70% coverage, 30% density)
     relevance_score = (keyword_coverage * 0.7) + (density * 0.3)
     
     return min(relevance_score, 1.0)

@@ -221,7 +221,7 @@ def chat_completions():
                 }
                 
                 # --- OPTIMIZATION: Prompt Caching ---
-                # Пытаемся использовать кэшированный контекст для системной инструкции
+                            # Attempt to use the cached context for the system instruction
                 cached_context_id = None
                 if system_instruction:
                     # Извлекаем текст системной инструкции
@@ -230,7 +230,7 @@ def chat_completions():
                         if "text" in part:
                             system_text += part["text"]
                     
-                    # Пытаемся получить/создать кэшированный контекст
+                        # Attempt to retrieve/create cached context
                     if system_text and len(system_text) > 500:  # Кэшируем только длинные промпты
                         try:
                             cached_context_id = optimization.get_cached_context_id(
