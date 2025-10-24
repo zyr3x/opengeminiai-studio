@@ -269,16 +269,20 @@ def chat_api():
         # --- End Prompt Engineering ---
 
         user_parts = []
+        code_tools_requested = False
+
         if user_message:
             # Process message for local file paths (e.g., code_path=, image_path=)
-            processed_content = file_processing_utils.process_message_for_paths(user_message)
+            processed_result = file_processing_utils.process_message_for_paths(user_message)
 
-            if isinstance(processed_content, str):
+            if isinstance(processed_result, str):
                 # No paths were found, treat as a simple text message
-                if processed_content:
-                    user_parts.append({"text": processed_content})
-            elif isinstance(processed_content, list):
-                # Paths were found and processed into parts. Convert them to DB format.
+                if processed_result:
+                    user_parts.append({"text": processed_result})
+            elif isinstance(processed_result, tuple):
+                # Paths were found and processed into parts. (list[parts], bool code_tools_requested)
+                processed_content, code_tools_requested = processed_result
+
                 chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
                 os.makedirs(chat_upload_folder, exist_ok=True)
 
@@ -427,17 +431,24 @@ def chat_api():
                 final_tools = []
                 mcp_declarations_to_use = None
 
+                # Built-in tools list (only function names)
+                builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
+
                 # Priority for MCP tools:
-                # 1. User-selected tools from chat UI (highest priority)
-                # 2. Profile-defined selected tools (system prompt or prompt override)
-                # 3. Context-aware tools (default)
-                if selected_mcp_tools:
+                if code_tools_requested and not mcp_handler.disable_all_mcp_tools:
+                    # 1. If code_path= was used, force-enable built-in tools only.
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
+                    utils.log(f"Code context requested via code_path=. Forcing use of built-in tools: {builtin_tool_names}")
+                elif selected_mcp_tools:
+                    # 2. User-selected tools from chat UI (highest priority)
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(selected_mcp_tools)
                     utils.log(f"Using explicitly selected tools from UI (overriding profiles): {selected_mcp_tools}")
                 elif profile_selected_mcp_tools:
+                    # 3. Profile-defined selected tools (system prompt or prompt override)
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
                     utils.log(f"Using MCP tools defined by profile: {profile_selected_mcp_tools}")
                 elif not disable_mcp_tools:  # Only use context-aware if not explicitly disabled and no specific tools selected
+                    # 4. Context-aware tools (default)
                     prompt_text_for_tools = " ".join(
                         [p.get("text", "") for m in current_contents for p in m.get("parts", []) if "text" in p]
                     )

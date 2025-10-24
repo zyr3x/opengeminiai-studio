@@ -61,8 +61,12 @@ def chat_completions():
                 profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
 
             # Process all messages: apply overrides
+            code_tools_requested = False
+            processed_messages = []
+
             for message in messages:
                 content = message.get('content')
+
                 if isinstance(content, str):
                     # Apply overrides from the matched profile
                     if active_overrides:
@@ -71,7 +75,19 @@ def chat_completions():
                                 content = content.replace(find, replace)
 
                     # --- Handle local file paths like image_path=... and pdf_path=... ---
-                    message['content'] = file_processing_utils.process_message_for_paths(content)
+                    processed_result = file_processing_utils.process_message_for_paths(content)
+
+                    if isinstance(processed_result, tuple):
+                        # (parts, code_tools_requested)
+                        message['content'], requested = processed_result
+                        if requested:
+                            code_tools_requested = True
+                    else:
+                        message['content'] = processed_result
+
+                processed_messages.append(message)
+
+            messages = processed_messages
         else:
             full_prompt_text = ""
         # --- End Prompt Engineering ---
@@ -189,16 +205,22 @@ def chat_completions():
                 final_tools = []
                 mcp_declarations_to_use = None
 
+                # Built-in tools list (only function names)
+                builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
+
                 # Priority for MCP tools:
-                # 1. If not disabled, check for profile-defined selected tools.
-                # Unlike the web UI, the proxy does not perform context-aware tool selection.
-                if not disable_mcp_tools and profile_selected_mcp_tools:
+                if code_tools_requested and not mcp_handler.disable_all_mcp_tools:
+                    # 1. If code_path= was used, force-enable built-in tools only.
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
+                    utils.log(f"Code context requested via code_path=. Forcing use of built-in tools: {builtin_tool_names}")
+                elif not disable_mcp_tools and profile_selected_mcp_tools:
+                    # 2. If not disabled, check for profile-defined selected tools.
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
                     utils.log(f"Using MCP tools defined by prompt override profile: {profile_selected_mcp_tools}")
                 elif disable_mcp_tools:
                     utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
-                else:  # MCP tools are enabled, but no specific tools were selected by a profile.
-                    utils.log(f"MCP tools enabled, but no profile selected specific tools. No MCP tools will be sent to proxy endpoint.")
+                else:  # MCP tools are enabled, but no specific tools were selected by a profile or code path.
+                    utils.log(f"MCP tools enabled, but no profile or code path selected specific tools. No MCP tools will be sent to proxy endpoint.")
 
                 if mcp_declarations_to_use:
                     final_tools.extend(mcp_declarations_to_use)
@@ -344,6 +366,13 @@ def chat_completions():
                 for tool_call in tool_calls:
                     function_name = tool_call.get("name")
                     tool_args = tool_call.get("args")
+
+                    # --- User Feedback for Tool Call ---
+                    args_str = json.dumps(tool_args)
+                    feedback_message = f"🔍 Assistant is using tool: {function_name}({args_str})"
+                    utils.log(feedback_message)
+                    # --- End User Feedback ---
+
                     output = mcp_handler.execute_mcp_tool(function_name, tool_args)
 
                     response_payload = {}

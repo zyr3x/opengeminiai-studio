@@ -8,10 +8,271 @@ import shlex
 import select
 import threading
 import time
+import fnmatch
+import ast
 
 from .utils import log
 
+# --- BUILT-IN CODE NAVIGATION TOOL DEFINITIONS ---
+BUILTIN_TOOL_NAME = "__builtin_code_navigator"
+# Safety: Restrict file operations to the current working directory where the script is run (project root assumption)
+PROJECT_ROOT = os.path.realpath(os.getcwd())
+
+CODE_IGNORE_PATTERNS = [
+    '.git', '__pycache__', 'node_modules', 'venv', '.venv',
+    'build', 'dist', 'target', 'out', 'coverage', '.nyc_output', '*.egg-info', 'bin', 'obj', 'pkg',
+    '.idea', '.vscode', '.cache', '.pytest_cache',
+    '.DS_Store', 'Thumbs.db',
+    '*.log', '*.swp', '*.pyc', '*~', '*.bak', '*.tmp',
+    '*.zip', '*.tar.gz', '*.rar', '*.7z',
+    '*.o', '*.so', '*.dll', '*.exe', '*.a', '*.lib', '*.dylib',
+    '*.class', '*.jar', '*.war',
+    '*.pdb', '*.nupkg', '*.deps.json', '*.runtimeconfig.json',
+    '*.db', '*.sqlite', '*.sqlite3', 'data.mdb', 'lock.mdb',
+    '*.png', '*.jpg', '*.jpeg', '*.gif', '*.svg',
+    '*.woff', '*.woff2', '*.ttf', '*.otf', '*.eot', '*.ico',
+    '*.mp3', '*.wav', '*.mp4', '*.mov',
+    '*.min.js', '*.min.css', '*.map',
+    'package-lock-v1.json', 'package-lock.json', 'yarn.lock', 'poetry.lock', 'Pipfile.lock',
+]
+
+def _safe_path_resolve(path: str) -> str | None:
+    """Resolves a path relative to PROJECT_ROOT and checks if it stays within bounds."""
+    # We always join the relative path to the PROJECT_ROOT first
+    full_path = os.path.join(PROJECT_ROOT, path)
+    resolved_path = os.path.realpath(full_path)
+
+    # Crucial safety check: ensure the resolved path remains within the project root
+    if not resolved_path.startswith(PROJECT_ROOT):
+        log(f"Security violation attempt: Path '{path}' resolves outside project root ({resolved_path} vs {PROJECT_ROOT}).")
+        return None
+    return resolved_path
+
+def _generate_tree_local(file_paths, root_name):
+    """Generates an ASCII directory tree from a list of relative file paths."""
+    tree_dict = {}
+    for path_str in file_paths:
+        # Use '/' as separator internally regardless of OS for consistent path parts splitting
+        path_str = path_str.replace(os.sep, '/')
+        parts = path_str.split('/')
+        current_level = tree_dict
+        for part in parts:
+            if part not in current_level:
+                current_level[part] = {}
+            current_level = current_level[part]
+
+    def build_tree_lines(d, prefix=''):
+        lines = []
+        entries = sorted(d.keys())
+        for i, entry in enumerate(entries):
+            connector = '├── ' if i < len(entries) - 1 else '└── '
+            lines.append(f"{prefix}{connector}{entry}")
+            if d[entry]:
+                extension = '│   ' if i < len(entries) - 1 else '    '
+                lines.extend(build_tree_lines(d[entry], prefix + extension))
+        return lines
+
+    tree_lines = [root_name]
+    tree_lines.extend(build_tree_lines(tree_dict))
+    return "\n".join(tree_lines)
+
+
+def list_files(path: str = ".") -> str:
+    """
+    Lists files and directories recursively for code context.
+    Respects common ignore patterns. Returns an ASCII tree structure.
+    """
+    resolved_path = _safe_path_resolve(path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        return f"Error: Path '{path}' not found or inaccessible."
+
+    if os.path.isfile(resolved_path):
+        return f"Path '{path}' is a file, not a directory. Use get_file_content."
+
+    relative_paths = []
+    MAX_FILES_LISTED = 500
+    file_count = 0
+
+    try:
+        for root, dirs, files in os.walk(resolved_path, topdown=True):
+            rel_root_abs = os.path.relpath(root, resolved_path)
+            rel_root = '' if rel_root_abs == '.' else rel_root_abs
+
+            # Filter directories in place
+            dirs[:] = [d for d in dirs if not (
+                    d.startswith('.') or
+                    any(fnmatch.fnmatch(os.path.join(rel_root, d).replace(os.sep, '/'), p) or fnmatch.fnmatch(d, p) for p in CODE_IGNORE_PATTERNS)
+            )]
+
+            for filename in files:
+                if file_count >= MAX_FILES_LISTED:
+                    dirs[:] = [] # Stop traversing deeper
+                    break
+
+                rel_filepath_fs = os.path.join(rel_root, filename)
+                rel_filepath_norm = rel_filepath_fs.replace(os.sep, '/')
+
+                if filename.startswith('.'): continue
+
+                if any(fnmatch.fnmatch(rel_filepath_norm, p) or fnmatch.fnmatch(filename, p) for p in CODE_IGNORE_PATTERNS):
+                    continue
+
+                relative_paths.append(rel_filepath_fs)
+                file_count += 1
+
+            if file_count >= MAX_FILES_LISTED:
+                log(f"Warning: List files stopped at {MAX_FILES_LISTED} files to prevent large context.")
+                break
+    except Exception as e:
+        log(f"Error during file listing for path '{path}': {e}")
+        return f"Error: Failed to list directory contents due to system error."
+
+
+    # Determine the name to display as the root of the tree
+    tree_root_name = path if path != "." else os.path.basename(PROJECT_ROOT)
+
+    if not relative_paths:
+        return f"Directory '{path}' is empty or contains only ignored files."
+
+    return "Project structure:\n" + _generate_tree_local(relative_paths, tree_root_name)
+
+def get_file_content(path: str) -> str:
+    """
+    Reads the content of a single file, respecting safety bounds and size limits.
+    Returns the file content formatted as a code snippet.
+    """
+    resolved_path = _safe_path_resolve(path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        return f"Error: File '{path}' not found or inaccessible."
+
+    if not os.path.isfile(resolved_path):
+        return f"Error: Path '{path}' is a directory, not a file."
+
+    MAX_FILE_SIZE_BYTES = 256 * 1024 # 256 KB
+
+    try:
+        file_size = os.path.getsize(resolved_path)
+        if file_size > MAX_FILE_SIZE_BYTES:
+            return f"Error: File size ({file_size / 1024:.2f} KB) exceeds the maximum allowed limit of 256 KB."
+
+        # Basic binary check (quick heuristic)
+        with open(resolved_path, 'rb') as f:
+            chunk = f.read(1024)
+            if b'\0' in chunk:
+                return f"Error: File '{path}' appears to be a binary file. Cannot read."
+
+        # Read content (assuming UTF-8, ignore errors)
+        with open(resolved_path, 'r', encoding='utf8', errors='ignore') as f:
+            code_content = f.read()
+
+        _, extension = os.path.splitext(resolved_path)
+        lang = extension.lstrip('.') if extension else ''
+
+        return (
+            f"\n--- Code File: {path} ({file_size / 1024:.2f} KB) ---\n"
+            f"```{lang}\n{code_content}\n```\n"
+        )
+
+    except Exception as e:
+        return f"Error reading file '{path}': {e}"
+
+def list_symbols_in_file(path: str) -> str:
+    """
+    Parses a Python file to list top-level functions and classes.
+    This is useful for quickly understanding the structure of a file.
+    """
+    resolved_path = _safe_path_resolve(path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        return f"Error: File '{path}' not found or inaccessible."
+    if not os.path.isfile(resolved_path):
+        return f"Error: Path '{path}' is a directory, not a file."
+
+    try:
+        with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        tree = ast.parse(content)
+        symbols = []
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef):
+                symbols.append(f"  - [Function] {node.name}")
+            elif isinstance(node, ast.ClassDef):
+                symbols.append(f"  - [Class]    {node.name}")
+        if not symbols:
+            return f"File '{path}' does not contain any top-level functions or classes."
+        return f"Symbols in {path}:\n" + "\n".join(symbols)
+    except Exception as e:
+        return f"Error parsing file '{path}': {e}"
+
+def get_code_snippet(path: str, symbol_name: str) -> str:
+    """
+    Extracts the source code of a specific function or class from a Python file.
+    Use this after finding a symbol with `list_symbols_in_file`.
+    """
+    resolved_path = _safe_path_resolve(path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        return f"Error: File '{path}' not found or inaccessible."
+    if not os.path.isfile(resolved_path):
+        return f"Error: Path '{path}' is a directory, not a file."
+
+    try:
+        with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        tree = ast.parse(content)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name == symbol_name:
+                # ast.get_source_segment is the most reliable way to get the exact source
+                snippet = ast.get_source_segment(content, node)
+                if snippet:
+                    lang = "python"
+                    return (
+                        f"\n--- Code Snippet: {symbol_name} from {path} ---\n"
+                        f"```{lang}\n{snippet}\n```\n"
+                    )
+        return f"Error: Symbol '{symbol_name}' not found in file '{path}'."
+    except Exception as e:
+        return f"Error processing file '{path}' for symbol '{symbol_name}': {e}"
+
+BUILTIN_FUNCTIONS = {
+    "list_files": list_files,
+    "get_file_content": get_file_content,
+    "list_symbols_in_file": list_symbols_in_file,
+    "get_code_snippet": get_code_snippet,
+}
+
+BUILTIN_DECLARATIONS = [
+    {
+        "name": "list_files",
+        "description": "Lists files and directories recursively from a starting path, returning an ASCII directory tree structure. This is the first step to understand the project layout before fetching file content. Use '.' to list the current project root. Results are filtered by standard ignore rules (e.g., .git, venv, build artifacts).",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "The starting path relative to the current working directory. Use '.' for the project root."
+                }
+            }
+        }
+    },
+    {
+        "name": "get_file_content",
+        "description": "Reads and returns the content of a single specified text file. Use this after identifying the file via list_files. Limited to 256 KB per file.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["path"],
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "The path to the file relative to the current working directory."
+                }
+            }
+        }
+    }
+]
+# --- END BUILT-IN CODE NAVIGATION TOOL DEFINITIONS ---
+
+
 # --- MCP Tool Configuration ---
+mcp_config = {}
 mcp_config = {}
 MCP_CONFIG_FILE = 'var/config/mcp.json'
 mcp_function_declarations = []  # A flat list of all function declarations from all tools
@@ -309,6 +570,7 @@ def load_mcp_config():
     if disable_all_mcp_tools:
         log("All MCP tools are globally disabled by configuration.")
 
+    # 1. Load Declarations from External MCP Servers
     if mcp_config.get("mcpServers"):
         # Sort servers by priority (higher first), default 0
         sorted_servers = sorted(
@@ -328,7 +590,16 @@ def load_mcp_config():
             for decl in declarations:
                 if 'name' in decl:
                     mcp_function_to_tool_map[decl['name']] = tool_name
-        log(f"Total function declarations loaded: {len(mcp_function_declarations)}")
+
+    # 2. Add Built-in Code Navigation Tool (always registered)
+    mcp_function_declarations.extend(BUILTIN_DECLARATIONS)
+    for decl in BUILTIN_DECLARATIONS:
+        if 'name' in decl:
+            mcp_function_to_tool_map[decl['name']] = BUILTIN_TOOL_NAME
+            # Built-in tools have no external schema, use empty dict for input coercion logic safety
+            mcp_function_input_schema_map[decl['name']] = {}
+
+    log(f"Total function declarations loaded: {len(mcp_function_declarations)}")
 
 def create_tool_declarations(prompt_text: str = ""):
     """
@@ -558,6 +829,29 @@ def execute_mcp_tool(function_name, tool_args):
     tool_name = mcp_function_to_tool_map.get(function_name)
     if not tool_name:
         return f"Error: Function '{function_name}' not found in any configured MCP tool."
+
+    # Handle built-in tools (executed locally)
+    if tool_name == BUILTIN_TOOL_NAME:
+        builtin_func = BUILTIN_FUNCTIONS.get(function_name)
+        if not builtin_func:
+            return f"Error: Built-in function '{function_name}' not implemented."
+
+        normalized_args = _normalize_mcp_args(tool_args)
+
+        # Built-in functions typically take 'path' as primary argument
+        path_arg = normalized_args.get('path', '.') if function_name == 'list_files' else normalized_args.get('path')
+
+        if path_arg is None and function_name == 'get_file_content':
+             return "Error: get_file_content requires the 'path' argument."
+
+        try:
+            result = builtin_func(path_arg)
+            # Built-in tools return strings formatted for the model
+            return result
+        except Exception as e:
+            log(f"Error executing built-in tool {function_name}: {e}")
+            return f"Error executing built-in function '{function_name}': {e}"
+
 
     tool_info = mcp_config.get("mcpServers", {}).get(tool_name)
     if not tool_info:
