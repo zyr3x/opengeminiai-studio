@@ -77,10 +77,11 @@ def _generate_tree_local(file_paths, root_name):
     return "\n".join(tree_lines)
 
 
-def list_files(path: str = ".") -> str:
+def list_files(path: str = ".", max_depth: int = -1) -> str:
     """
     Lists files and directories recursively for code context.
     Respects common ignore patterns. Returns an ASCII tree structure.
+    An optional max_depth can be specified to limit traversal depth (e.g., max_depth=3).
     """
     resolved_path = _safe_path_resolve(path)
     if not resolved_path or not os.path.exists(resolved_path):
@@ -92,21 +93,29 @@ def list_files(path: str = ".") -> str:
     relative_paths = []
     MAX_FILES_LISTED = 500
     file_count = 0
+    start_level = resolved_path.count(os.sep)
 
     try:
         for root, dirs, files in os.walk(resolved_path, topdown=True):
+            current_level = root.count(os.sep)
+            depth = current_level - start_level
+
             rel_root_abs = os.path.relpath(root, resolved_path)
             rel_root = '' if rel_root_abs == '.' else rel_root_abs
 
-            # Filter directories in place
+            # Filter directories in place first
             dirs[:] = [d for d in dirs if not (
                     d.startswith('.') or
                     any(fnmatch.fnmatch(os.path.join(rel_root, d).replace(os.sep, '/'), p) or fnmatch.fnmatch(d, p) for p in CODE_IGNORE_PATTERNS)
             )]
 
+            # If max_depth is set, stop descending further once reached
+            if max_depth != -1 and depth >= max_depth:
+                dirs[:] = []
+
             for filename in files:
                 if file_count >= MAX_FILES_LISTED:
-                    dirs[:] = [] # Stop traversing deeper
+                    dirs[:] = []  # Stop traversing deeper
                     break
 
                 rel_filepath_fs = os.path.join(rel_root, filename)
@@ -249,6 +258,10 @@ BUILTIN_DECLARATIONS = [
                 "path": {
                     "type": "STRING",
                     "description": "The starting path relative to the current working directory. Use '.' for the project root."
+                },
+                "max_depth": {
+                    "type": "INTEGER",
+                    "description": "Optional. The maximum depth of directories to traverse. `max_depth=1` lists the current directory."
                 }
             }
         }
@@ -838,18 +851,31 @@ def execute_mcp_tool(function_name, tool_args):
 
         normalized_args = _normalize_mcp_args(tool_args)
 
-        # Built-in functions typically take 'path' as primary argument
-        path_arg = normalized_args.get('path', '.') if function_name == 'list_files' else normalized_args.get('path')
+        # Prepare args for the specific built-in function call
+        func_args = {}
+        try:
+            if function_name == 'list_files':
+                func_args['path'] = normalized_args.get('path', '.')
+                if 'max_depth' in normalized_args:
+                    func_args['max_depth'] = int(normalized_args['max_depth'])
+            elif function_name == 'get_file_content':
+                func_args['path'] = normalized_args['path']
+            elif function_name == 'list_symbols_in_file':
+                func_args['path'] = normalized_args['path']
+            elif function_name == 'get_code_snippet':
+                func_args['path'] = normalized_args['path']
+                func_args['symbol_name'] = normalized_args['symbol_name']
+        except KeyError as e:
+            return f"Error: Missing required argument '{e.name}' for function '{function_name}'."
+        except (ValueError, TypeError):
+            return f"Error: Invalid argument type provided for function '{function_name}'. 'max_depth' must be an integer."
 
-        if path_arg is None and function_name == 'get_file_content':
-             return "Error: get_file_content requires the 'path' argument."
 
         try:
-            result = builtin_func(path_arg)
-            # Built-in tools return strings formatted for the model
+            result = builtin_func(**func_args)
             return result
         except Exception as e:
-            log(f"Error executing built-in tool {function_name}: {e}")
+            log(f"Error executing built-in tool {function_name} with args {func_args}: {e}")
             return f"Error executing built-in function '{function_name}': {e}"
 
 
