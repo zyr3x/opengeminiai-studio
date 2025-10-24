@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const mobileChatSelect = document.getElementById('mobile-chat-select'); // Mobile chat dropdown
     const newChatBtnMobile = document.getElementById('new-chat-btn-mobile'); // Mobile new chat button
     const deleteChatBtnUniversal = document.getElementById('delete-chat-btn-universal'); // Universal delete chat button
+    const renameChatBtn = document.getElementById('rename-chat-btn');
     const generationTypeSelect = document.getElementById('generation-type-select');
     const el = document.querySelector('#mcp-tools-select');
     const chatSidebar = document.getElementById('chat-sidebar');
@@ -164,6 +165,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         contentDiv.innerHTML = textContent + filesHtml;
         if (window.renderMathInElement) renderMathInElement(contentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
+        addCopyButtonsToCodeBlocks(contentDiv);
 
         messageDiv.appendChild(avatarDiv);
         messageDiv.appendChild(contentDiv);
@@ -185,6 +187,30 @@ document.addEventListener('DOMContentLoaded', function () {
         chatHistory.appendChild(messageDiv);
         chatHistory.scrollTop = chatHistory.scrollHeight;
         return messageDiv;
+    }
+
+    function addCopyButtonsToCodeBlocks(container) {
+        const codeBlocks = container.querySelectorAll('pre');
+        codeBlocks.forEach(pre => {
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'btn btn-sm btn-outline-secondary copy-code-btn';
+            copyBtn.innerHTML = '<span class="material-icons fs-6">content_copy</span> Copy';
+            pre.style.position = 'relative';
+            pre.appendChild(copyBtn);
+
+            copyBtn.addEventListener('click', () => {
+                const code = pre.querySelector('code').innerText;
+                navigator.clipboard.writeText(code).then(() => {
+                    copyBtn.innerHTML = '<span class="material-icons fs-6">done</span> Copied!';
+                    setTimeout(() => {
+                         copyBtn.innerHTML = '<span class="material-icons fs-6">content_copy</span> Copy';
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                    copyBtn.textContent = 'Error';
+                });
+            });
+        });
     }
 
     function showTypingIndicator() {
@@ -472,6 +498,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (toggleSidebarBtn) {
         toggleSidebarBtn.addEventListener('click', toggleSidebar);
+    }
+
+    if (renameChatBtn) {
+        renameChatBtn.addEventListener('click', async () => {
+            if (!currentChatId) return;
+            const currentTitle = chatTitle.textContent;
+            const newTitle = prompt("Enter a new name for the chat:", currentTitle);
+
+            if (newTitle && newTitle.trim() !== '' && newTitle !== currentTitle) {
+                try {
+                    const response = await fetch(`/api/chats/${currentChatId}/title`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: newTitle.trim() })
+                    });
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error || 'Failed to rename chat.');
+                    }
+                    await loadChats(); // Reload all chats to reflect the change everywhere
+                } catch (error) {
+                    console.error('Error renaming chat:', error);
+                    alert(`Could not rename chat: ${error.message}`);
+                }
+            }
+        });
     }
 
     chatInput.addEventListener('input', adjustTextareaHeight);

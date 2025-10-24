@@ -29,7 +29,12 @@
                                 <button class="btn btn-sm btn-outline-secondary me-2 d-none d-md-inline-flex align-items-center" id="toggle-sidebar-btn" title="Toggle Sidebar">
                                     <span class="material-icons">menu</span>
                                 </button>
-                                <h5 class="mb-0" id="chat-title">AI Chat</h5>
+                                <div class="d-flex align-items-center" id="chat-title-container">
+                                    <h5 class="mb-0 me-2" id="chat-title">AI Chat</h5>
+                                    <button class="btn btn-sm btn-outline-secondary p-0 px-1 d-flex align-items-center" id="rename-chat-btn" title="Rename Chat">
+                                        <span class="material-icons fs-6">edit</span>
+                                    </button>
+                                </div>
                             </div>
                             <!-- Delete button for the active chat (universal) -->
                             <button class="btn btn-sm btn-outline-danger p-0 px-1 d-flex align-items-center flex-shrink-0" id="delete-chat-btn-universal" style="display: none;" title="Delete Chat">

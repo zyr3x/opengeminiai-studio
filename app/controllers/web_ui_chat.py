@@ -41,6 +41,23 @@ def create_chat():
     conn.close()
     return jsonify(new_chat), 201
 
+@web_ui_chat_bp.route('/api/chats/<int:chat_id>/title', methods=['PUT'])
+def update_chat_title(chat_id):
+    data = request.json
+    new_title = data.get('title')
+    if not new_title:
+        return jsonify({'error': 'Title is required'}), 400
+
+    try:
+        conn = get_db_connection()
+        conn.execute('UPDATE chats SET title = ? WHERE id = ?', (new_title, chat_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'new_title': new_title})
+    except Exception as e:
+        print(f"Error updating title for chat {chat_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>', methods=['DELETE'])
 def delete_chat(chat_id):
     """
