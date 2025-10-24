@@ -994,8 +994,6 @@ def execute_mcp_tool(function_name, tool_args):
                 func_args['symbol_name'] = normalized_args['symbol_name']
             elif function_name == 'search_codebase':
                 func_args['query'] = normalized_args['query']
-            elif function_name == 'apply_patch':
-                func_args['patch_content'] = normalized_args['patch_content']
         except KeyError as e:
             return f"Error: Missing required argument '{e.name}' for function '{function_name}'."
         except (ValueError, TypeError):
