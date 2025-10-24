@@ -398,6 +398,24 @@ BUILTIN_DECLARATIONS = [
         }
     },
     {
+        "name": "get_code_snippet",
+        "description": "Extracts the source code of a specific function or class from a Python file. Use this after finding a symbol with list_symbols_ in_file.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["path", "symbol_name"],
+            "properties": {
+                "path": {
+                    "type":  "STRING",
+                    "description": "The path to the file relative to the current working directory."
+                },
+                "symbol_name": {
+                    "type": "STRING",
+                    "description": "The name  of the function or class to extract."
+                }
+            }
+        }
+    },
+    {
         "name": "get_file_content",
         "description": "Reads and returns the content of a single specified text file. Use this after identifying the file via list_files. Limited to 256 KB per file.",
         "parameters": {
