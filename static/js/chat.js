@@ -581,7 +581,12 @@ document.addEventListener('DOMContentLoaded', function () {
         clearFiles();
 
         showTypingIndicator();
+
+        // Disable form elements
         sendBtn.disabled = true;
+        chatInput.disabled = true;
+        attachFileBtn.disabled = true;
+        recordBtn.disabled = true;
 
         const formData = new FormData();
         formData.append('chat_id', currentChatId);
@@ -614,7 +619,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (generationType === 'image') {
                 const data = await response.json();
-                addMessageToHistory('assistant', data.content);
+                addMessageToHistory('assistant', data.content, [], data.message_id);
             } else {
                  const reader = response.body.getReader();
                  const decoder = new TextDecoder();
@@ -671,7 +676,11 @@ document.addEventListener('DOMContentLoaded', function () {
             userMessageElement.querySelector('.message-content').appendChild(errorContainer);
             chatHistory.scrollTop = chatHistory.scrollHeight;
         } finally {
+            // Re-enable form elements
             sendBtn.disabled = false;
+            chatInput.disabled = false;
+            attachFileBtn.disabled = false;
+            recordBtn.disabled = false;
             chatInput.focus();
         }
     }

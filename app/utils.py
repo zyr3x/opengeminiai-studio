@@ -317,12 +317,14 @@ def format_tool_output_for_display(tool_parts: list) -> str | None:
     return "" # Return empty string instead of None for consistency
 
 def add_message_to_db(chat_id: int, role: str, parts: list):
-    """Adds a message with its parts to the database."""
+    """Adds a message with its parts to the database and returns the new message ID."""
     conn = get_db_connection()
-    conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
+    cursor = conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
                  (chat_id, role, json.dumps(parts)))
+    message_id = cursor.lastrowid
     conn.commit()
     conn.close()
+    return message_id
 
 def format_message_parts_for_ui(db_parts_json: str) -> dict:
     """

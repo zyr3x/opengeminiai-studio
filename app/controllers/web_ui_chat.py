@@ -157,8 +157,8 @@ def generate_image_api():
         if not image_data or not mime_type:
             text_response = " ".join(p.get('text', '') for p in parts).strip() or "Sorry, I couldn't generate an image. The model returned an unexpected response."
             bot_text_parts = [{"text": text_response}]
-            utils.add_message_to_db(chat_id, 'model', bot_text_parts)
-            return jsonify({'content': text_response})
+            bot_message_id = utils.add_message_to_db(chat_id, 'model', bot_text_parts)
+            return jsonify({'content': text_response, 'message_id': bot_message_id})
 
         # 4. Save image and bot message to DB
         ext = mime_type.split('/')[-1] if '/' in mime_type else 'png'
@@ -181,11 +181,11 @@ def generate_image_api():
             {"text": bot_response_text},
             {"file_data": {"mime_type": mime_type, "path": filepath}}
         ]
-        utils.add_message_to_db(chat_id, 'model', bot_parts)
+        bot_message_id = utils.add_message_to_db(chat_id, 'model', bot_parts)
 
         # 5. Return markdown content to the frontend
         response_content = f"{bot_response_text}\n![{prompt}]({file_url})"
-        return jsonify({'content': response_content})
+        return jsonify({'content': response_content, 'message_id': bot_message_id})
 
     except (HTTPError, ConnectionError, Timeout, RequestException) as e:
         error_message = f"Error from upstream API: {e}"
