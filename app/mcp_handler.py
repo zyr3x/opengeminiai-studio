@@ -12,11 +12,31 @@ import fnmatch
 import ast
 
 from .utils import log
+from contextlib import contextmanager
 
 # --- BUILT-IN CODE NAVIGATION TOOL DEFINITIONS ---
 BUILTIN_TOOL_NAME = "__builtin_code_navigator"
-# Safety: Restrict file operations to the current working directory where the script is run (project root assumption)
-PROJECT_ROOT = os.path.realpath(os.getcwd())
+
+# Thread-local storage to hold the project root for the current request context
+_request_context = threading.local()
+
+def get_project_root() -> str:
+    """Gets the project root for the current request. Defaults to CWD if not set."""
+    return getattr(_request_context, 'project_root', os.path.realpath(os.getcwd()))
+
+@contextmanager
+def set_project_root(path: str | None):
+    """A context manager to set the project root for the duration of a request."""
+    original_path = getattr(_request_context, 'project_root', None)
+    if path and os.path.isdir(os.path.expanduser(path)):
+        _request_context.project_root = os.path.realpath(os.path.expanduser(path))
+    else:
+        _request_context.project_root = os.path.realpath(os.getcwd())
+    try:
+        yield
+    finally:
+        _request_context.project_root = original_path
+
 
 CODE_IGNORE_PATTERNS = [
     '.git', '__pycache__', 'node_modules', 'venv', '.venv',
@@ -37,14 +57,15 @@ CODE_IGNORE_PATTERNS = [
 ]
 
 def _safe_path_resolve(path: str) -> str | None:
-    """Resolves a path relative to PROJECT_ROOT and checks if it stays within bounds."""
-    # We always join the relative path to the PROJECT_ROOT first
-    full_path = os.path.join(PROJECT_ROOT, path)
+    """Resolves a path relative to the current request's project root and checks if it stays within bounds."""
+    project_root = get_project_root()
+    # We always join the relative path to the project_root first
+    full_path = os.path.join(project_root, path)
     resolved_path = os.path.realpath(full_path)
 
     # Crucial safety check: ensure the resolved path remains within the project root
-    if not resolved_path.startswith(PROJECT_ROOT):
-        log(f"Security violation attempt: Path '{path}' resolves outside project root ({resolved_path} vs {PROJECT_ROOT}).")
+    if not resolved_path.startswith(project_root):
+        log(f"Security violation attempt: Path '{path}' resolves outside project root ({resolved_path} vs {project_root}).")
         return None
     return resolved_path
 
@@ -138,7 +159,7 @@ def list_files(path: str = ".", max_depth: int = -1) -> str:
 
 
     # Determine the name to display as the root of the tree
-    tree_root_name = path if path != "." else os.path.basename(PROJECT_ROOT)
+    tree_root_name = path if path != "." else os.path.basename(get_project_root())
 
     if not relative_paths:
         return f"Directory '{path}' is empty or contains only ignored files."
@@ -241,11 +262,103 @@ def get_code_snippet(path: str, symbol_name: str) -> str:
     except Exception as e:
         return f"Error processing file '{path}' for symbol '{symbol_name}': {e}"
 
+def search_codebase(query: str) -> str:
+    """
+    Searches the entire project codebase for a specific query string.
+    Uses 'ripgrep' (rg) if available for speed and .gitignore support, otherwise falls back to 'grep'.
+    Returns a formatted list of matches, including file paths and line numbers.
+    """
+    MAX_SEARCH_RESULTS = 100
+    try:
+        # Check if ripgrep (rg) is installed. We prefer it for its speed and gitignore handling.
+        subprocess.run(['rg', '--version'], check=True, capture_output=True)
+        # Use ripgrep with vimgrep format (file:line:col:text), which is structured and easy for an LLM to parse.
+        command = ['rg', '--vimgrep', '--max-count', str(MAX_SEARCH_RESULTS), '--', query, '.']
+        log(f"Using ripgrep for search with command: {' '.join(command)}")
+        result = subprocess.run(
+            command, cwd=get_project_root(), capture_output=True, text=True, check=False
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        # Fallback to grep if ripgrep is not available.
+        log("ripgrep not found, falling back to grep. For better performance, install ripgrep.")
+        exclude_dirs = [f'--exclude-dir={pattern}' for pattern in [
+            '.git', '__pycache__', 'node_modules', 'venv', '.venv', 'build', 'dist', 'target', '.idea', '.vscode'
+        ]]
+        command = ['grep', '-r', '-n', '-I'] + exclude_dirs + ['-e', query, '.']
+        log(f"Using grep for search with command: {' '.join(command)}")
+        result = subprocess.run(
+            command, cwd=get_project_root(), capture_output=True, text=True, check=False
+        )
+
+    if result.returncode not in [0, 1]:  # 0 = success with matches, 1 = success with no matches
+        return f"Error executing search command. Return code: {result.returncode}\nStderr: {result.stderr}"
+
+    output = result.stdout.strip()
+    if not output:
+        return f"No results found for query: '{query}'"
+
+    lines = output.split('\n')
+    if len(lines) > MAX_SEARCH_RESULTS:
+        output = "\n".join(lines[:MAX_SEARCH_RESULTS])
+        output += f"\n... (truncated to {MAX_SEARCH_RESULTS} results)"
+
+    return f"Search results for '{query}':\n```\n{output}\n```"
+
+def apply_patch(patch_content: str) -> str:
+    """
+    Applies a patch to the codebase to modify files.
+    The user must provide the patch content in the standard unified diff format (e.g., from `git diff`).
+    This tool should be used as the final step when a user asks to fix, refactor, or add code.
+    """
+    if not patch_content or not isinstance(patch_content, str):
+        return "Error: Patch content must be a non-empty string."
+
+    # Clean up potential markdown formatting from the LLM's output
+    if patch_content.strip().startswith("```"):
+        patch_content = "\n".join(patch_content.strip().split('\n')[1:-1])
+
+    log(f"Attempting to apply patch:\n---\n{patch_content}\n---")
+
+    try:
+        # Use a temporary file to pass the patch to the command
+        with open("temp_patch.diff", "w") as f:
+            f.write(patch_content)
+
+        # The `patch` command is standard on Linux/macOS. -p1 strips the 'a/' and 'b/' prefixes.
+        command = ['patch', '-p1', '--input=temp_patch.diff']
+        result = subprocess.run(
+            command, cwd=get_project_root(), capture_output=True, text=True, check=False
+        )
+
+        os.remove("temp_patch.diff")
+
+        if result.returncode == 0:
+            success_message = "Patch applied successfully."
+            if result.stdout:
+                success_message += f"\nOutput:\n{result.stdout}"
+            log(success_message)
+            return success_message
+        else:
+            error_message = f"Error applying patch. Return code: {result.returncode}"
+            if result.stderr:
+                error_message += f"\nStderr:\n{result.stderr}"
+            if result.stdout:
+                error_message += f"\nStdout:\n{result.stdout}"
+            log(error_message)
+            return error_message
+
+    except Exception as e:
+        if os.path.exists("temp_patch.diff"):
+            os.remove("temp_patch.diff")
+        log(f"Failed to execute patch command: {e}")
+        return f"Error: An unexpected exception occurred while trying to apply the patch: {e}"
+
 BUILTIN_FUNCTIONS = {
     "list_files": list_files,
     "get_file_content": get_file_content,
     "list_symbols_in_file": list_symbols_in_file,
     "get_code_snippet": get_code_snippet,
+    "search_codebase": search_codebase,
 }
 
 BUILTIN_DECLARATIONS = [
@@ -276,6 +389,20 @@ BUILTIN_DECLARATIONS = [
                 "path": {
                     "type": "STRING",
                     "description": "The path to the file relative to the current working directory."
+                }
+            }
+        }
+    },
+    {
+        "name": "search_codebase",
+        "description": "Performs a fast, line-based search for a string query across all files in the project, returning matching lines with their file paths and line numbers. Ideal for finding where functions are called or variables are defined.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["query"],
+            "properties": {
+                "query": {
+                    "type": "STRING",
+                    "description": "The string or regular expression to search for."
                 }
             }
         }
@@ -865,6 +992,10 @@ def execute_mcp_tool(function_name, tool_args):
             elif function_name == 'get_code_snippet':
                 func_args['path'] = normalized_args['path']
                 func_args['symbol_name'] = normalized_args['symbol_name']
+            elif function_name == 'search_codebase':
+                func_args['query'] = normalized_args['query']
+            elif function_name == 'apply_patch':
+                func_args['patch_content'] = normalized_args['patch_content']
         except KeyError as e:
             return f"Error: Missing required argument '{e.name}' for function '{function_name}'."
         except (ValueError, TypeError):

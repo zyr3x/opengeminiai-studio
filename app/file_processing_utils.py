@@ -6,7 +6,7 @@ import mimetypes
 import os
 import re
 from app import utils
-from app.mcp_handler import list_files
+from app.mcp_handler import list_files, set_project_root
 
 # --- Constants ---
 MAX_MULTIMODAL_FILE_SIZE_MB = 12
@@ -62,7 +62,7 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
 
     new_content_parts = []
     last_end = 0
-    code_tools_requested = False
+    code_path_found = None
 
     for i, match in enumerate(matches):
         start, end = match.span()
@@ -78,12 +78,14 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
         expanded_path = os.path.expanduser(file_path_str)
 
         if file_type == 'code':
-            # Code paths are now handled agentically. When the user provides a path,
-            # we proactively list the files at that path and provide it as initial context.
-            code_tools_requested = True
+            # This is the primary path for setting the project context for the agent.
+            # We extract the path, which will be used to set the cwd for all subsequent tool calls.
+            code_path_found = os.path.expanduser(file_path_str)
 
-            # Proactively get the file tree for the requested path, with a sensible depth limit.
-            project_tree = list_files(path=file_path_str, max_depth=3)
+            # Proactively get the file tree for the requested path using the new context.
+            # We list files from the root of the new path (`.`).
+            with set_project_root(code_path_found):
+                project_tree = list_files(path=".", max_depth=3)
 
             # Insert a more detailed context message for the model.
             context_text = (
@@ -149,4 +151,4 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
     if last_end < len(content):
         new_content_parts.append({"type": "text", "text": content[last_end:]})
 
-    return new_content_parts, code_tools_requested
+    return new_content_parts, code_path_found
