@@ -116,12 +116,30 @@ def _process_image_url(image_url: dict) -> dict | None:
             mime_type, base64_data = match.groups()
             return {"inline_data": {"mime_type": mime_type, "data": base64_data}}
         else:
-            # Handle web URL
+            # Handle web URL with size check
             log(f"Downloading image from URL: {url}")
-            response = requests.get(url, timeout=20)
+            MAX_IMAGE_SIZE_MB = 15
+            MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
+
+            response = requests.get(url, timeout=20, stream=True)
             response.raise_for_status()
+
+            # Check Content-Length header first if available
+            content_length = response.headers.get('Content-Length')
+            if content_length and int(content_length) > MAX_IMAGE_SIZE_BYTES:
+                print(f"Skipping image from URL {url}: size from header ({int(content_length) / (1024*1024):.2f} MB) exceeds limit of {MAX_IMAGE_SIZE_MB} MB.")
+                return None
+
+            # Read content in chunks to prevent loading a huge file into memory
+            content = b''
+            for chunk in response.iter_content(chunk_size=1024 * 1024): # Read in 1MB chunks
+                content += chunk
+                if len(content) > MAX_IMAGE_SIZE_BYTES:
+                    print(f"Skipping image from URL {url}: size exceeded {MAX_IMAGE_SIZE_MB} MB during download.")
+                    return None
+
             mime_type = response.headers.get("Content-Type", "image/jpeg")
-            base64_data = base64.b64encode(response.content).decode('utf-8')
+            base64_data = base64.b64encode(content).decode('utf-8')
             return {"inline_data": {"mime_type": mime_type, "data": base64_data}}
     except Exception as e:
         print(f"Error processing image URL {url}: {e}")
