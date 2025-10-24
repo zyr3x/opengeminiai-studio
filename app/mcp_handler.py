@@ -997,7 +997,7 @@ def execute_mcp_tool(function_name, tool_args):
     global mcp_tool_processes, mcp_request_id_counter
 
     log(f"Executing MCP function: {function_name} with args: {tool_args}")
-
+    function_name = function_name.replace("default_api:", "")
     tool_name = mcp_function_to_tool_map.get(function_name)
     if not tool_name:
         return f"Error: Function '{function_name}' not found in any configured MCP tool."
