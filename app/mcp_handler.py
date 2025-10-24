@@ -349,6 +349,7 @@ def apply_patch(patch_content: str) -> str:
             if os.path.exists(temp_patch_file):
                 os.remove(temp_patch_file)
 
+        cleanup_orig_files()
         if result.returncode == 0:
             success_message = "Patch applied successfully."
             if result.stdout:
@@ -1239,3 +1240,19 @@ def execute_mcp_tool(function_name, tool_args):
         if tool_name in mcp_tool_processes:
             del mcp_tool_processes[tool_name]
         return error_message
+
+def cleanup_orig_files():
+    """
+    Recursively searches and removes *.orig files created during patch application.
+    """
+    project_root = get_project_root()
+    # Use os .walk for robustness across platforms
+    for root, _, files in os.walk(project_root):
+        for filename in files:
+            if filename.endswith('.orig'):
+                filepath = os.path.join( root, filename)
+                try:
+                    os.remove(filepath)
+                    log(f"Cleaned up temporary file: {filepath}")
+                except OSError as e:
+                    log(f"Error cleaning up { filepath}: {e}")

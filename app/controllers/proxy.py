@@ -12,6 +12,7 @@ from app.config import config
 from app import mcp_handler
 from app import utils
 from app import tool_config_utils
+import traceback
 from app import file_processing_utils
 
 proxy_bp = Blueprint('proxy', __name__)
@@ -219,8 +220,9 @@ def chat_completions():
                     utils.log(f"Using MCP tools defined by prompt override profile: {profile_selected_mcp_tools}")
                 elif disable_mcp_tools:
                     utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
-                else:  # MCP tools are enabled, but no specific tools were selected by a profile or code path.
-                    utils.log(f"MCP tools enabled, but no profile or code path selected specific tools. No MCP tools will be sent to proxy endpoint.")
+                else:  # MCP tools are enabled, and no specific tools were selected. Use context-aware selection.
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
+                    utils.log(f"MCP tools enabled. Using context-aware selection based on prompt.")
 
                 if mcp_declarations_to_use:
                     final_tools.extend(mcp_declarations_to_use)
@@ -412,8 +414,8 @@ def chat_completions():
         return Response(generate(), mimetype='text/event-stream')
 
     except Exception as e:
+        utils.log(f"An error occurred during chat completion: {e}\n{traceback.format_exc()}")
         error_message = f"An error occurred: {str(e)}"
-        print(f"An error occurred during chat completion: {error_message}")
         error_response = {"error": {"message": error_message, "type": "server_error", "code": "500"}}
         return jsonify(error_response), 500
 
