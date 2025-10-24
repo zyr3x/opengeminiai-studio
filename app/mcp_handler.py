@@ -6,6 +6,7 @@ import json
 import subprocess
 import shlex
 import select
+import threading
 import time
 
 from .utils import log
@@ -18,6 +19,7 @@ mcp_function_to_tool_map = {}   # Maps a function name to its parent tool name (
 mcp_function_input_schema_map = {}  # Maps a function name to its inputSchema from MCP
 mcp_tool_processes = {}  # Cache for running tool subprocesses
 mcp_request_id_counter = 1  # Counter for unique JSON-RPC request IDs
+mcp_request_id_lock = threading.Lock() # Lock to ensure thread-safe request ID generation
 
 MAX_FUNCTION_DECLARATIONS_DEFAULT = 64 # Default documented limit
 max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT # Configurable limit
@@ -610,8 +612,9 @@ def execute_mcp_tool(function_name, tool_args):
 
     # At this point, `process` should be a valid, running Popen object
     try:
-        call_id = mcp_request_id_counter
-        mcp_request_id_counter += 1
+        with mcp_request_id_lock:
+            call_id = mcp_request_id_counter
+            mcp_request_id_counter += 1
 
         normalized_args = _normalize_mcp_args(tool_args)
         input_schema = mcp_function_input_schema_map.get(function_name) or {}
