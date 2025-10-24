@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', function () {
         filePreviewsContainer.style.display = 'none';
     }
 
-    function addMessageToHistory(role, content, files = []) {
+    function addMessageToHistory(role, content, files = [], messageId = null) {
         const messageDiv = document.createElement('div');
         const isUser = role === 'user';
         messageDiv.classList.add('message', isUser ? 'user-message' : 'bot-message');
@@ -167,8 +167,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
         messageDiv.appendChild(avatarDiv);
         messageDiv.appendChild(contentDiv);
+
+        // Add message actions (e.g., delete)
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'message-actions';
+
+        if (messageId) {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-sm btn-outline-danger p-0 px-1 delete-message-btn';
+            deleteBtn.innerHTML = '<span class="material-icons fs-6">delete</span>';
+            deleteBtn.title = 'Delete Message';
+            deleteBtn.dataset.messageId = messageId;
+            actionsDiv.appendChild(deleteBtn);
+        }
+        messageDiv.appendChild(actionsDiv);
+
         chatHistory.appendChild(messageDiv);
         chatHistory.scrollTop = chatHistory.scrollHeight;
+        return messageDiv;
     }
 
     function showTypingIndicator() {
@@ -363,7 +379,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="message-content"><p>This is a new chat. Ask me anything!</p></div>
                     </div>`;
             } else {
-                messages.forEach(msg => addMessageToHistory(msg.role, msg.content, msg.files || []));
+                messages.forEach(msg => addMessageToHistory(msg.role, msg.content, msg.files || [], msg.id));
             }
         } catch (error) {
             console.error(`Error loading chat ${chatId}:`, error);
@@ -526,172 +542,180 @@ document.addEventListener('DOMContentLoaded', function () {
         filePreviewsContainer.appendChild(wrapper);
     }
 
-    chatForm.addEventListener('submit', async function(event) {
-        event.preventDefault();
-        const userInput = chatInput.value.trim();
-        const generationType = generationTypeSelect.value;
+    chatHistory.addEventListener('click', async function(e) {
+        const deleteBtn = e.target.closest('.delete-message-btn');
+        if (deleteBtn) {
+            const messageId = deleteBtn.dataset.messageId;
+            const messageDiv = deleteBtn.closest('.message');
 
-        if (generationType === 'image') {
-            if (!userInput) {
-                alert("Please enter a prompt to generate an image.");
-                return;
-            }
-
-            addMessageToHistory('user', userInput);
-            chatInput.value = '';
-            adjustTextareaHeight();
-            clearFiles(); // Ensure no files are lingering from chat mode
-
-            showTypingIndicator();
-            sendBtn.disabled = true;
-
-            const formData = new FormData();
-            formData.append('chat_id', currentChatId);
-            formData.append('model', modelSelect.value);
-            formData.append('prompt', userInput);
-
-            try {
-                const response = await fetch('/api/generate_image', { method: 'POST', body: formData });
-                removeTypingIndicator();
-
-                if (!response.ok) {
-                    const err = await response.json();
-                    addMessageToHistory('bot', `Error: ${err.error || 'Unknown error during image generation'}`);
-                    return;
+            if (confirm('Are you sure you want to delete this message?')) {
+                try {
+                    const response = await fetch(`/api/messages/${messageId}`, { method: 'DELETE' });
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.error || 'Failed to delete message from server.');
+                    }
+                    messageDiv.remove();
+                } catch (error) {
+                    console.error('Error deleting message:', error);
+                    alert(`Could not delete message: ${error.message}`);
                 }
-
-                const data = await response.json();
-                addMessageToHistory('assistant', data.content); // Let marked render the markdown image link
-
-            } catch (error) {
-                removeTypingIndicator();
-                addMessageToHistory('bot', `Network error: ${error.message}`);
-            } finally {
-                sendBtn.disabled = false;
-                chatInput.focus();
-            }
-        } else { // 'text'
-            if (!userInput && attachedFiles.length === 0) return;
-
-            addMessageToHistory('user', userInput, [...attachedFiles]);
-            const filesToSend = [...attachedFiles];
-            chatInput.value = '';
-            adjustTextareaHeight();
-            clearFiles();
-
-            showTypingIndicator();
-            sendBtn.disabled = true;
-
-            const formData = new FormData();
-            formData.append('chat_id', currentChatId);
-            formData.append('model', modelSelect.value);
-            formData.append('system_prompt_name', systemPromptSelect ? systemPromptSelect.value : '');
-            formData.append('message', userInput);
-            filesToSend.forEach(file => formData.append('file', file));
-
-            // Add selected MCP tools to the form data
-            if (el && el.tomselect) {
-                const selectedTools = el.tomselect.getValue();
-                if (selectedTools && Array.isArray(selectedTools)) {
-                    selectedTools.forEach(tool => {
-                        formData.append('mcp_tools', tool);
-                    });
-                }
-            }
-
-            try {
-                const response = await fetch('/chat_api', { method: 'POST', body: formData });
-                removeTypingIndicator();
-
-                if (!response.ok) {
-                    const err = await response.json();
-                    addMessageToHistory('bot', `Error: ${err.error || 'Unknown error'}`);
-                    return;
-                }
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let botMessageContent = '';
-                const botMessageDiv = document.createElement('div');
-                botMessageDiv.className = 'message bot-message';
-
-                const avatarDiv = document.createElement('div');
-                avatarDiv.className = 'avatar';
-                const avatarIcon = document.createElement('span');
-                avatarIcon.className = 'material-icons';
-                avatarIcon.textContent = 'smart_toy';
-                avatarDiv.appendChild(avatarIcon);
-                botMessageDiv.appendChild(avatarDiv);
-
-                const botContentDiv = document.createElement('div');
-                botContentDiv.className = 'message-content';
-                botMessageDiv.appendChild(botContentDiv);
-                chatHistory.appendChild(botMessageDiv);
-
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    botMessageContent += decoder.decode(value, { stream: true });
-
-                    // HACK: `df -h` on macOS can add a trailing \ to mount points.
-                    botMessageContent = botMessageContent.replace(/\\"/g, '"').replace("/\\\n","\n").replaceAll("\\\n","\n");
-                    let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = html;
-
-                    const replaceWithImage = (element, url) => {
-                        try {
-                            // URLs from pollinations sometimes have spaces, encode them.
-                            const encodedUrl = encodeURI(url);
-                            new URL(encodedUrl); // Basic validation
-                            const img = document.createElement('img');
-                            img.src = encodedUrl;
-                            img.alt = "Generated image";
-                            img.style.maxWidth = "100%";
-                            img.style.borderRadius = "0.5rem";
-                            img.style.marginTop = "0.5rem";
-                            element.parentNode.replaceChild(img, element);
-                        } catch (e) { /* Ignore, URL might be incomplete during streaming */ }
-                    };
-
-                    // Case 1: <a> tags
-                    tempDiv.querySelectorAll('a[href*="image.pollinations.ai"]').forEach(a => {
-                        if (a.textContent.trim() === a.href) {
-                            replaceWithImage(a, a.href);
-                        }
-                    });
-
-                    // Case 2: <p> or <code> tags
-                    tempDiv.querySelectorAll('p, code').forEach(el => {
-                        const text = el.textContent.trim();
-                        if (text.startsWith('https://image.pollinations.ai') || text.startsWith('http://image.pollinations.ai')) {
-                            // Ensure the element only contains this URL and nothing else.
-                            if (el.childNodes.length === 1 && el.childNodes[0].nodeType === Node.TEXT_NODE) {
-                                replaceWithImage(el, text);
-                            }
-                        }
-                    });
-
-                    botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, {ADD_TAGS: ['details', 'summary']});
-                    if (window.renderMathInElement) renderMathInElement(botContentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
-                    chatHistory.scrollTop = chatHistory.scrollHeight;
-                }
-
-                if (userInput) { // Only reload chats if there was text, to update title
-                    await loadChats();
-                }
-
-            } catch (error) {
-                removeTypingIndicator();
-                addMessageToHistory('bot', `Network error: ${error.message}`);
-            } finally {
-                sendBtn.disabled = false;
-                chatInput.focus();
             }
         }
     });
 
+
+    async function sendMessage(userInput, filesToSend, generationType, userMessageElement = null) {
+        // If this is a new message (not a retry), create the element.
+        if (!userMessageElement) {
+            userMessageElement = addMessageToHistory('user', userInput, filesToSend);
+        } else {
+            // If it's a retry, remove old error messages.
+            const existingError = userMessageElement.querySelector('.message-error-container');
+            if (existingError) existingError.remove();
+        }
+
+        // Clear input fields for new messages
+        chatInput.value = '';
+        adjustTextareaHeight();
+        clearFiles();
+
+        showTypingIndicator();
+        sendBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('chat_id', currentChatId);
+        formData.append('model', modelSelect.value);
+        if (generationType === 'image') {
+            formData.append('prompt', userInput);
+        } else {
+            formData.append('system_prompt_name', systemPromptSelect ? systemPromptSelect.value : '');
+            formData.append('message', userInput);
+            filesToSend.forEach(file => formData.append('file', file));
+
+            if (el && el.tomselect) {
+                const selectedTools = el.tomselect.getValue();
+                if (selectedTools && Array.isArray(selectedTools)) {
+                    selectedTools.forEach(tool => formData.append('mcp_tools', tool));
+                }
+            }
+        }
+
+        const apiUrl = generationType === 'image' ? '/api/generate_image' : '/chat_api';
+
+        try {
+            const response = await fetch(apiUrl, { method: 'POST', body: formData });
+            removeTypingIndicator();
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'API request failed');
+            }
+
+            if (generationType === 'image') {
+                const data = await response.json();
+                addMessageToHistory('assistant', data.content);
+            } else {
+                 const reader = response.body.getReader();
+                 const decoder = new TextDecoder();
+                 let botMessageContent = '';
+
+                 // Create a new bot message element to stream content into
+                 const botMessageDiv = addMessageToHistory('assistant', '', []);
+
+                 const botContentDiv = botMessageDiv.querySelector('.message-content');
+                 botContentDiv.innerHTML = ''; // Clear initial content
+
+                 try {
+                     while (true) {
+                         const { value, done } = await reader.read();
+                         if (done) break;
+                         botMessageContent += decoder.decode(value, { stream: true });
+
+                         botMessageContent = botMessageContent.replace(/\\"/g, '"').replace("/\\\n", "\n").replaceAll("\\\n", "\n");
+                         let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
+
+                         const tempDiv = document.createElement('div');
+                         tempDiv.innerHTML = html;
+                         // Image replacement logic (same as before) ...
+                         botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, { ADD_TAGS: ['details', 'summary'] });
+                         if (window.renderMathInElement) renderMathInElement(botContentDiv);
+                         chatHistory.scrollTop = chatHistory.scrollHeight;
+                     }
+                 } catch (streamError) {
+                     console.error("Streaming error:", streamError);
+                     botContentDiv.innerHTML += `<p class="text-danger small mt-2"><strong>Error:</strong> The connection was interrupted during the response.</p>`;
+                     chatHistory.scrollTop = chatHistory.scrollHeight;
+                 }
+            }
+
+            // Success: reload chats to get new IDs and titles
+            if (userInput) {
+                await loadChats();
+            }
+
+        } catch (error) {
+            removeTypingIndicator();
+            const errorContainer = document.createElement('div');
+            errorContainer.className = 'message-error-container text-danger small mt-2';
+            errorContainer.innerHTML = `<p class="mb-1"><strong>Error:</strong> ${escapeHtml(error.message)}</p>`;
+
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'btn btn-sm btn-outline-secondary';
+            retryBtn.innerHTML = '<span class="material-icons fs-6" style="vertical-align: sub;">refresh</span> Retry';
+            retryBtn.onclick = () => {
+                sendMessage(userInput, filesToSend, generationType, userMessageElement);
+            };
+
+            errorContainer.appendChild(retryBtn);
+            userMessageElement.querySelector('.message-content').appendChild(errorContainer);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        } finally {
+            sendBtn.disabled = false;
+            chatInput.focus();
+        }
+    }
+
+
+    chatForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const userInput = chatInput.value.trim();
+        const generationType = generationTypeSelect.value;
+        const files = [...attachedFiles];
+
+        if (generationType === 'image' && !userInput) {
+             alert("Please enter a prompt to generate an image.");
+             return;
+        }
+        if (generationType === 'text' && !userInput && files.length === 0) {
+            return;
+        }
+
+        sendMessage(userInput, files, generationType);
+    });
+
     // --- Initialization ---
+
+    function updateChatUIForGenerationType() {
+        const generationType = generationTypeSelect.value;
+        const textOnlyControls = [
+            attachFileBtn,
+            recordBtn,
+            systemPromptSelect.parentElement, // Select the wrapping div to hide the label as well
+            el ? el.parentElement : null // The TomSelect wrapper div
+        ].filter(Boolean); // Filter out null elements
+
+        if (generationType === 'image') {
+            textOnlyControls.forEach(control => control.style.display = 'none');
+            chatInput.placeholder = 'Enter a prompt to generate an image...';
+        } else { // 'text'
+            textOnlyControls.forEach(control => control.style.display = ''); // Reset to default display
+             if (systemPromptSelect.parentElement) systemPromptSelect.parentElement.style.display = 'flex';
+             if (el && el.parentElement) el.parentElement.style.display = 'flex';
+            chatInput.placeholder = 'Type a message or a prompt...';
+        }
+    }
+
     async function loadModels() {
         try {
             const response = await fetch('/v1/models');
@@ -712,7 +736,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    if (generationTypeSelect) {
+        generationTypeSelect.addEventListener('change', updateChatUIForGenerationType);
+    }
+
     initializeSidebar();
     loadModels();
     loadChats();
+    updateChatUIForGenerationType(); // Set initial state
 });

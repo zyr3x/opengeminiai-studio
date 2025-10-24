@@ -65,7 +65,7 @@ def delete_chat(chat_id):
 def get_chat_messages(chat_id):
     conn = get_db_connection()
     messages = conn.execute(
-        'SELECT role, parts FROM messages WHERE chat_id = ? ORDER BY id ASC',
+        'SELECT id, role, parts FROM messages WHERE chat_id = ? ORDER BY id ASC',
         (chat_id,)
     ).fetchall()
     conn.close()
@@ -76,8 +76,23 @@ def get_chat_messages(chat_id):
         message_data = utils.format_message_parts_for_ui(db_message['parts'])
 
         if message_data['content'] or message_data['files']:
-            formatted_messages.append({'role': role, **message_data})
+            formatted_messages.append({'id': db_message['id'], 'role': role, **message_data})
     return jsonify(formatted_messages)
+
+
+@web_ui_chat_bp.route('/api/messages/<int:message_id>', methods=['DELETE'])
+def delete_message(message_id):
+    """Deletes a single message from the database."""
+    try:
+        conn = get_db_connection()
+        conn.execute('DELETE FROM messages WHERE id = ?', (message_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        print(f"Error deleting message {message_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
 
 @web_ui_chat_bp.route('/api/generate_image', methods=['POST'])
 def generate_image_api():
