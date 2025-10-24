@@ -312,32 +312,42 @@ def process_message_for_paths(content: str):
                 continue  # Skip multimodal logic below
 
         try:
-            mime_type, _ = mimetypes.guess_type(expanded_path)
-            if not mime_type:
-                mime_type = 'application/octet-stream'  # Fallback
-                if expanded_path.lower().endswith('.pdf'):
-                    mime_type = 'application/pdf'
+            MAX_MULTIMODAL_FILE_SIZE_MB = 15
+            MAX_MULTIMODAL_FILE_SIZE = MAX_MULTIMODAL_FILE_SIZE_MB * 1024 * 1024
+            file_size = os.path.getsize(expanded_path)
 
-            with open(expanded_path, 'rb') as f:
-                file_bytes = f.read()
-            encoded_data = base64.b64encode(file_bytes).decode('utf-8')
+            if file_size > MAX_MULTIMODAL_FILE_SIZE:
+                utils.log(f"Skipping local file {expanded_path}: size ({file_size / (1024*1024):.2f} MB) exceeds limit of {MAX_MULTIMODAL_FILE_SIZE_MB} MB.")
+                new_content_parts.append(
+                    {"type": "text", "text": f"[File '{file_path_str}' was skipped as it exceeds the {MAX_MULTIMODAL_FILE_SIZE_MB}MB size limit.]"}
+                )
+            else:
+                mime_type, _ = mimetypes.guess_type(expanded_path)
+                if not mime_type:
+                    mime_type = 'application/octet-stream'  # Fallback
+                    if expanded_path.lower().endswith('.pdf'):
+                        mime_type = 'application/pdf'
 
-            if file_type == 'image':
-                # Create a data URI that the existing 'image_url' processing can handle
-                data_uri = f"data:{mime_type};base64,{encoded_data}"
-                new_content_parts.append({
-                    "type": "image_url",  # Treated as an image_url part with a data URI
-                    "image_url": {"url": data_uri}
-                })
-            elif file_type == 'pdf' or file_type == 'audio':
-                new_content_parts.append({
-                    "type": "inline_data",
-                    "source": {
-                        "media_type": mime_type,
-                        "data": encoded_data
-                    }
-                })
-            utils.log(f"Embedded local file: {expanded_path} as {mime_type}")
+                with open(expanded_path, 'rb') as f:
+                    file_bytes = f.read()
+                encoded_data = base64.b64encode(file_bytes).decode('utf-8')
+
+                if file_type == 'image':
+                    # Create a data URI that the existing 'image_url' processing can handle
+                    data_uri = f"data:{mime_type};base64,{encoded_data}"
+                    new_content_parts.append({
+                        "type": "image_url",  # Treated as an image_url part with a data URI
+                        "image_url": {"url": data_uri}
+                    })
+                elif file_type == 'pdf' or file_type == 'audio':
+                    new_content_parts.append({
+                        "type": "inline_data",
+                        "source": {
+                            "media_type": mime_type,
+                            "data": encoded_data
+                        }
+                    })
+                utils.log(f"Embedded local file: {expanded_path} as {mime_type}")
         except Exception as e:
             utils.log(f"Error processing local file {expanded_path}: {e}")
             new_content_parts.append(

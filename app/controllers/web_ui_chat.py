@@ -281,7 +281,20 @@ def chat_api():
         if attached_files:
             chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
             os.makedirs(chat_upload_folder, exist_ok=True)
+            MAX_FILE_SIZE_MB = 10
+            MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
+
             for attached_file in attached_files:
+                # Check file size before saving and processing
+                start_pos = attached_file.tell()
+                attached_file.seek(0, os.SEEK_END)
+                file_size = attached_file.tell()
+                attached_file.seek(start_pos)
+
+                if file_size > MAX_FILE_SIZE:
+                    user_parts.append({"text": f"[File '{secure_filename(attached_file.filename)}' was skipped because it exceeds the {MAX_FILE_SIZE_MB}MB size limit.]"})
+                    continue
+
                 filename = secure_filename(attached_file.filename)
                 filepath = os.path.join(chat_upload_folder, filename)
                 attached_file.save(filepath)
