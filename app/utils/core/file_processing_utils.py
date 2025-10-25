@@ -86,7 +86,7 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
 
             # Proactively get the file tree for the requested path using the new context
             with set_project_root(project_path_found):
-                project_tree = list_files(path="../..", max_depth=3)
+                project_tree = list_files(path=".", max_depth=3)
 
             # Insert detailed context message for the model
             context_text = (

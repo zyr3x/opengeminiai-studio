@@ -98,7 +98,7 @@ async def process_image_url_async(image_url: dict) -> Optional[dict]:
                 # Check Content-Length header first if available
                 content_length = response.headers.get('Content-Length')
                 if content_length and int(content_length) > MAX_IMAGE_SIZE_BYTES:
-                    print(f"Skipping image from URL {url}: size from header ({int(content_length) / (1024*1024):.2f} MB) exceeds limit of {MAX_IMAGE_SIZE_MB} MB.")
+                    log(f"Skipping image from URL {url}: size from header ({int(content_length) / (1024*1024):.2f} MB) exceeds limit of {MAX_IMAGE_SIZE_MB} MB.")
                     return None
 
                 # Read content in chunks
@@ -106,14 +106,14 @@ async def process_image_url_async(image_url: dict) -> Optional[dict]:
                 async for chunk in response.content.iter_chunked(1024 * 1024):  # 1MB chunks
                     content += chunk
                     if len(content) > MAX_IMAGE_SIZE_BYTES:
-                        print(f"Skipping image from URL {url}: size exceeded {MAX_IMAGE_SIZE_MB} MB during download.")
+                        log(f"Skipping image from URL {url}: size exceeded {MAX_IMAGE_SIZE_MB} MB during download.")
                         return None
 
                 mime_type = response.headers.get("Content-Type", "image/jpeg")
                 base64_data = base64.b64encode(content).decode('utf-8')
                 return {"inline_data": {"mime_type": mime_type, "data": base64_data}}
     except Exception as e:
-        print(f"Error processing image URL {url}: {e}")
+        log(f"Error processing image URL {url}: {e}")
         return None
 
 async def get_model_input_limit_async(model_name: str, api_key: str, upstream_url: str) -> int:
@@ -135,7 +135,7 @@ async def get_model_input_limit_async(model_name: str, api_key: str, upstream_ur
             model_info_cache[model_name] = model_info
             return model_info.get("inputTokenLimit", 8192)
     except Exception as e:
-        print(f"Error fetching model details for {model_name}: {e}. Using default limit of 8192.")
+        log(f"Error fetching model details for {model_name}: {e}. Using default limit of 8192.")
         return 8192
 
 async def make_request_with_retry_async(

@@ -32,13 +32,13 @@ def set_verbose_logging(enabled: bool):
     """Sets the verbose logging status."""
     global VERBOSE_LOGGING
     VERBOSE_LOGGING = enabled
-    print(f"Verbose logging has been {'enabled' if enabled else 'disabled'}.")
+    log(f"Verbose logging has been {'enabled' if enabled else 'disabled'}.")
 
 def set_debug_client_logging(enabled: bool):
     """Sets the debug client logging status."""
     global DEBUG_CLIENT_LOGGING
     DEBUG_CLIENT_LOGGING = enabled
-    print(f"Debug client logging has been {'enabled' if enabled else 'disabled'}.")
+    log(f"Debug client logging has been {'enabled' if enabled else 'disabled'}.")
 
 def log(message: str):
     """Prints a message to the console if verbose logging is enabled."""
@@ -76,7 +76,7 @@ def load_prompt_config():
             log(f"Prompt overrides loaded from {PROMPT_OVERRIDES_FILE}. "
                 f"{len(prompt_overrides)} of {len(all_profiles)} profiles are enabled.")
         except (json.JSONDecodeError, IOError) as e:
-            print(f"Error loading prompt overrides: {e}")
+            log(f"Error loading prompt overrides: {e}")
             prompt_overrides = {}
     else:
         prompt_overrides = {}
@@ -106,7 +106,7 @@ def load_system_prompt_config():
             log(f"System prompts loaded from {SYSTEM_PROMPTS_FILE}. "
                 f"{len(system_prompts)} of {len(all_profiles)} profiles are enabled.")
         except (json.JSONDecodeError, IOError) as e:
-            print(f"Error loading system prompts: {e}")
+            log(f"Error loading system prompts: {e}")
             system_prompts = {}
     else:
         system_prompts = {}
@@ -141,7 +141,7 @@ def _process_image_url(image_url: dict) -> dict | None:
             # Check Content-Length header first if available
             content_length = response.headers.get('Content-Length')
             if content_length and int(content_length) > MAX_IMAGE_SIZE_BYTES:
-                print(f"Skipping image from URL {url}: size from header ({int(content_length) / (1024*1024):.2f} MB) exceeds limit of {MAX_IMAGE_SIZE_MB} MB.")
+                log(f"Skipping image from URL {url}: size from header ({int(content_length) / (1024*1024):.2f} MB) exceeds limit of {MAX_IMAGE_SIZE_MB} MB.")
                 return None
 
             # Read content in chunks to prevent loading a huge file into memory
@@ -149,14 +149,14 @@ def _process_image_url(image_url: dict) -> dict | None:
             for chunk in response.iter_content(chunk_size=1024 * 1024): # Read in 1MB chunks
                 content += chunk
                 if len(content) > MAX_IMAGE_SIZE_BYTES:
-                    print(f"Skipping image from URL {url}: size exceeded {MAX_IMAGE_SIZE_MB} MB during download.")
+                    log(f"Skipping image from URL {url}: size exceeded {MAX_IMAGE_SIZE_MB} MB during download.")
                     return None
 
             mime_type = response.headers.get("Content-Type", "image/jpeg")
             base64_data = base64.b64encode(content).decode('utf-8')
             return {"inline_data": {"mime_type": mime_type, "data": base64_data}}
     except Exception as e:
-        print(f"Error processing image URL {url}: {e}")
+        log(f"Error processing image URL {url}: {e}")
         return None
 
 def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> int:
@@ -176,7 +176,7 @@ def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> i
         model_info_cache[model_name] = model_info
         return model_info.get("inputTokenLimit", 8192)
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching model details for {model_name}: {e}. Using default limit of 8192.")
+        log(f"Error fetching model details for {model_name}: {e}. Using default limit of 8192.")
         return 8192  # Return a safe default on error
 
 def estimate_token_count(contents: list) -> int:
@@ -393,7 +393,7 @@ def load_code_ignore_patterns(project_root: str, filename: str = '.aiignore') ->
                             ignore_patterns.append(normalized_line)
                 log(f"Loaded {len(ignore_patterns) - len(DEFAULT_CODE_IGNORE_PATTERNS)} custom patterns from {filename}.")
             except Exception as e:
-                print(f"Error reading ignore file {ignore_file_path}: {e}")
+                log(f"Error reading ignore file {ignore_file_path}: {e}")
         else:
             log(f"No custom ignore file '{filename}' found. Using default patterns.")
 
