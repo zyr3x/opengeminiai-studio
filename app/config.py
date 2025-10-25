@@ -3,7 +3,7 @@ Global configuration for Gemini-Proxy.
 """
 import os
 from dotenv import load_dotenv, set_key
-from .api_key_manager import api_key_manager
+from app.utils.core.api_key_manager import api_key_manager
 
 # Load environment variables from .env file at startup
 load_dotenv()

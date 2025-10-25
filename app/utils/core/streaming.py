@@ -5,7 +5,7 @@ Instead of waiting for the full tool result, we stream the results
 as they are received to improve UX and reduce perceived latency.
 """
 from typing import Generator
-from .utils import log
+from app.utils.core.tools import log
 
 # Chunk size for streaming file content (e.g., 8KB)
 STREAM_CHUNK_SIZE = 8192

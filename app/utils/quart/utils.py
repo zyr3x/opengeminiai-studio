@@ -8,11 +8,9 @@ import aiohttp
 import aiofiles
 import base64
 import re
-import time
 import random
 import asyncio
-from typing import Optional, Dict, List, Any
-from functools import wraps
+from typing import Optional
 
 # --- Global Settings ---
 VERBOSE_LOGGING = True
@@ -225,8 +223,8 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
     from app.config import config as app_config
     if current_query and app_config.SELECTIVE_CONTEXT_ENABLED:
         try:
-            from app import context_selector
-            
+            from app.utils.core.tools import context_selector
+
             # Note: context_selector might need async version too
             selected = context_selector.smart_context_window(
                 messages=contents,
@@ -246,7 +244,7 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
 
     # Try smart truncation with summarization
     try:
-        from app import async_optimization
+        from app.utils.core.tools import async_optimization
         truncated = await async_optimization.smart_truncate_contents_async(contents, limit, keep_recent=5)
         final_tokens = estimate_token_count(truncated)
         log(f"Smart truncation complete. Final estimated token count: {final_tokens}")

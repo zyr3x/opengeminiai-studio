@@ -2,7 +2,7 @@
 Flask routes for handling prompt override settings.
 """
 from flask import Blueprint, request, redirect, url_for
-from app import utils
+from app.utils.core import tools as utils
 
 prompt_settings_bp = Blueprint('prompt_settings', __name__)
 

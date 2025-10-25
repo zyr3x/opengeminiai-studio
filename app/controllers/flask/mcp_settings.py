@@ -3,8 +3,8 @@ Flask routes for handling MCP (Model Configuration Provider) settings.
 """
 from flask import Blueprint, request, redirect, url_for, jsonify
 
-from app import mcp_handler
-from app import utils
+from app.utils.flask import mcp_handler
+from app.utils.core import tools as utils
 
 mcp_settings_bp = Blueprint('mcp_settings', __name__)
 

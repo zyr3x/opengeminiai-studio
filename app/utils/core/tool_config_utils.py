@@ -1,7 +1,7 @@
 """
 Utility functions for processing prompt overrides and determining Gemini tool configuration.
 """
-from app import utils
+from app.utils.core import tools as utils
 
 def get_prompt_override_config(full_prompt_text: str) -> dict:
     """

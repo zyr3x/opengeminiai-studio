@@ -193,9 +193,9 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
     """
     Truncates the 'contents' list by removing older messages (but keeping the first one)
     until the estimated token count is within the specified limit.
-    
+
     NEW: Uses smart truncation with summarization when available.
-    
+
     Args:
         contents: List of messages
         limit: Token limit
@@ -211,15 +211,15 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
     from app import config as app_config
     if current_query and app_config.config.SELECTIVE_CONTEXT_ENABLED:
         try:
-            from app import context_selector
-            
+            from app.utils.core.tools import context_selector
+
             selected = context_selector.smart_context_window(
                 messages=contents,
                 current_query=current_query,
                 max_tokens=limit,
                 enabled=True
             )
-            
+
             final_tokens = estimate_token_count(selected)
             if final_tokens <= limit:
                 log(f"✓ Selective Context applied. Final estimated token count: {final_tokens}")
@@ -231,7 +231,7 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
 
     # Try smart truncation (with summarization) as fallback
     try:
-        from . import optimization
+        from app.utils.core.tools import optimization
         truncated = optimization.smart_truncate_contents(contents, limit, keep_recent=5)
         final_tokens = estimate_token_count(truncated)
         log(f"Smart truncation complete. Final estimated token count: {final_tokens}")
@@ -262,13 +262,13 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
     """
     # Используем оптимизированную сессию с connection pooling
     try:
-        from . import optimization
+        from app.utils.core.tools import optimization
         session = optimization.get_http_session()
         rate_limiter = optimization.get_rate_limiter()
-        
+
         # Применяем rate limiting
         rate_limiter.wait_if_needed()
-        
+
         # Выполняем запрос с переиспользованием соединений
         response = session.post(
             url,
@@ -279,11 +279,11 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
         )
         response.raise_for_status()
         return response
-        
+
     except ImportError:
         # Fallback если optimization модуль недоступен
         pass
-    
+
     # Original logic with retry (fallback)
     retries = 5
     backoff_factor = 1.0  # seconds

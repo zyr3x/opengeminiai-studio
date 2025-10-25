@@ -12,12 +12,12 @@ from flask import Blueprint, request, jsonify, Response, send_from_directory
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from werkzeug.utils import secure_filename
 from app.config import config
-from app import mcp_handler
-from app import utils
-from app import tool_config_utils
-from app import file_processing_utils
+from app.utils.flask import mcp_handler
+from app.utils.core import tools as utils
+from app.utils.core import tool_config_utils
+from app.utils.core import file_processing_utils
 from app.db import get_db_connection, UPLOAD_FOLDER
-from app.optimization import record_token_usage # Import token usage tracking
+from app.utils.flask.optimization import record_token_usage # Import token usage tracking
 
 
 web_ui_chat_bp = Blueprint('web_ui_chat', __name__)

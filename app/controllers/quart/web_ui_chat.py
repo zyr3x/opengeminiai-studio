@@ -12,12 +12,12 @@ from quart import Blueprint, request, jsonify, Response, send_from_directory
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from werkzeug.utils import secure_filename
 from app.config import config
-from app import mcp_handler
-from app import utils
-from app import tool_config_utils
-from app import file_processing_utils
+from app.utils.quart import mcp_handler
+from app.utils.core import tools
+from app.utils.core import tool_config_utils
+from app.utils.core import file_processing_utils
 from app.db import get_db_connection, UPLOAD_FOLDER
-from app.optimization import record_token_usage # Import token usage tracking
+from app.utils.flask.optimization import record_token_usage # Import token usage tracking
 
 
 web_ui_chat_bp = Blueprint('web_ui_chat', __name__)
@@ -56,7 +56,7 @@ async def update_chat_title(chat_id):
         conn.close()
         return jsonify({'success': True, 'new_title': new_title})
     except Exception as e:
-        utils.log(f"Error updating title for chat {chat_id}: {e}")
+        tools.log(f"Error updating title for chat {chat_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>', methods=['DELETE'])
@@ -70,7 +70,7 @@ def delete_chat(chat_id):
         if os.path.exists(chat_upload_folder):
             shutil.rmtree(chat_upload_folder)
     except OSError as e:
-        utils.log(f"Error deleting files for chat {chat_id}: {e}")
+        tools.log(f"Error deleting files for chat {chat_id}: {e}")
 
     # 2. Delete chat from the database (messages are deleted via CASCADE)
     conn = get_db_connection()
@@ -91,7 +91,7 @@ def get_chat_messages(chat_id):
     formatted_messages = []
     for db_message in messages:
         role = 'assistant' if db_message['role'] == 'model' else db_message['role']
-        message_data = utils.format_message_parts_for_ui(db_message['parts'])
+        message_data = tools.format_message_parts_for_ui(db_message['parts'])
 
         if message_data['content'] or message_data['files']:
             formatted_messages.append({'id': db_message['id'], 'role': role, **message_data})
@@ -108,7 +108,7 @@ def delete_message(message_id):
         conn.close()
         return jsonify({'success': True}), 200
     except Exception as e:
-        utils.log(f"Error deleting message {message_id}: {e}")
+        tools.log(f"Error deleting message {message_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -128,7 +128,7 @@ async def generate_image_api():
 
         # 1. Save user message to DB
         user_parts = [{"text": prompt}]
-        utils.add_message_to_db(chat_id, 'user', user_parts)
+        tools.add_message_to_db(chat_id, 'user', user_parts)
 
         # 2. Call the image generation model via non-streaming API
         IMAGE_GEN_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
@@ -137,7 +137,7 @@ async def generate_image_api():
             "contents": [{"parts": [{"text": f"Generate an image of: {prompt}"}]}],
         }
 
-        response = utils.make_request_with_retry(
+        response = tools.make_request_with_retry(
             url=IMAGE_GEN_URL,
             headers=headers,
             json_data=request_data,
@@ -170,13 +170,13 @@ async def generate_image_api():
                     image_response.raise_for_status()
                     image_data = image_response.content
                 except (RequestException, HTTPError) as e:
-                    utils.log(f"Failed to download image from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
+                    tools.log(f"Failed to download image from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
                     image_data = None  # Ensure image_data is None on failure
 
         if not image_data or not mime_type:
             text_response = " ".join(p.get('text', '') for p in parts).strip() or "Sorry, I couldn't generate an image. The model returned an unexpected response."
             bot_text_parts = [{"text": text_response}]
-            bot_message_id = utils.add_message_to_db(chat_id, 'model', bot_text_parts)
+            bot_message_id = tools.add_message_to_db(chat_id, 'model', bot_text_parts)
             return jsonify({'content': text_response, 'message_id': bot_message_id})
 
         # 4. Save image and bot message to DB
@@ -200,7 +200,7 @@ async def generate_image_api():
             {"text": bot_response_text},
             {"file_data": {"mime_type": mime_type, "path": filepath}}
         ]
-        bot_message_id = utils.add_message_to_db(chat_id, 'model', bot_parts)
+        bot_message_id = tools.add_message_to_db(chat_id, 'model', bot_parts)
 
         # 5. Return markdown content to the frontend
         response_content = f"{bot_response_text}\n![{prompt}]({file_url})"
@@ -208,11 +208,11 @@ async def generate_image_api():
 
     except (HTTPError, ConnectionError, Timeout, RequestException) as e:
         error_message = f"Error from upstream API: {e}"
-        utils.log(error_message)
+        tools.log(error_message)
         return jsonify({"error": error_message}), 500
     except Exception as e:
         error_message = f"An error occurred in generate image API: {str(e)}"
-        utils.log(error_message)
+        tools.log(error_message)
         return jsonify({"error": error_message}), 500
 
 
@@ -238,7 +238,7 @@ async def chat_api():
         system_prompt_name = form.get('system_prompt_name')
         selected_mcp_tools = form.getlist('mcp_tools')
 
-        utils.log(f"Incoming Web UI Chat Request (Chat ID: {chat_id}): "
+        tools.log(f"Incoming Web UI Chat Request (Chat ID: {chat_id}): "
                   f"Model='{model}', User='{user_message[:50]}...', "
                   f"Files={len(attached_files)}, SystemPrompt='{system_prompt_name}', "
                   f"Tools='{selected_mcp_tools}'")
@@ -260,7 +260,7 @@ async def chat_api():
         full_prompt_for_override_check = f"{history_text} {user_message}".strip()
 
         # Apply Prompt Engineering & Tool Control Overrides
-        override_config = tool_config_utils.get_prompt_override_config(full_prompt_for_override_check)
+        override_config = tool_config_tools.get_prompt_override_config(full_prompt_for_override_check)
 
         active_overrides = override_config['active_overrides']
         disable_mcp_tools_override = override_config['disable_mcp_tools_by_profile']
@@ -280,7 +280,7 @@ async def chat_api():
             # Process message for local file paths (e.g., code_path=, image_path=)
             processed_result = None
             if not disable_mcp_tools_override:
-                processed_result = file_processing_utils.process_message_for_paths(user_message)
+                processed_result = file_processing_tools.process_message_for_paths(user_message)
 
             if isinstance(processed_result, str):
                 # No paths were found, treat as a simple text message
@@ -321,9 +321,9 @@ async def chat_api():
                                 user_parts.append({
                                     "file_data": {"mime_type": mime_type, "path": filepath}
                                 })
-                                utils.log(f"Saved path-imported file to {filepath}")
+                                tools.log(f"Saved path-imported file to {filepath}")
                         except Exception as e:
-                            utils.log(f"Error processing path-imported file part: {e}")
+                            tools.log(f"Error processing path-imported file part: {e}")
                             user_parts.append({"text": f"[Error processing file part: {str(e)}]"})
 
         if attached_files:
@@ -351,7 +351,7 @@ async def chat_api():
                 })
 
         if user_parts:
-            utils.add_message_to_db(chat_id, 'user', user_parts)
+            tools.add_message_to_db(chat_id, 'user', user_parts)
             # Use the text from the processed parts to generate the title
             user_text_for_title = " ".join([p['text'] for p in user_parts if 'text' in p]).strip()
 
@@ -378,8 +378,8 @@ async def chat_api():
         # `profile_selected_mcp_tools` is already set from prompt override config
 
         # System prompt settings take precedence if a system prompt is selected
-        if system_prompt_name and system_prompt_name in utils.system_prompts:
-            sp_config = utils.system_prompts[system_prompt_name]
+        if system_prompt_name and system_prompt_name in tools.system_prompts:
+            sp_config = tools.system_prompts[system_prompt_name]
             system_prompt_text = sp_config.get('prompt')
 
             if system_prompt_text:
@@ -388,33 +388,33 @@ async def chat_api():
                     'role': 'user',
                     'parts': [{'text': system_prompt_text}]
                 })
-                utils.log(f"Injected system prompt profile: {system_prompt_name}")
+                tools.log(f"Injected system prompt profile: {system_prompt_name}")
 
             # Check if tools are disabled by the system prompt. This takes precedence.
             if sp_config.get('disable_tools', False):
-                utils.log(f"MCP Tools disabled by system prompt '{system_prompt_name}'.")
+                tools.log(f"MCP Tools disabled by system prompt '{system_prompt_name}'.")
                 disable_mcp_tools = True
                 profile_selected_mcp_tools = [] # Clear any tools selected by prompt override
             # Only if tools are NOT disabled by this profile, check for specific tool selection.
             elif sp_config.get('selected_mcp_tools'):
-                utils.log(f"MCP Tools explicitly selected by system prompt '{system_prompt_name}': {sp_config['selected_mcp_tools']}")
+                tools.log(f"MCP Tools explicitly selected by system prompt '{system_prompt_name}': {sp_config['selected_mcp_tools']}")
                 profile_selected_mcp_tools = sp_config['selected_mcp_tools']
                 disable_mcp_tools = False # Make sure tools are enabled
 
             # For native tools, either a system prompt or prompt override can enable them.
             if sp_config.get('enable_native_tools', False):
                 enable_native_tools = True
-                utils.log(f"Native Google tools enabled by system prompt: {system_prompt_name}")
+                tools.log(f"Native Google tools enabled by system prompt: {system_prompt_name}")
 
         # Global setting to disable all MCP tools takes highest precedence
         if mcp_handler.disable_all_mcp_tools:
-            utils.log("All MCP tools globally disabled via general settings.")
+            tools.log("All MCP tools globally disabled via general settings.")
             disable_mcp_tools = True
             profile_selected_mcp_tools = [] # Clear any profile-selected tools
 
         for m in db_messages:
             role = m['role']
-            reconstructed_parts = utils.prepare_message_parts_for_gemini(m['parts'])
+            reconstructed_parts = tools.prepare_message_parts_for_gemini(m['parts'])
             gemini_contents.append({'role': role, 'parts': reconstructed_parts})
 
         def generate():
@@ -423,8 +423,8 @@ async def chat_api():
             final_tool_call_response = {} # Initialize for token usage tracking
 
             while True:
-                token_limit = utils.get_model_input_limit(model, config.API_KEY, config.UPSTREAM_URL)
-                safe_limit = int(token_limit * utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
+                token_limit = tools.get_model_input_limit(model, config.API_KEY, config.UPSTREAM_URL)
+                safe_limit = int(token_limit * tools.TOKEN_ESTIMATE_SAFETY_MARGIN)
                 original_message_count = len(current_contents)
                 
                 current_query = ""
@@ -440,9 +440,9 @@ async def chat_api():
                             if current_query:
                                 break
                 
-                current_contents = utils.truncate_contents(current_contents, safe_limit, current_query=current_query)
+                current_contents = tools.truncate_contents(current_contents, safe_limit, current_query=current_query)
                 if len(current_contents) < original_message_count:
-                    utils.log(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages.")
+                    tools.log(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages.")
 
                 request_data = {
                     "contents": current_contents,
@@ -460,24 +460,24 @@ async def chat_api():
                 if code_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
                     # 1. If code_path= was used, force-enable built-in tools only.
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
-                    utils.log(f"Code context requested via code_path=. Forcing use of built-in tools: {builtin_tool_names}")
+                    tools.log(f"Code context requested via code_path=. Forcing use of built-in tools: {builtin_tool_names}")
                 elif selected_mcp_tools:
                     # 2. User-selected tools from chat UI (highest priority)
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(selected_mcp_tools)
-                    utils.log(f"Using explicitly selected tools from UI (overriding profiles): {selected_mcp_tools}")
+                    tools.log(f"Using explicitly selected tools from UI (overriding profiles): {selected_mcp_tools}")
                 elif profile_selected_mcp_tools:
                     # 3. Profile-defined selected tools (system prompt or prompt override)
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
-                    utils.log(f"Using MCP tools defined by profile: {profile_selected_mcp_tools}")
+                    tools.log(f"Using MCP tools defined by profile: {profile_selected_mcp_tools}")
                 elif not disable_mcp_tools:  # Only use context-aware if not explicitly disabled and no specific tools selected
                     # 4. Context-aware tools (default)
                     prompt_text_for_tools = " ".join(
                         [p.get("text", "") for m in current_contents for p in m.get("parts", []) if "text" in p]
                     )
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations(prompt_text_for_tools)
-                    utils.log(f"Using context-aware tool selection based on prompt.")
+                    tools.log(f"Using context-aware tool selection based on prompt.")
                 else:
-                    utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
+                    tools.log(f"MCP Tools explicitly disabled by profile or global setting.")
 
                 if mcp_declarations_to_use:
                     final_tools.extend(mcp_declarations_to_use)
@@ -496,7 +496,7 @@ async def chat_api():
                             }
                         }
 
-                utils.debug(f"Outgoing Gemini Request (Model: {model}, Tools: {bool(final_tools)}): {utils.pretty_json(request_data)}")
+                tools.debug(f"Outgoing Gemini Request (Model: {model}, Tools: {bool(final_tools)}): {tools.pretty_json(request_data)}")
 
                 tool_calls, model_response_parts = [], []
 
@@ -504,7 +504,7 @@ async def chat_api():
                     # Non-streaming path to support inline citations for native tools
                     GEMINI_GENERATE_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
                     try:
-                        response = utils.make_request_with_retry(
+                        response = tools.make_request_with_retry(
                             url=GEMINI_GENERATE_URL,
                             headers=headers,
                             json_data=request_data,
@@ -513,7 +513,7 @@ async def chat_api():
                         )
                         response_data = response.json()
 
-                        utils.debug(f"Incoming Gemini Non-Streaming Response: {utils.pretty_json(response_data)}")
+                        tools.debug(f"Incoming Gemini Non-Streaming Response: {tools.pretty_json(response_data)}")
 
                         final_tool_call_response = response_data
 
@@ -547,7 +547,7 @@ async def chat_api():
                                     new_parts.insert(0, {'text': full_text})
                                     model_response_parts = new_parts
                                 except Exception as e:
-                                    utils.log(f"Error processing citations: {e}")
+                                    tools.log(f"Error processing citations: {e}")
                             if full_text:
                                 yield full_text
                     except (HTTPError, ConnectionError, Timeout, RequestException) as e:
@@ -557,7 +557,7 @@ async def chat_api():
                     # Original streaming path
                     GEMINI_STREAMING_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:streamGenerateContent"
                     try:
-                        response = utils.make_request_with_retry(
+                        response = tools.make_request_with_retry(
                             url=GEMINI_STREAMING_URL,
                             headers=headers,
                             json_data=request_data,
@@ -586,7 +586,7 @@ async def chat_api():
 
                                 if 'error' in json_data:
                                     error_message = "ERROR: Error from upstream Gemini API: " + json.dumps(json_data['error'])
-                                    utils.log(error_message)
+                                    tools.log(error_message)
                                     yield error_message
                                     return
 
@@ -628,14 +628,14 @@ async def chat_api():
                 has_text_in_model_response = any('text' in p for p in model_response_parts)
                 if is_after_tool_call and not has_text_in_model_response and not tool_calls:
                     tool_parts_from_history = current_contents[-1].get('parts', [])
-                    final_text = utils.format_tool_output_for_display(tool_parts_from_history)
+                    final_text = tools.format_tool_output_for_display(tool_parts_from_history)
                     if final_text:
                         model_response_parts = [{'text': final_text}]
                         yield final_text
 
                 if model_response_parts:
-                    bot_message_id = utils.add_message_to_db(chat_id, 'model', model_response_parts)
-                    utils.debug(f"Model response saved to DB (Chat ID: {chat_id}). Parts: {utils.pretty_json(model_response_parts)}")
+                    bot_message_id = tools.add_message_to_db(chat_id, 'model', model_response_parts)
+                    tools.debug(f"Model response saved to DB (Chat ID: {chat_id}). Parts: {tools.pretty_json(model_response_parts)}")
                     # Yield a special event with the message ID so the frontend can add a delete button
                     yield f'__LLM_EVENT__{json.dumps({"type": "message_id", "id": bot_message_id})}'
 
@@ -650,15 +650,15 @@ async def chat_api():
 
                 if not tool_calls: break
 
-                utils.debug(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
+                tools.debug(f"Detected tool calls: {tools.pretty_json(tool_calls)}")
                 current_contents.append({"role": "model", "parts": model_response_parts})
 
                 tool_response_parts = []
                 for tool_call in tool_calls:
                     function_name = tool_call.get("name")
-                    utils.debug(f"Executing tool '{function_name}' with args: {utils.pretty_json(tool_call.get('args'))}")
+                    tools.debug(f"Executing tool '{function_name}' with args: {tools.pretty_json(tool_call.get('args'))}")
                     output = mcp_handler.execute_mcp_tool(function_name, tool_call.get("args"))
-                    utils.log(f"Tool '{function_name}' execution completed. Output length: {len(str(output))}")
+                    tools.log(f"Tool '{function_name}' execution completed. Output length: {len(str(output))}")
 
                     response_payload = {}
                     if output is not None:
@@ -679,15 +679,15 @@ async def chat_api():
                     })
 
                 if tool_response_parts:
-                    utils.add_message_to_db(chat_id, 'tool', tool_response_parts)
-                    utils.debug(f"Tool response saved to DB (Chat ID: {chat_id}). Response Parts: {utils.pretty_json(tool_response_parts)}")
+                    tools.add_message_to_db(chat_id, 'tool', tool_response_parts)
+                    tools.debug(f"Tool response saved to DB (Chat ID: {chat_id}). Response Parts: {tools.pretty_json(tool_response_parts)}")
 
                 current_contents.append({"role": "tool", "parts": tool_response_parts})
 
         return Response(generate(), mimetype='text/event-stream'
                         )
     except Exception as e:
-        utils.log(f"An error occurred in chat API: {str(e)}")
+        tools.log(f"An error occurred in chat API: {str(e)}")
         return jsonify({"error": f"An error occurred in chat API: {str(e)}"}), 500
 
 @web_ui_chat_bp.route('/uploads/<path:filepath>')

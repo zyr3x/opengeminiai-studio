@@ -2,7 +2,7 @@
 Quart routes for optimization metrics and monitoring.
 """
 from quart import Blueprint, jsonify, flash, redirect, url_for
-from app import optimization
+from app.utils.quart import optimization
 
 metrics_bp = Blueprint('metrics', __name__)
 
@@ -24,7 +24,7 @@ def get_metrics():
 
     # Add information about PHASE 3
     try:
-        from app import context_selector
+        from app.utils.core.tools import context_selector
         from app.config import config as app_config
 
         phase3_metrics = {

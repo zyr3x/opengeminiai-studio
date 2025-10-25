@@ -8,8 +8,8 @@ import os
 
 from flask import Blueprint, Response, render_template
 from app.config import config
-from app import mcp_handler
-from app import utils
+from app.utils.flask import mcp_handler
+from app.utils.core import tools as utils
 from .metrics import get_metrics
 
 web_ui_bp = Blueprint('web_ui', __name__)

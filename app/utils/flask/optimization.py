@@ -11,7 +11,7 @@ import threading
 from typing import Optional, Tuple, List, Dict
 from datetime import date
 from app.db import get_db_connection
-from functools import lru_cache, wraps
+from functools import wraps
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -244,7 +244,7 @@ def smart_truncate_contents(contents: list, limit: int, keep_recent: int = 5) ->
     Intelligently compresses message history instead of deleting it.
     Keeps the system prompt, the last N messages, and creates a brief summary of the rest.
     """
-    from app.utils import estimate_token_count
+    from app.utils.core.tools import estimate_token_count
 
     tokens = estimate_token_count(contents)
 
@@ -623,7 +623,7 @@ def execute_tools_parallel(tool_calls: List[Dict]) -> List[Tuple[Dict, str]]:
         return []
 
     # Import here to avoid circular dependencies
-    from app import mcp_handler
+    from app.utils.core.tools import mcp_handler
 
     executor = get_tool_executor()
     futures = {}

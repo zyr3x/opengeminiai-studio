@@ -8,9 +8,6 @@ import time
 import asyncio
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import date
-from concurrent.futures import ThreadPoolExecutor
-import aiohttp
-from functools import lru_cache
 
 # --- Tool Result Cache (thread-safe) ---
 _tool_output_cache = {}
@@ -194,7 +191,7 @@ async def smart_truncate_contents_async(
     Async: Smart truncation with summarization of old messages.
     Keeps the first message (system prompt), last N messages, and summarizes the middle.
     """
-    from app.async_utils import estimate_token_count, log
+    from app.utils.core.tools import estimate_token_count, log
     
     if estimate_token_count(contents) <= limit:
         return contents
@@ -273,7 +270,7 @@ async def get_cached_context_id_async(
     
     # Create new cached context via Gemini API
     try:
-        from app.async_utils import get_async_session, log
+        from app.utils.core.tools import get_async_session, log
         
         cache_url = f"{upstream_url}/v1beta/cachedContents"
         headers = {

@@ -7,12 +7,9 @@ import time
 from quart import Blueprint, request, jsonify, Response
 from typing import AsyncGenerator
 from app.config import config
-from app import mcp_handler
-from app import utils
-from app import tool_config_utils
-from app import async_utils
-from app import async_optimization
-from app import async_mcp_handler
+from app.utils.core import tools as utils
+from app.utils.core import tool_config_utils
+from app.utils.quart import mcp_handler, optimization, utils
 import traceback
 
 async_proxy_bp = Blueprint('proxy', __name__)
@@ -33,7 +30,7 @@ async def async_chat_completions():
     
     try:
         openai_request = await request.json
-        async_utils.debug(f"Incoming Request: {async_utils.pretty_json(openai_request)}")
+        utils.debug(f"Incoming Request: {utils.pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
 
         # --- Prompt Engineering & Tool Control ---
@@ -42,7 +39,7 @@ async def async_chat_completions():
         profile_selected_mcp_tools = []
 
         if mcp_handler.disable_all_mcp_tools:
-            async_utils.log("All MCP tools globally disabled via general settings.")
+            utils.log("All MCP tools globally disabled via general settings.")
             disable_mcp_tools = True
             profile_selected_mcp_tools = []
 
@@ -70,7 +67,7 @@ async def async_chat_completions():
                 profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
 
             # Process messages - file processing
-            from app import file_processing_utils
+            from app.utils.core.tools import file_processing_utils
             processed_messages = []
 
             for message in messages:
@@ -133,7 +130,7 @@ async def async_chat_completions():
                                 text_parts = []
 
                             # Use async image processing
-                            image_part = await async_utils.process_image_url_async(
+                            image_part = await utils.process_image_url_async(
                                 part.get("image_url", {})
                             )
                             if image_part:
@@ -187,10 +184,10 @@ async def async_chat_completions():
                     content['parts'] = merged_parts
 
         # --- Token Management ---
-        token_limit = await async_utils.get_model_input_limit_async(
+        token_limit = await utils.get_model_input_limit_async(
             COMPLETION_MODEL, config.API_KEY, config.UPSTREAM_URL
         )
-        safe_limit = int(token_limit * async_utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
+        safe_limit = int(token_limit * utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
 
         # Use async generator for streaming response
         async def generate() -> AsyncGenerator[str, None]:
@@ -214,12 +211,12 @@ async def async_chat_completions():
                             if current_query:
                                 break
                 
-                current_contents = await async_utils.truncate_contents_async(
+                current_contents = await utils.truncate_contents_async(
                     current_contents, safe_limit, current_query=current_query
                 )
                 
                 if len(current_contents) < original_message_count:
-                    async_utils.log(
+                    utils.log(
                         f"Truncated conversation from {original_message_count} to "
                         f"{len(current_contents)} messages to fit context window."
                     )
@@ -238,19 +235,19 @@ async def async_chat_completions():
                     
                     if system_text and len(system_text) > 500:
                         try:
-                            cached_context_id = await async_optimization.get_cached_context_id_async(
+                            cached_context_id = await optimization.get_cached_context_id_async(
                                 config.API_KEY,
                                 config.UPSTREAM_URL,
                                 COMPLETION_MODEL,
                                 system_text
                             )
                             if cached_context_id:
-                                async_utils.log(f"✓ Using cached context: {cached_context_id}")
+                                utils.log(f"✓ Using cached context: {cached_context_id}")
                                 request_data["cachedContent"] = cached_context_id
                             else:
                                 request_data["systemInstruction"] = system_instruction
                         except Exception as e:
-                            async_utils.log(f"Failed to use cached context: {e}")
+                            utils.log(f"Failed to use cached context: {e}")
                             request_data["systemInstruction"] = system_instruction
                     else:
                         request_data["systemInstruction"] = system_instruction
@@ -267,21 +264,21 @@ async def async_chat_completions():
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(
                         builtin_tool_names
                     )
-                    async_utils.log(
+                    utils.log(
                         f"Code context requested. Forcing use of built-in tools: {builtin_tool_names}"
                     )
                 elif not disable_mcp_tools and profile_selected_mcp_tools:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(
                         profile_selected_mcp_tools
                     )
-                    async_utils.log(
+                    utils.log(
                         f"Using MCP tools defined by profile: {profile_selected_mcp_tools}"
                     )
                 elif disable_mcp_tools:
-                    async_utils.log("MCP Tools disabled by profile or global setting.")
+                    utils.log("MCP Tools disabled by profile or global setting.")
                 else:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
-                    async_utils.log("MCP tools enabled. Using context-aware selection.")
+                    utils.log("MCP tools enabled. Using context-aware selection.")
 
                 if mcp_declarations_to_use:
                     final_tools.extend(mcp_declarations_to_use)
@@ -289,7 +286,7 @@ async def async_chat_completions():
                 if enable_native_tools:
                     final_tools.append({"google_search": {}})
                     final_tools.append({"url_context": {}})
-                    async_utils.log("Added google_search and url_context to tools.")
+                    utils.log("Added google_search and url_context to tools.")
 
                 if final_tools:
                     request_data["tools"] = final_tools
@@ -308,16 +305,16 @@ async def async_chat_completions():
                     'X-goog-api-key': config.API_KEY
                 }
 
-                async_utils.debug(f"Outgoing Gemini Request URL: {GEMINI_STREAMING_URL}")
-                async_utils.debug(f"Outgoing Gemini Request Data: {async_utils.pretty_json(request_data)}")
+                utils.debug(f"Outgoing Gemini Request URL: {GEMINI_STREAMING_URL}")
+                utils.debug(f"Outgoing Gemini Request Data: {utils.pretty_json(request_data)}")
 
                 # Apply rate limiting
-                rate_limiter = await async_optimization.get_rate_limiter()
+                rate_limiter = await optimization.get_rate_limiter()
                 await rate_limiter.wait_if_needed()
 
                 # Make async request
                 try:
-                    response = await async_utils.make_request_with_retry_async(
+                    response = await utils.make_request_with_retry_async(
                         url=GEMINI_STREAMING_URL,
                         headers=headers,
                         json_data=request_data,
@@ -326,7 +323,7 @@ async def async_chat_completions():
                     )
                 except Exception as e:
                     error_message = f"Error from upstream Gemini API: {e}"
-                    async_utils.log(error_message)
+                    utils.log(error_message)
                     error_chunk = {
                         "id": f"chatcmpl-{os.urandom(12).hex()}",
                         "object": "chat.completion.chunk",
@@ -369,7 +366,7 @@ async def async_chat_completions():
 
                             if 'error' in json_data:
                                 error_message = "Error from Gemini: " + json.dumps(json_data['error'])
-                                async_utils.log(error_message)
+                                utils.log(error_message)
                                 error_chunk = {
                                     "id": f"chatcmpl-{os.urandom(12).hex()}",
                                     "object": "chat.completion.chunk",
@@ -447,7 +444,7 @@ async def async_chat_completions():
                 if not tool_calls:
                     break
 
-                async_utils.debug(f"Detected tool calls: {async_utils.pretty_json(tool_calls)}")
+                utils.debug(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
                 current_contents.append({
                     "role": "model",
                     "parts": model_response_parts
@@ -462,11 +459,11 @@ async def async_chat_completions():
                 # Set project root context if needed
                 if code_project_root:
                     with mcp_handler.set_project_root(code_project_root):
-                        tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
+                        tool_response_parts = await mcp_handler.execute_multiple_tools_async(
                             tool_calls_list
                         )
                 else:
-                    tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
+                    tool_response_parts = await mcp_handler.execute_multiple_tools_async(
                         tool_calls_list
                     )
 
@@ -476,7 +473,7 @@ async def async_chat_completions():
                 })
 
             # Record token usage
-            await async_optimization.record_token_usage_async(
+            await optimization.record_token_usage_async(
                 config.API_KEY,
                 COMPLETION_MODEL,
                 final_usage_metadata.get('promptTokenCount', 0),
@@ -497,7 +494,7 @@ async def async_chat_completions():
         return Response(generate(), mimetype='text/event-stream')
 
     except Exception as e:
-        async_utils.log(f"Error during chat completion: {e}\n{traceback.format_exc()}")
+        utils.log(f"Error during chat completion: {e}\n{traceback.format_exc()}")
         error_response = {
             "error": {
                 "message": f"An error occurred: {str(e)}",
@@ -529,7 +526,7 @@ async def async_list_models():
         params = {"key": config.API_KEY}
         GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
         
-        session = await async_utils.get_async_session()
+        session = await utils.get_async_session()
         async with session.get(GEMINI_MODELS_URL, params=params) as response:
             response.raise_for_status()
             gemini_models_data = await response.json()

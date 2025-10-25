@@ -5,24 +5,17 @@ Provides async versions of tool execution for better concurrency.
 import os
 import json
 import asyncio
-import subprocess
-from typing import Optional, Dict, Any, List
-from contextlib import asynccontextmanager
+from typing import Dict, Any, List
 import threading
 
 # Import sync versions as fallback
-from .mcp_handler import (
+from app.utils.flask.mcp_handler import (
     BUILTIN_FUNCTIONS,
-    get_project_root,
-    set_project_root,
-    execute_mcp_tool as sync_execute_mcp_tool,
-    create_tool_declarations,
-    create_tool_declarations_from_list,
-    disable_all_mcp_tools
+    execute_mcp_tool as sync_execute_mcp_tool
 )
 
-from .async_utils import log
-from .async_optimization import (
+from app.utils.core.tools import log
+from .optimization import (
     get_cached_tool_output,
     cache_tool_output,
     should_cache_tool
@@ -166,7 +159,7 @@ async def execute_multiple_tools_async(
     Returns:
         List of function response parts
     """
-    from .async_optimization import can_execute_parallel
+    from .optimization import can_execute_parallel
     
     if can_execute_parallel(tool_calls):
         log(f"✓ Executing {len(tool_calls)} tools in parallel")

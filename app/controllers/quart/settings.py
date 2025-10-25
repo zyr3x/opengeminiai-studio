@@ -3,8 +3,8 @@ Quart routes for handling general application settings.
 """
 from quart import Blueprint, request, redirect, url_for, jsonify
 from app.config import config
-from app import utils
-from app.api_key_manager import api_key_manager
+from app.utils.core import tools as utils
+from app.utils.core.api_key_manager import api_key_manager
 
 settings_bp = Blueprint('settings', __name__)
 

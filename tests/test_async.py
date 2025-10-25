@@ -12,21 +12,21 @@ def test_imports():
     print("🧪 Testing imports...")
     
     try:
-        import app.async_utils
+        import app.utils.core.tools.quart.async_utils
         print("  ✓ app.async_utils")
     except Exception as e:
         print(f"  ✗ app.async_utils: {e}")
         return False
     
     try:
-        import app.async_optimization
+        import app.utils.core.tools.quart.async_optimization
         print("  ✓ app.async_optimization")
     except Exception as e:
         print(f"  ✗ app.async_optimization: {e}")
         return False
     
     try:
-        import app.async_mcp_handler
+        import app.utils.core.tools.quart.async_mcp_handler
         print("  ✓ app.async_mcp_handler")
     except Exception as e:
         print(f"  ✗ app.async_mcp_handler: {e}")
@@ -53,8 +53,8 @@ async def test_async_utils():
     print("\n🧪 Testing async_utils...")
     
     try:
-        from app import async_utils
-        
+        from app.utils.core.tools import async_utils
+
         # Test session creation
         session = await async_utils.get_async_session()
         print("  ✓ Session created")
@@ -82,8 +82,8 @@ async def test_async_optimization():
     print("\n🧪 Testing async_optimization...")
     
     try:
-        from app import async_optimization
-        
+        from app.utils.core.tools import async_optimization
+
         # Test rate limiter
         rate_limiter = await async_optimization.get_rate_limiter()
         print("  ✓ Rate limiter created")
@@ -119,8 +119,8 @@ async def test_async_mcp_handler():
     print("\n🧪 Testing async_mcp_handler...")
     
     try:
-        from app import async_mcp_handler
-        
+        from app.utils.core.tools import async_mcp_handler
+
         # Test import of required functions
         print("  ✓ Module imported successfully")
         
@@ -200,7 +200,7 @@ async def main():
     # Cleanup
     print("\n🧹 Cleanup...")
     try:
-        from app import async_utils
+        from app.utils.core.tools import async_utils
         await async_utils.close_async_session()
         print("  ✓ Session closed")
     except Exception as e:

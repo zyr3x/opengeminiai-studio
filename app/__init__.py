@@ -10,8 +10,8 @@ from hypercorn.config import Config as HypercornConfig
 def create_flask_app(app: Flask):
     """Application factory function to set up and configure the Flask app."""
     # Local imports for encapsulated setup
-    import app.mcp_handler as mcp_handler
-    import app.utils as utils
+    import app.utils.flask.mcp_handler as mcp_handler
+    import app.utils.core.tools as utils
 
     # Import Blueprints
     from app.controllers.flask.proxy import proxy_bp
@@ -56,9 +56,9 @@ async def create_quart_app(app: Quart):
     app.secret_key = secret_key
 
     # Import async utilities
-    import app.async_utils as async_utils
-    import app.mcp_handler as mcp_handler
-    import app.utils as utils
+    import app.utils.quart.utils as async_utils
+    import app.utils.quart.mcp_handler as mcp_handler
+    import app.utils.core.tools as utils
 
     # Import Blueprints - mix of async and sync
     from app.controllers.quart.proxy import async_proxy_bp

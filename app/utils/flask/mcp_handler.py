@@ -13,7 +13,7 @@ import fnmatch
 import ast
 import re
 
-from .utils import log, load_code_ignore_patterns # Import new utility
+from app.utils.core.tools import log, load_code_ignore_patterns # Import new utility
 from contextlib import contextmanager
 from . import optimization
 from .optimization import record_tool_call # Explicitly import for clarity

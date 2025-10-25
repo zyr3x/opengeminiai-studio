@@ -5,7 +5,7 @@ Instead of sending the entire dialogue history, only relevant messages are selec
 based on the current query, saving 40-60% of tokens in long dialogues.
 """
 import re
-from typing import List, Dict, Tuple, Set
+from typing import List, Tuple
 from collections import Counter
 
 # --- Configuration Constants ---
@@ -196,7 +196,7 @@ def select_relevant_messages(
     Returns:
         The filtered list of messages
     """
-    from app.utils import estimate_token_count
+    from app.utils.core.tools import estimate_token_count
     
     # If there are few messages, return all
     if len(messages) <= keep_recent + 1:
@@ -282,7 +282,7 @@ def smart_context_window(
     selected_count = len(selected)
 
     if selected_count < original_count:
-        from app.utils import log, estimate_token_count
+        from app.utils.core.tools import log, estimate_token_count
 
         original_tokens = estimate_token_count(messages)
         selected_tokens = estimate_token_count(selected)
