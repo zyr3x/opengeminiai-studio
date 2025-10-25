@@ -1,6 +1,7 @@
 /.idea/
 .env
 /venv/
+/.venv/
 /var/
 /docs/ai/
 *.log
