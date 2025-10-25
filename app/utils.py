@@ -357,7 +357,7 @@ def save_config_to_file(config_str: str, file_path: str, config_name: str):
 
 DEFAULT_CODE_IGNORE_PATTERNS = [
         '.git', '__pycache__', 'node_modules', 'venv', '.venv',
-        'build', 'dist', 'target', 'out', 'coverage', '.nyc_output', '*.egg-info', 'bin', 'obj', 'pkg',
+        'build','.data', 'var', 'dist', 'target', 'out', 'coverage', '.nyc_output', '*.egg-info', 'bin', 'obj', 'pkg',
         '.idea', '.vscode', '.cache', '.pytest_cache',
         '.DS_Store', 'Thumbs.db',
         '*.log', '*.swp', '*.pyc', '*~', '*.bak', '*.tmp',
@@ -368,7 +368,7 @@ DEFAULT_CODE_IGNORE_PATTERNS = [
         '*.db', '*.sqlite', '*.sqlite3', 'data.mdb', 'lock.mdb',
         '*.png', '*.jpg', '*.jpeg', '*.gif', '*.svg',
         '*.woff', '*.woff2', '*.ttf', '.otf', '.eot', '.ico',
-        '*.mp3', '*.wav', '*.mp4', '*.mov',
+        '*.mp3', '*.wav', '*.mp4', '*.mov', '*.m4v', '*.avi', '*.flv', '*.webm','*.m4a'
         '*.min.js', '*.min.css', '*.map',
         'package-lock-v1.json', 'package-lock.json', 'yarn.lock', 'poetry.lock', 'Pipfile.lock',
     ]
