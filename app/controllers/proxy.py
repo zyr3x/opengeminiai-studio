@@ -13,6 +13,7 @@ from app import mcp_handler
 from app import utils
 from app import tool_config_utils
 from app import optimization
+from app.optimization import record_token_usage # Import token usage tracking
 import traceback
 from app import file_processing_utils
 
@@ -27,7 +28,7 @@ def chat_completions():
         return jsonify({"error": {"message": "API key not configured. Please set it on the root page.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:
         openai_request = request.json
-        utils.log(f"Incoming Request: {utils.pretty_json(openai_request)}")
+        utils.debug(f"Incoming Request: {utils.pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
 
         # --- Prompt Engineering & Tool Control ---
@@ -299,8 +300,8 @@ def chat_completions():
                     'X-goog-api-key': config.API_KEY
                 }
 
-                utils.log(f"Outgoing Gemini Request URL: {GEMINI_STREAMING_URL}")
-                utils.log(f"Outgoing Gemini Request Data: {utils.pretty_json(request_data)}")
+                utils.debug(f"Outgoing Gemini Request URL: {GEMINI_STREAMING_URL}")
+                utils.debug(f"Outgoing Gemini Request Data: {utils.pretty_json(request_data)}")
 
                 response = None
                 try:
@@ -313,7 +314,7 @@ def chat_completions():
                     )
                 except (HTTPError, ConnectionError, Timeout, RequestException) as e:
                     error_message = f"Error from upstream Gemini API: {e}"
-                    print(error_message)
+                    utils.log(error_message)
                     error_chunk = {
                         "id": f"chatcmpl-{os.urandom(12).hex()}",
                         "object": "chat.completion.chunk",
@@ -346,7 +347,7 @@ def chat_completions():
 
                             if 'error' in json_data:
                                 error_message = "Error from upstream Gemini API: " + json.dumps(json_data['error'])
-                                print(error_message)
+                                utils.log(error_message)
                                 error_chunk = {
                                     "id": f"chatcmpl-{os.urandom(12).hex()}",
                                     "object": "chat.completion.chunk",
@@ -379,7 +380,7 @@ def chat_completions():
                                         "model": COMPLETION_MODEL,
                                         "choices": [{"index": 0, "delta": {"content": text_content}, "finish_reason": None}]
                                     }
-                                    utils.log(f"Active Proxy Response Chunk: {utils.pretty_json(chunk_response)}")
+                                    utils.debug(f"Active Proxy Response Chunk: {utils.pretty_json(chunk_response)}")
                                     yield f"data: {json.dumps(chunk_response)}\n\n"
                         except json.JSONDecodeError:
                             if len(buffer) > 65536: buffer = buffer[-32768:]
@@ -409,7 +410,7 @@ def chat_completions():
                 if not tool_calls:
                     break
 
-                utils.log(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
+                utils.debug(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
                 current_contents.append({
                     "role": "model",
                     "parts": model_response_parts
@@ -501,6 +502,18 @@ def chat_completions():
                     "parts": tool_response_parts
                 })
 
+            # --- Record Token Usage (Streaming) ---
+            api_key_header = config.API_KEY
+            model_name = COMPLETION_MODEL # Model is set globally in this context
+
+            # The last chunk usually contains usage metadata in Gemini API responses
+            usage_metadata = {} #final_tool_call_response.get('usageMetadata', {})
+            input_tokens = usage_metadata.get('promptTokenCount', 0)
+            output_tokens = usage_metadata.get('candidatesTokenCount', 0)
+
+            record_token_usage(api_key_header, model_name, input_tokens, output_tokens)
+            # --- End Record Token Usage ---
+
             final_chunk = {
                 "id": f"chatcmpl-{os.urandom(12).hex()}",
                 "object": "chat.completion.chunk",
@@ -509,7 +522,7 @@ def chat_completions():
                 "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
             }
             yield f"data: {json.dumps(final_chunk)}\n\n"
-            utils.log(f"Final Proxy Response Chunk: {utils.pretty_json(final_chunk)}")
+            utils.debug(f"Final Proxy Response Chunk: {utils.pretty_json(final_chunk)}")
             yield "data: [DONE]\n\n"
 
         return Response(generate(), mimetype='text/event-stream')

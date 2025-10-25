@@ -12,13 +12,11 @@ import time
 import fnmatch
 import ast
 import re
-from typing import Generator
 
 from .utils import log, load_code_ignore_patterns # Import new utility
 from contextlib import contextmanager
 from . import optimization
 from .optimization import record_tool_call # Explicitly import for clarity
-from .streaming import stream_file_content, stream_string
 
 # --- BUILT-IN CODE NAVIGATION TOOL DEFINITIONS ---
 BUILTIN_TOOL_NAME = "__builtin_code_navigator"
@@ -101,7 +99,7 @@ def _generate_tree_local(file_paths, root_name):
     return "\n".join(tree_lines)
 
 
-def list_files(path: str = ".", max_depth: int = -1) -> str | Generator[str, None, None]:
+def list_files(path: str = ".", max_depth: int = -1) -> str:
     """
     Lists files and directories recursively for code context.
     Respects common ignore patterns. Returns an ASCII tree structure.
@@ -187,7 +185,7 @@ def list_files(path: str = ".", max_depth: int = -1) -> str | Generator[str, Non
         return f"Directory '{path}' is empty or contains only ignored files."
 
     full_tree_content = "Project structure:\n" + _generate_tree_local(relative_paths, tree_root_name)
-    return stream_string(full_tree_content)
+    return full_tree_content
 
 def get_file_content(path: str) -> str:
     """

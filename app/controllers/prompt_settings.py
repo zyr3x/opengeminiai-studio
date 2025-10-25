@@ -19,7 +19,7 @@ def set_prompt_config():
             config_name="Prompt overrides"
         )
     except ValueError as e:
-        print(f"Error: {e}")
+        utils.log(f"Error: {e}")
         return redirect(url_for('web_ui.index', _anchor='prompts'))
 
     utils.load_prompt_config()
@@ -37,7 +37,7 @@ def set_system_prompt_config():
             config_name="System prompts"
         )
     except ValueError as e:
-        print(f"Error: {e}")
+        utils.log(f"Error: {e}")
         return redirect(url_for('web_ui.index', _anchor='prompts'))
 
     utils.load_system_prompt_config()

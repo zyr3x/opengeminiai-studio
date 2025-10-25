@@ -55,7 +55,7 @@ def update_chat_title(chat_id):
         conn.close()
         return jsonify({'success': True, 'new_title': new_title})
     except Exception as e:
-        print(f"Error updating title for chat {chat_id}: {e}")
+        utils.log(f"Error updating title for chat {chat_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>', methods=['DELETE'])
@@ -69,7 +69,7 @@ def delete_chat(chat_id):
         if os.path.exists(chat_upload_folder):
             shutil.rmtree(chat_upload_folder)
     except OSError as e:
-        print(f"Error deleting files for chat {chat_id}: {e}")
+        utils.log(f"Error deleting files for chat {chat_id}: {e}")
 
     # 2. Delete chat from the database (messages are deleted via CASCADE)
     conn = get_db_connection()
@@ -107,7 +107,7 @@ def delete_message(message_id):
         conn.close()
         return jsonify({'success': True}), 200
     except Exception as e:
-        print(f"Error deleting message {message_id}: {e}")
+        utils.log(f"Error deleting message {message_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -168,7 +168,7 @@ def generate_image_api():
                     image_response.raise_for_status()
                     image_data = image_response.content
                 except (RequestException, HTTPError) as e:
-                    print(f"Failed to download image from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
+                    utils.log(f"Failed to download image from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
                     image_data = None  # Ensure image_data is None on failure
 
         if not image_data or not mime_type:
@@ -206,11 +206,11 @@ def generate_image_api():
 
     except (HTTPError, ConnectionError, Timeout, RequestException) as e:
         error_message = f"Error from upstream API: {e}"
-        print(error_message)
+        utils.log(error_message)
         return jsonify({"error": error_message}), 500
     except Exception as e:
         error_message = f"An error occurred in generate image API: {str(e)}"
-        print(error_message)
+        utils.log(error_message)
         return jsonify({"error": error_message}), 500
 
 
@@ -488,7 +488,7 @@ def chat_api():
                             }
                         }
 
-                utils.log(f"Outgoing Gemini Request (Model: {model}, Tools: {bool(final_tools)}): {utils.pretty_json(request_data)}")
+                utils.debug(f"Outgoing Gemini Request (Model: {model}, Tools: {bool(final_tools)}): {utils.pretty_json(request_data)}")
 
                 tool_calls, model_response_parts = [], []
 
@@ -505,7 +505,7 @@ def chat_api():
                         )
                         response_data = response.json()
 
-                        utils.log(f"Incoming Gemini Non-Streaming Response: {utils.pretty_json(response_data)}")
+                        utils.debug(f"Incoming Gemini Non-Streaming Response: {utils.pretty_json(response_data)}")
 
                         if not response_data.get('candidates'):
                             err_msg = "The model did not return a response. This could be due to a safety filter."
@@ -600,20 +600,20 @@ def chat_api():
 
                 if model_response_parts:
                     bot_message_id = utils.add_message_to_db(chat_id, 'model', model_response_parts)
-                    utils.log(f"Model response saved to DB (Chat ID: {chat_id}). Parts: {utils.pretty_json(model_response_parts)}")
+                    utils.debug(f"Model response saved to DB (Chat ID: {chat_id}). Parts: {utils.pretty_json(model_response_parts)}")
                     # Yield a special event with the message ID so the frontend can add a delete button
                     yield f'__LLM_EVENT__{json.dumps({"type": "message_id", "id": bot_message_id})}'
 
 
                 if not tool_calls: break
 
-                utils.log(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
+                utils.debug(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
                 current_contents.append({"role": "model", "parts": model_response_parts})
 
                 tool_response_parts = []
                 for tool_call in tool_calls:
                     function_name = tool_call.get("name")
-                    utils.log(f"Executing tool '{function_name}' with args: {utils.pretty_json(tool_call.get('args'))}")
+                    utils.debug(f"Executing tool '{function_name}' with args: {utils.pretty_json(tool_call.get('args'))}")
                     output = mcp_handler.execute_mcp_tool(function_name, tool_call.get("args"))
                     utils.log(f"Tool '{function_name}' execution completed. Output length: {len(str(output))}")
 
@@ -637,13 +637,13 @@ def chat_api():
 
                 if tool_response_parts:
                     utils.add_message_to_db(chat_id, 'tool', tool_response_parts)
-                    utils.log(f"Tool response saved to DB (Chat ID: {chat_id}). Response Parts: {utils.pretty_json(tool_response_parts)}")
+                    utils.debug(f"Tool response saved to DB (Chat ID: {chat_id}). Response Parts: {utils.pretty_json(tool_response_parts)}")
 
                 current_contents.append({"role": "tool", "parts": tool_response_parts})
 
         return Response(generate(), mimetype='text/plain')
     except Exception as e:
-        print(f"An error occurred in chat API: {str(e)}")
+        utils.log(f"An error occurred in chat API: {str(e)}")
         return jsonify({"error": f"An error occurred in chat API: {str(e)}"}), 500
 
 @web_ui_chat_bp.route('/uploads/<path:filepath>')

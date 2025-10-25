@@ -62,6 +62,9 @@ def get_metrics_api():
     Returns optimization metrics as JSON for AJAX updates.
     """
     metrics_data = optimization.get_metrics()
+    token_stats = optimization.get_key_token_stats()
+
+    metrics_data['key_token_stats'] = token_stats
     return jsonify(metrics_data)
 
 @metrics_bp.route('/metrics/cleanup', methods=['POST'])

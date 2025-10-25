@@ -20,7 +20,7 @@ def set_mcp_config():
             config_name="MCP config"
         )
     except ValueError as e:
-        print(f"Error: {e}")
+        utils.log(f"Error: {e}")
         return redirect(url_for('web_ui.index', _anchor='mcp'))
 
     mcp_handler.load_mcp_config()

@@ -24,7 +24,9 @@ def set_api_key():
 
 @settings_bp.route('/set_logging', methods=['POST'])
 def set_logging():
-    """Enables or disables verbose logging."""
-    logging_enabled = request.form.get('verbose_logging') == 'on'
-    utils.set_verbose_logging(logging_enabled)
+    """Enables or disables verbose and debug client logging."""
+    verbose_logging_enabled = request.form.get('verbose_logging') == 'on'
+    debug_client_logging_enabled = request.form.get('debug_client_logging') == 'on'
+    utils.set_verbose_logging(verbose_logging_enabled)
+    utils.set_debug_client_logging(debug_client_logging_enabled)
     return redirect(url_for('web_ui.index', _anchor='configuration'))

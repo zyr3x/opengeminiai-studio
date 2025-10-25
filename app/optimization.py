@@ -54,20 +54,20 @@ def get_cache_key(function_name: str, tool_args: dict) -> str:
     return hashlib.md5(cache_string.encode()).hexdigest()
 
 def get_cached_tool_output(function_name: str, tool_args: dict) -> Optional[str]:
-    """Получает результат из кэша если он есть и не устарел"""
-    clean_cache()  # Периодически чистим кэш
-    
+    """Gets result from cache if present and not expired"""
+    clean_cache()  # Periodically clean cache
+
     cache_key = get_cache_key(function_name, tool_args)
-    
+
     if cache_key in _tool_output_cache:
         output, timestamp = _tool_output_cache[cache_key]
         if time.time() - timestamp < CACHE_TTL:
             return output
-    
+
     return None
 
 def cache_tool_output(function_name: str, tool_args: dict, output: str):
-    """Сохраняет результат инструмента в кэш"""
+    """Saves tool result to cache"""
     cache_key = get_cache_key(function_name, tool_args)
     _tool_output_cache[cache_key] = (output, time.time())
 
@@ -83,7 +83,7 @@ def should_cache_tool(function_name: str) -> bool:
         'git_show', 'git_blame', 'list_recent_changes',
         'analyze_file_structure', 'get_file_stats'
     ]
-    
+
     return function_name in cacheable
 
 # --- Tool Output Optimization ---
@@ -108,14 +108,14 @@ def optimize_code_output(code: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) ->
     keep_lines = int((max_tokens * 3.5) / (len(code) / total_lines))
     head_lines = keep_lines // 2
     tail_lines = keep_lines // 2
-    
+
     if total_lines <= keep_lines:
         return code
-    
+
     result = '\n'.join(lines[:head_lines])
     result += f"\n\n... [{total_lines - keep_lines} lines truncated] ...\n\n"
     result += '\n'.join(lines[-tail_lines:])
-    
+
     return result
 
 def optimize_diff_output(diff: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) -> str:
@@ -139,18 +139,18 @@ def optimize_diff_output(diff: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) ->
 
     # Take all important lines and a bit of context
     max_lines = int((max_tokens * 3.5) / (len(diff) / len(lines)))
-    
+
     if len(important_lines) <= max_lines:
         return diff
-    
+
     # Ограничиваем важные строки
     result_lines = important_lines[:max_lines]
     total_lines = len(lines)
     shown_lines = len(result_lines)
-    
+
     result = '\n'.join(line for _, line in result_lines)
     result += f"\n\n... [Showing {shown_lines} of {total_lines} lines] ...\n"
-    
+
     return result
 
 def optimize_list_output(text: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) -> str:
@@ -165,13 +165,13 @@ def optimize_list_output(text: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) ->
 
     # For lists - show the beginning
     max_lines = int((max_tokens * 3.5) / (len(text) / total_lines))
-    
+
     if total_lines <= max_lines:
         return text
-    
+
     result = '\n'.join(lines[:max_lines])
     result += f"\n... [Showing {max_lines} of {total_lines} items] ..."
-    
+
     return result
 
 def optimize_tool_output(output: str, function_name: str) -> str:
@@ -208,7 +208,7 @@ def optimize_tool_output(output: str, function_name: str) -> str:
         max_chars = MAX_TOOL_OUTPUT_TOKENS * 4
         if len(output) > max_chars:
             return output[:max_chars] + f"\n\n... [Output truncated from {len(output)} to {max_chars} chars]"
-    
+
     return output
 
 # --- Smart History Truncation ---
@@ -234,7 +234,7 @@ def summarize_message(message: dict) -> str:
         summary = ' '.join(words[:15]) + '...'
     else:
         summary = full_text
-    
+
     return f"[{role}]: {summary}"
 
 def smart_truncate_contents(contents: list, limit: int, keep_recent: int = 5) -> list:
@@ -261,16 +261,16 @@ def smart_truncate_contents(contents: list, limit: int, keep_recent: int = 5) ->
 
     # Middle messages are compressed into a brief summary
     middle_messages = contents[1:-keep_recent]
-    
+
     if middle_messages:
         summaries = [summarize_message(msg) for msg in middle_messages]
         summary_text = "Previous conversation summary:\n" + "\n".join(summaries)
-        
+
         result.append({
             "role": "user",
             "parts": [{"text": summary_text}]
         })
-    
+
     # Add recent messages
     result.extend(recent_messages)
 
@@ -288,6 +288,53 @@ def smart_truncate_contents(contents: list, limit: int, keep_recent: int = 5) ->
     return result
 
 # --- Stats and Metrics ---
+
+# Global tracking for token usage per key
+_key_token_stats = {}
+_token_stats_lock = threading.Lock()
+
+
+def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_tokens: int):
+    """Records token usage for a specific API key and model."""
+    if not api_key or not model_name:
+        return
+
+    # Use a truncated key/hash for display/keying
+    key_display = hashlib.sha256(api_key.encode()).hexdigest()[:8]
+
+    with _token_stats_lock:
+        if key_display not in _key_token_stats:
+            _key_token_stats[key_display] = {
+                'key_id': key_display,
+                'models': {},
+                'total_input': 0,
+                'total_output': 0,
+                'total_tokens': 0,
+            }
+
+        key_stats = _key_token_stats[key_display]
+
+        if model_name not in key_stats['models']:
+            key_stats['models'][model_name] = {'input': 0, 'output': 0}
+
+        key_stats['models'][model_name]['input'] += input_tokens
+        key_stats['models'][model_name]['output'] += output_tokens
+        key_stats['total_input'] += input_tokens
+        key_stats['total_output'] += output_tokens
+        key_stats['total_tokens'] += input_tokens + output_tokens
+
+def get_key_token_stats() -> List[Dict]:
+    """Returns token usage statistics structured by API key."""
+    with _token_stats_lock:
+        # Create a deep copy to prevent external modification
+        return json.loads(json.dumps(list(_key_token_stats.values())))
+
+def reset_token_stats():
+    """Resets the token usage statistics."""
+    global _key_token_stats
+    with _token_stats_lock:
+        _key_token_stats = {}
+
 
 _metrics = {
     'cache_hits': 0,
@@ -324,7 +371,7 @@ def get_metrics() -> dict:
     """Returns optimization metrics"""
     total_cache_requests = _metrics['cache_hits'] + _metrics['cache_misses']
     cache_hit_rate = (_metrics['cache_hits'] / total_cache_requests * 100) if total_cache_requests > 0 else 0
-    
+
     return {
         **_metrics,
         'cache_hit_rate': f"{cache_hit_rate:.1f}%",
@@ -332,7 +379,7 @@ def get_metrics() -> dict:
     }
 
 def reset_metrics():
-    """Сбрасывает метрики"""
+    """Resets the metrics"""
     global _metrics
     _metrics = {
         'cache_hits': 0,
@@ -343,12 +390,15 @@ def reset_metrics():
         'tool_calls_external': 0,
     }
 
+    # Also reset key-based token stats
+    reset_token_stats()
+
     # Placeholder for the actual tool cache implementation (e.g., LRUCache)
     # Using a simple dictionary for demonstration/metrics calculation.
     _tool_output_cache = {} 
 
 # ============================================================================
-# ФАЗА 2: ПРОДВИНУТАЯ ОПТИМИЗАЦИЯ
+# PHASE 2: ADVANCED OPTIMIZATION
 # ============================================================================
 
 # --- Connection Pooling ---
@@ -403,65 +453,65 @@ def close_http_session():
 
 class RateLimiter:
     """
-    Thread-safe rate limiter для ограничения частоты запросов.
-    Использует sliding window алгоритм.
+    Thread-safe rate limiter for limiting request frequency.
+    Uses sliding window algorithm.
     """
     def __init__(self, max_calls: int, period: int):
         """
         Args:
-            max_calls: Максимальное количество вызовов
-            period: Период в секундах
+            max_calls: Maximum number of calls
+            period: Period in seconds
         """
         self.max_calls = max_calls
         self.period = period
         self.calls = deque()
         self.lock = threading.Lock()
-    
+
     def __call__(self, func):
-        """Декоратор для применения rate limiting"""
+        """Decorator to apply rate limiting"""
         @wraps(func)
         def wrapper(*args, **kwargs):
             with self.lock:
                 now = time.time()
-                
-                # Удаляем старые вызовы (за пределами окна)
+
+                # Remove old calls (outside the window)
                 while self.calls and now - self.calls[0] >= self.period:
                     self.calls.popleft()
-                
-                # Если достигнут лимит, ждем
+
+                # If limit is reached, wait
                 if len(self.calls) >= self.max_calls:
                     sleep_time = self.period - (now - self.calls[0]) + 0.01
                     if sleep_time > 0:
                         time.sleep(sleep_time)
                         now = time.time()
-                        # Очищаем старые после sleep
+                        # Clear old ones after sleep
                         while self.calls and now - self.calls[0] >= self.period:
                             self.calls.popleft()
-                
-                # Добавляем текущий вызов
+
+                # Add current call
                 self.calls.append(time.time())
-            
+
             return func(*args, **kwargs)
-        
+
         return wrapper
-    
+
     def wait_if_needed(self):
-        """Ожидает если достигнут rate limit (без выполнения функции)"""
+        """Waits if rate limit is reached (without executing function)"""
         with self.lock:
             now = time.time()
-            
-            # Удаляем старые вызовы
+
+            # Remove old calls
             while self.calls and now - self.calls[0] >= self.period:
                 self.calls.popleft()
-            
-            # Если достигнут лимит, ждем
+
+            # If limit is reached, wait
             if len(self.calls) >= self.max_calls:
                 sleep_time = self.period - (now - self.calls[0]) + 0.01
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
-# Глобальный rate limiter для Gemini API
-# По умолчанию: 60 запросов в минуту (можно настроить через env)
+# Global rate limiter for Gemini API
+# Default: 60 requests per minute (can be configured via env)
 _gemini_rate_limiter = None
 
 def get_rate_limiter(max_calls: int = 60, period: int = 60) -> RateLimiter:
@@ -478,10 +528,10 @@ _executor_lock = threading.Lock()
 
 def get_tool_executor(max_workers: int = 5) -> ThreadPoolExecutor:
     """
-    Возвращает thread pool executor для параллельного выполнения инструментов.
+    Returns a thread pool executor for parallel tool execution.
     """
     global _tool_executor
-    
+
     if _tool_executor is None:
         with _executor_lock:
             if _tool_executor is None:
@@ -489,11 +539,11 @@ def get_tool_executor(max_workers: int = 5) -> ThreadPoolExecutor:
                     max_workers=max_workers,
                     thread_name_prefix="tool_executor"
                 )
-    
+
     return _tool_executor
 
 def shutdown_tool_executor():
-    """Завершает thread pool executor"""
+    """Shuts down the thread pool executor"""
     global _tool_executor
     if _tool_executor is not None:
         _tool_executor.shutdown(wait=True)
@@ -501,24 +551,24 @@ def shutdown_tool_executor():
 
 def execute_tools_parallel(tool_calls: List[Dict]) -> List[Tuple[Dict, str]]:
     """
-    Выполняет несколько tool calls параллельно.
-    
+    Executes multiple tool calls in parallel.
+
     Args:
-        tool_calls: Список словарей с 'name' и 'args'
-    
+        tool_calls: List of dictionaries with 'name' and 'args'
+
     Returns:
-        Список кортежей (tool_call, result)
+        List of tuples (tool_call, result)
     """
     if not tool_calls:
         return []
-    
-    # Импортируем здесь чтобы избежать циклических зависимостей
+
+    # Import here to avoid circular dependencies
     from app import mcp_handler
-    
+
     executor = get_tool_executor()
     futures = {}
-    
-    # Запускаем все tool calls параллельно
+
+    # Start all tool calls in parallel
     for tool_call in tool_calls:
         future = executor.submit(
             mcp_handler.execute_mcp_tool,
@@ -526,18 +576,18 @@ def execute_tools_parallel(tool_calls: List[Dict]) -> List[Tuple[Dict, str]]:
             tool_call.get('args', {})
         )
         futures[future] = tool_call
-    
-    # Собираем результаты по мере готовности
+
+    # Collect results as they complete
     results = []
     for future in as_completed(futures):
         tool_call = futures[future]
         try:
-            result = future.result(timeout=120)  # 2 минуты на tool
+            result = future.result(timeout=120)  # 2 minutes per tool
             results.append((tool_call, result))
         except Exception as e:
             error_msg = f"Error executing {tool_call.get('name')}: {e}"
             results.append((tool_call, error_msg))
-    
+
     return results
 
 def can_execute_parallel(tool_calls: List[Dict]) -> bool:
@@ -562,19 +612,19 @@ _cached_contexts = {}
 _context_cache_lock = threading.Lock()
 
 class CachedContext:
-    """Представляет кэшированный контекст на стороне Gemini"""
+    """Represents a cached context on the Gemini side"""
     def __init__(self, cache_id: str, created_at: float, ttl: int = 3600):
         self.cache_id = cache_id
         self.created_at = created_at
         self.ttl = ttl
         self.last_used = created_at
-    
+
     def is_expired(self) -> bool:
-        """Проверяет, истек ли кэш"""
+        """Checks if the cache has expired"""
         return time.time() - self.created_at > self.ttl
-    
+
     def touch(self):
-        """Обновляет время последнего использования"""
+        """Updates the last used time"""
         self.last_used = time.time()
 
 def create_cached_context(
@@ -585,23 +635,23 @@ def create_cached_context(
     ttl_minutes: int = 60
 ) -> Optional[str]:
     """
-    Создает кэшированный контекст на стороне Gemini API.
-    
+    Creates a cached context on the Gemini API side.
+
     Args:
-        api_key: API ключ Gemini
-        upstream_url: URL Gemini API
-        model: Название модели
-        system_instruction: Системная инструкция для кэширования
-        ttl_minutes: Время жизни кэша в минутах (по умолчанию 60)
-    
+        api_key: Gemini API key
+        upstream_url: Gemini API URL
+        model: Model name
+        system_instruction: System instruction for caching
+        ttl_minutes: Cache time-to-live in minutes (default 60)
+
     Returns:
-        Cache ID или None при ошибке
+        Cache ID or None on error
     """
     try:
-        # Вычисляем хеш системной инструкции для идентификации
+        # Calculate hash of the system instruction for identification
         cache_key = hashlib.md5(f"{model}:{system_instruction}".encode()).hexdigest()
-        
-        # Проверяем, есть ли уже кэш
+
+        # Check if cache already exists
         with _context_cache_lock:
             if cache_key in _cached_contexts:
                 cached = _cached_contexts[cache_key]
@@ -609,15 +659,15 @@ def create_cached_context(
                     cached.touch()
                     return cached.cache_id
                 else:
-                    # Удаляем истекший кэш
+                    # Remove expired cache
                     del _cached_contexts[cache_key]
-        
-        # Создаем новый кэш через Gemini API
+
+        # Create new cache via Gemini API
         session = get_http_session()
-        
-        # TTL в секундах для API (минимум 60 секунд по документации)
+
+        # TTL in seconds for API (minimum 60 seconds per documentation)
         ttl_seconds = max(60, ttl_minutes * 60)
-        
+
         response = session.post(
             f"{upstream_url}/v1beta/cachedContents",
             headers={
@@ -631,26 +681,26 @@ def create_cached_context(
             },
             timeout=30
         )
-        
+
         if response.status_code == 200:
             cache_data = response.json()
             cache_id = cache_data.get("name")
-            
+
             if cache_id:
-                # Сохраняем в локальном кэше
+                # Save to local cache
                 with _context_cache_lock:
                     _cached_contexts[cache_key] = CachedContext(
                         cache_id,
                         time.time(),
                         ttl_seconds
                     )
-                
+
                 return cache_id
         else:
-            # Логируем ошибку, но не падаем
+            # Log error, but do not crash
             print(f"Failed to create cached context: {response.status_code} {response.text}")
             return None
-    
+
     except Exception as e:
         print(f"Error creating cached context: {e}")
         return None
@@ -662,13 +712,13 @@ def get_cached_context_id(
     system_instruction: str
 ) -> Optional[str]:
     """
-    Получает ID кэшированного контекста, создавая его при необходимости.
-    
+    Gets the cached context ID, creating it if necessary.
+
     Returns:
-        Cache ID или None если кэширование недоступно
+        Cache ID or None if caching is unavailable
     """
     cache_key = hashlib.md5(f"{model}:{system_instruction}".encode()).hexdigest()
-    
+
     with _context_cache_lock:
         if cache_key in _cached_contexts:
             cached = _cached_contexts[cache_key]
@@ -677,12 +727,12 @@ def get_cached_context_id(
                 return cached.cache_id
             else:
                 del _cached_contexts[cache_key]
-    
-    # Создаем новый кэш
+
+    # Create new cache
     return create_cached_context(api_key, upstream_url, model, system_instruction)
 
 def clear_expired_contexts():
-    """Очищает истекшие кэшированные контексты"""
+    """Clears expired cached contexts"""
     with _context_cache_lock:
         expired = [
             key for key, cached in _cached_contexts.items()
@@ -691,10 +741,10 @@ def clear_expired_contexts():
         for key in expired:
             del _cached_contexts[key]
 
-# --- Cleanup функция ---
+# --- Cleanup function ---
 
 def cleanup_resources():
-    """Очищает все ресурсы оптимизации при shutdown"""
+    """Clears all optimization resources upon shutdown"""
     close_http_session()
     shutdown_tool_executor()
     clear_expired_contexts()
