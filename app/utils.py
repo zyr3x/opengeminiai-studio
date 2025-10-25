@@ -344,7 +344,7 @@ def save_config_to_file(config_str: str, file_path: str, config_name: str):
     log(f"{config_name} updated and saved to {file_path}.")
 
 
-def format_tool_output_for_display(tool_parts: list) -> str | None:
+def format_tool_output_for_display(tool_parts: list, use_html_tags: bool = True) -> str | None:
     """
     Formats the output from tool calls for display, especially when the model is silent.
     Handles different response payload structures and pretty-prints JSON.
@@ -377,8 +377,12 @@ def format_tool_output_for_display(tool_parts: list) -> str | None:
             # If it fails, use the response text as is
             pretty_text = resp_text
 
-        formatted_output = (f'\n<details><summary>Tool Output: `{name}`</summary>\n\n'
-                            f'```json\n{pretty_text}\n```\n\n</details>\n')
+        if use_html_tags:
+            formatted_output = (f'\n<details><summary>Tool Output: `{name}`</summary>\n\n'
+                                f'```json\n{pretty_text}\n```\n\n</details>\n')
+        else:
+            formatted_output = (f'\nTool Output: `{name}`\n'
+                                f'```json\n{pretty_text}\n```\n')
         formatted_tool_outputs.append(formatted_output)
 
     if formatted_tool_outputs:
@@ -396,7 +400,7 @@ def add_message_to_db(chat_id: int, role: str, parts: list):
     conn.close()
     return message_id
 
-def format_message_parts_for_ui(db_parts_json: str) -> dict:
+def format_message_parts_for_ui(db_parts_json: str, use_html_tags: bool = True) -> dict:
     """
     Formats a message's parts (from DB JSON string) for display in the UI.
     Converts file_data paths to /uploads URLs.
@@ -423,7 +427,7 @@ def format_message_parts_for_ui(db_parts_json: str) -> dict:
                     text_parts.append(f"[File not found: {os.path.basename(file_path)}]")
             elif 'functionResponse' in part:
                 # Format tool output for UI display
-                formatted_output = format_tool_output_for_display([part])
+                formatted_output = format_tool_output_for_display([part], use_html_tags=use_html_tags)
                 if formatted_output:
                     text_parts.append(formatted_output)
         message_data['content'] = " ".join(text_parts).strip()

@@ -391,7 +391,7 @@ def chat_completions():
 
                 if is_after_tool_call and not has_text_in_model_response and not tool_calls:
                     tool_parts_from_history = current_contents[-1].get('parts', [])
-                    final_text = utils.format_tool_output_for_display(tool_parts_from_history)
+                    final_text = utils.format_tool_output_for_display(tool_parts_from_history, False)
 
                     if final_text:
                         model_response_parts = [{'text': final_text}]
