@@ -6,7 +6,7 @@ import mimetypes
 import os
 import re
 from app import utils
-from app.mcp_handler import list_files, set_project_root
+from app.mcp_handler import list_files, set_project_root, get_code_ignore_patterns
 
 # --- Constants ---
 MAX_MULTIMODAL_FILE_SIZE_MB = 12
@@ -45,16 +45,20 @@ def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
 def process_message_for_paths(content: str) -> tuple[list, bool] | str:
     """
     Processes a message content string to find local file paths (e.g.,
-    image_path=...), and replaces them with appropriate content parts for
-    multimodal input.
+    image_path=..., code_path=..., project_path=...), and replaces them with 
+    appropriate content parts for multimodal input or project context.
 
-    If paths are found, returns (list of parts, bool code_tools_requested).
+    - image_path, pdf_path, audio_path: Embeds files as multimodal data
+    - code_path: Recursively loads all code files as text context
+    - project_path: Activates tools and provides project structure for agent
+
+    If paths are found, returns (list of parts, project_root_path_or_None).
     Otherwise, returns the original string.
     """
     if not isinstance(content, str):
         return content
 
-    path_pattern = re.compile(r'(image|pdf|audio|code)_path=([^\s]+)')
+    path_pattern = re.compile(r'(image|pdf|audio|code|project)_path=([^\s]+)')
     matches = list(path_pattern.finditer(content))
 
     if not matches:
@@ -62,7 +66,7 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
 
     new_content_parts = []
     last_end = 0
-    code_path_found = None
+    project_path_found = None
 
     for i, match in enumerate(matches):
         start, end = match.span()
@@ -74,28 +78,146 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
 
         file_type = match.group(1)
         file_path_str = match.group(2)
-        # expanded_path is only needed for multimodal file checks
         expanded_path = os.path.expanduser(file_path_str)
 
-        if file_type == 'code':
-            # This is the primary path for setting the project context for the agent.
-            # We extract the path, which will be used to set the cwd for all subsequent tool calls.
-            code_path_found = os.path.expanduser(file_path_str)
+        if file_type == 'project':
+            # project_path: Activate tools and provide project structure for agent
+            project_path_found = expanded_path
 
-            # Proactively get the file tree for the requested path using the new context.
-            # We list files from the root of the new path (`.`).
-            with set_project_root(code_path_found):
+            # Proactively get the file tree for the requested path using the new context
+            with set_project_root(project_path_found):
                 project_tree = list_files(path=".", max_depth=3)
 
-            # Insert a more detailed context message for the model.
+            # Insert detailed context message for the model
             context_text = (
-                f"The user has requested code context for the path '{file_path_str}'. "
-                f"Here is the project's file structure (limited to a depth of 3 for brevity):\n\n"
-                f"{project_tree}\n\n"
-                f"The agent should now analyze this tree. If more detail is needed in a specific subdirectory, use the `list_files` tool again with a deeper path and/or a larger `max_depth`. "
-                f"Otherwise, use other tools like `analyze_file_structure` or `get_file_content` to inspect files."
+                f"🚀 **PROJECT MODE ACTIVATED** for path: '{file_path_str}'\n\n"
+                f"All built-in development tools are now available with this project as the working directory.\n\n"
+                f"📁 **Project Structure** (depth=3):\n"
+                f"```\n{project_tree}\n```\n\n"
+                f"**Available Tools:**\n"
+                f"• Navigation: list_files, get_file_content, get_code_snippet, search_codebase\n"
+                f"• Analysis: analyze_file_structure, analyze_project_structure, get_file_stats, find_symbol, get_dependencies\n"
+                f"• Modification: apply_patch, create_file, write_file\n"
+                f"• Execution: execute_command (run tests, builds, awk/sed, etc.)\n"
+                f"• Git: git_status, git_log, git_diff, git_show, git_blame, list_recent_changes\n\n"
+                f"**Usage:** Use these tools to analyze, modify, or work with the project. "
+                f"For deeper directory exploration, use `list_files` with specific paths and larger `max_depth`."
             )
             new_content_parts.append({"type": "text", "text": context_text})
+
+            last_end = command_end
+            continue
+
+        if file_type == 'code':
+            # code_path: Recursively load all code files as text
+            if not os.path.exists(expanded_path):
+                utils.log(f"Code path not found: {expanded_path}")
+                new_content_parts.append({
+                    "type": "text",
+                    "text": f"[Error: Path '{file_path_str}' not found]"
+                })
+                last_end = command_end
+                continue
+
+            # Collect code files
+            code_files = []
+            total_size = 0
+            MAX_CODE_SIZE = 4 * 1024 * 1024  # 4 MB limit for code injection
+
+            # Default ignore patterns for code
+            ignore_patterns = get_code_ignore_patterns()
+
+            # Parse ignore patterns from prompt
+            param_pattern = re.compile(r'\s+(ignore_type|ignore_file|ignore_dir)=([^\s]+)')
+            search_region = content[end:command_end]
+            for param_match in param_pattern.finditer(search_region):
+                ignore_key = param_match.group(1)
+                value = param_match.group(2)
+                patterns = value.split('|')
+                
+                if ignore_key == 'ignore_type':
+                    ignore_patterns.extend([f"*.{p}" for p in patterns])
+                else:
+                    ignore_patterns.extend(patterns)
+
+            if os.path.isfile(expanded_path):
+                # Single file
+                try:
+                    size = os.path.getsize(expanded_path)
+                    if size <= MAX_CODE_SIZE:
+                        with open(expanded_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content_data = f.read()
+                        code_files.append((os.path.basename(expanded_path), content_data))
+                        total_size = size
+                except Exception as e:
+                    utils.log(f"Error reading code file {expanded_path}: {e}")
+
+            elif os.path.isdir(expanded_path):
+                # Directory - recursively collect files
+                import fnmatch
+                
+                for root, dirs, files in os.walk(expanded_path):
+                    # Filter ignored directories
+                    dirs[:] = [d for d in dirs if not any(
+                        fnmatch.fnmatch(d, p) for p in ignore_patterns
+                    )]
+
+                    for filename in files:
+                        if filename.startswith('.'):
+                            continue
+
+                        filepath = os.path.join(root, filename)
+                        rel_path = os.path.relpath(filepath, expanded_path)
+
+                        # Check ignore patterns
+                        if any(fnmatch.fnmatch(rel_path, p) or fnmatch.fnmatch(filename, p) 
+                               for p in ignore_patterns):
+                            continue
+
+                        try:
+                            size = os.path.getsize(filepath)
+                            if total_size + size > MAX_CODE_SIZE:
+                                utils.log(f"Code injection limit reached at {total_size / (1024*1024):.2f} MB")
+                                break
+
+                            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                                content_data = f.read()
+                            
+                            code_files.append((rel_path, content_data))
+                            total_size += size
+
+                        except Exception as e:
+                            utils.log(f"Error reading {filepath}: {e}")
+                            continue
+
+                    if total_size > MAX_CODE_SIZE:
+                        break
+
+            if code_files:
+                # Format code files for injection
+                code_parts = []
+                code_parts.append(
+                    f"📝 **CODE CONTEXT LOADED** from: '{file_path_str}'\n"
+                    f"Total: {len(code_files)} files, {total_size / 1024:.2f} KB\n\n"
+                )
+
+                for rel_path, file_content in code_files:
+                    ext = os.path.splitext(rel_path)[1].lstrip('.')
+                    code_parts.append(
+                        f"**File:** `{rel_path}`\n"
+                        f"```{ext}\n{file_content}\n```\n\n"
+                    )
+
+                new_content_parts.append({
+                    "type": "text",
+                    "text": "".join(code_parts)
+                })
+                utils.log(f"Injected {len(code_files)} code files ({total_size / 1024:.2f} KB)")
+            else:
+                new_content_parts.append({
+                    "type": "text",
+                    "text": f"[No code files found in '{file_path_str}']"
+                })
 
             last_end = command_end
             continue
@@ -151,4 +273,4 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
     if last_end < len(content):
         new_content_parts.append({"type": "text", "text": content[last_end:]})
 
-    return new_content_parts, code_path_found
+    return new_content_parts, project_path_found
