@@ -20,6 +20,7 @@ from urllib3.util.retry import Retry
 
 # --- Tool Result Cache ---
 _tool_output_cache = {}
+_cache_lock = threading.Lock() # Added lock for thread safety
 CACHE_TTL = 300  # 5 minutes
 CACHE_MAX_SIZE = 100  # Maximum entries in the cache
 
@@ -31,17 +32,19 @@ MAX_DIFF_LINES = 100           # Maximum lines for diff
 def clean_cache():
     """Cleans up expired entries from the cache"""
     global _tool_output_cache
-    now = time.time()
-    expired_keys = [
-        key for key, (_, timestamp) in _tool_output_cache.items()
+    with _cache_lock:
+        now = time.time()
+        expired_keys = [
+            key for key, (_, timestamp) in _tool_output_cache.items()
         if now - timestamp > CACHE_TTL
     ]
-    for key in expired_keys:
-        del _tool_output_cache[key]
+        for key in expired_keys:
+            if key in _tool_output_cache:
+                del _tool_output_cache[key]
 
-    # If the cache is too large, remove the oldest entries
-    if len(_tool_output_cache) > CACHE_MAX_SIZE:
-        sorted_items = sorted(
+        # If the cache is too large, remove the oldest entries
+        if len(_tool_output_cache) > CACHE_MAX_SIZE:
+            sorted_items = sorted(
             _tool_output_cache.items(),
             key=lambda x: x[1][1]  # Sort by timestamp
         )
@@ -60,18 +63,19 @@ def get_cached_tool_output(function_name: str, tool_args: dict) -> Optional[str]
     clean_cache()  # Periodically clean cache
 
     cache_key = get_cache_key(function_name, tool_args)
-
-    if cache_key in _tool_output_cache:
-        output, timestamp = _tool_output_cache[cache_key]
-        if time.time() - timestamp < CACHE_TTL:
-            return output
+    with _cache_lock:
+        if cache_key in _tool_output_cache:
+            output, timestamp = _tool_output_cache[cache_key]
+            if time.time() - timestamp < CACHE_TTL:
+                return output
 
     return None
 
 def cache_tool_output(function_name: str, tool_args: dict, output: str):
     """Saves tool result to cache"""
-    cache_key = get_cache_key(function_name, tool_args)
-    _tool_output_cache[cache_key] = (output, time.time())
+    with _cache_lock:
+        cache_key = get_cache_key(function_name, tool_args)
+        _tool_output_cache[cache_key] = (output, time.time())
 
 def should_cache_tool(function_name: str) -> bool:
     """Determines whether to cache the results of this tool"""
@@ -395,7 +399,7 @@ def reset_token_stats():
             if conn:
                 conn.close()
 
-
+_metrics_lock = threading.Lock() # Added lock for thread safety
 _metrics = {
     'cache_hits': 0,
     'cache_misses': 0,
@@ -407,55 +411,69 @@ _metrics = {
 
 def record_tool_call(is_builtin: bool = True):
     """Records a tool call"""
-    _metrics['tool_calls_total'] += 1
-    if not is_builtin:
-        _metrics['tool_calls_external'] += 1
+    with _metrics_lock:
+        _metrics['tool_calls_total'] += 1
+        if not is_builtin:
+            _metrics['tool_calls_external'] += 1
 
 def record_cache_hit():
     """Records a cache hit"""
-    _metrics['cache_hits'] += 1
+    with _metrics_lock:
+        _metrics['cache_hits'] += 1
 
 def record_cache_miss():
     """Records a cache miss"""
-    _metrics['cache_misses'] += 1
+    with _metrics_lock:
+        _metrics['cache_misses'] += 1
 
 def record_tokens_saved(count: int):
     """Records tokens saved"""
-    _metrics['tokens_saved'] += count
+    with _metrics_lock:
+        _metrics['tokens_saved'] += count
 
 def record_optimization():
     """Records an optimized request"""
-    _metrics['requests_optimized'] += 1
+    with _metrics_lock:
+        _metrics['requests_optimized'] += 1
 
 def get_metrics() -> dict:
     """Returns optimization metrics"""
-    total_cache_requests = _metrics['cache_hits'] + _metrics['cache_misses']
-    cache_hit_rate = (_metrics['cache_hits'] / total_cache_requests * 100) if total_cache_requests > 0 else 0
+    with _metrics_lock:
+        total_cache_requests = _metrics['cache_hits'] + _metrics['cache_misses']
+        cache_hit_rate = (_metrics['cache_hits'] / total_cache_requests * 100) if total_cache_requests > 0 else 0
+
+        metrics_copy = _metrics.copy()
+
+    with _cache_lock:
+        cache_size = len(_tool_output_cache)
+
 
     return {
-        **_metrics,
+        **metrics_copy,
         'cache_hit_rate': f"{cache_hit_rate:.1f}%",
-        'cache_size': len(_tool_output_cache)
+        'cache_size': cache_size
     }
 
 def reset_metrics():
     """Resets the metrics"""
     global _metrics
-    _metrics = {
-        'cache_hits': 0,
-        'cache_misses': 0,
-        'tokens_saved': 0,
-        'requests_optimized': 0,
-        'tool_calls_total': 0,
-        'tool_calls_external': 0,
-    }
+    with _metrics_lock:
+        _metrics = {
+            'cache_hits': 0,
+            'cache_misses': 0,
+            'tokens_saved': 0,
+            'requests_optimized': 0,
+            'tool_calls_total': 0,
+            'tool_calls_external': 0,
+        }
 
     # Also reset key-based token stats
     reset_token_stats()
 
     # Placeholder for the actual tool cache implementation (e.g., LRUCache)
     # Using a simple dictionary for demonstration/metrics calculation.
-    _tool_output_cache = {} 
+    with _cache_lock:
+        _tool_output_cache.clear()
 
 # ============================================================================
 # PHASE 2: ADVANCED OPTIMIZATION

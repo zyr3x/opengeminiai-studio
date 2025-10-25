@@ -8,6 +8,8 @@ import base64
 import re
 import time
 import random
+from urllib3.util import url
+
 from app.db import get_db_connection, UPLOAD_FOLDER # Import added for new utility functions
 
 # --- Global Settings ---
@@ -211,7 +213,7 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
     from app import config as app_config
     if current_query and app_config.config.SELECTIVE_CONTEXT_ENABLED:
         try:
-            from app.utils.core.tools import context_selector
+            from app.utils.core import context_selector
 
             selected = context_selector.smart_context_window(
                 messages=contents,
@@ -231,7 +233,7 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
 
     # Try smart truncation (with summarization) as fallback
     try:
-        from app.utils.core.tools import optimization
+        from app.utils.flask import optimization
         truncated = optimization.smart_truncate_contents(contents, limit, keep_recent=5)
         final_tokens = estimate_token_count(truncated)
         log(f"Smart truncation complete. Final estimated token count: {final_tokens}")
@@ -262,7 +264,7 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
     """
     # Используем оптимизированную сессию с connection pooling
     try:
-        from app.utils.core.tools import optimization
+        from app.utils.flask import optimization
         session = optimization.get_http_session()
         rate_limiter = optimization.get_rate_limiter()
 

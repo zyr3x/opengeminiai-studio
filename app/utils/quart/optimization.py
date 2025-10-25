@@ -314,14 +314,16 @@ async def record_token_usage_async(api_key: str, model_name: str, input_tokens: 
     Async: Records token usage to the database.
     Runs the database operation in a thread pool to avoid blocking.
     """
+    from app.utils.flask.optimization import _token_stats_lock
     def _record():
         try:
             import sqlite3
             from app.db import DATABASE_FILE
-            
-            conn = sqlite3.connect(DATABASE_FILE)
-            key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
-            today = date.today().isoformat()
+
+            with _token_stats_lock:
+                conn = sqlite3.connect(DATABASE_FILE)
+                key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+                today = date.today().isoformat()
             
             cursor = conn.execute('''
                 SELECT input_tokens, output_tokens 
@@ -345,8 +347,8 @@ async def record_token_usage_async(api_key: str, model_name: str, input_tokens: 
                     VALUES (?, ?, ?, ?, ?)
                 ''', (today, key_hash, model_name, input_tokens, output_tokens))
             
-            conn.commit()
-            conn.close()
+                conn.commit()
+                conn.close()
         except Exception as e:
             print(f"Error recording token usage: {e}")
     

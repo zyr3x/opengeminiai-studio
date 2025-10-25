@@ -9,7 +9,7 @@ from typing import AsyncGenerator
 from app.config import config
 from app.utils.core import tools as utils
 from app.utils.core import tool_config_utils
-from app.utils.quart import optimization, utils
+from app.utils.quart import optimization, utils, mcp_handler as async_mcp_handler
 from app.utils.flask import mcp_handler
 import traceback
 
@@ -460,11 +460,11 @@ async def async_chat_completions():
                 # Set project root context if needed
                 if code_project_root:
                     with mcp_handler.set_project_root(code_project_root):
-                        tool_response_parts = await mcp_handler.execute_multiple_tools_async(
+                        tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
                             tool_calls_list
                         )
                 else:
-                    tool_response_parts = await mcp_handler.execute_multiple_tools_async(
+                    tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
                         tool_calls_list
                     )
 

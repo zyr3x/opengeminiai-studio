@@ -244,8 +244,8 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
 
     # Try smart truncation with summarization
     try:
-        from app.utils.core.tools import async_optimization
-        truncated = await async_optimization.smart_truncate_contents_async(contents, limit, keep_recent=5)
+        from app.utils.quart import optimization
+        truncated = await optimization.smart_truncate_contents_async(contents, limit, keep_recent=5)
         final_tokens = estimate_token_count(truncated)
         log(f"Smart truncation complete. Final estimated token count: {final_tokens}")
         return truncated

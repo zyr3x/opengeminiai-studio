@@ -17,7 +17,9 @@ from app.utils.core import tools
 from app.utils.core import tool_config_utils
 from app.utils.core import file_processing_utils
 from app.db import get_db_connection, UPLOAD_FOLDER
-from app.utils.flask.optimization import record_token_usage # Import token usage tracking
+from app.utils.quart.optimization import record_token_usage_async # Import token usage tracking
+from app.utils.quart import utils as quart_utils
+from app.utils.quart import mcp_handler as async_mcp_handler
 
 
 web_ui_chat_bp = Blueprint('web_ui_chat', __name__)
@@ -417,7 +419,7 @@ async def chat_api():
             reconstructed_parts = tools.prepare_message_parts_for_gemini(m['parts'])
             gemini_contents.append({'role': role, 'parts': reconstructed_parts})
 
-        def generate():
+        async def generate():
             headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
             current_contents = gemini_contents.copy()
             final_tool_call_response = {} # Initialize for token usage tracking
@@ -504,14 +506,14 @@ async def chat_api():
                     # Non-streaming path to support inline citations for native tools
                     GEMINI_GENERATE_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
                     try:
-                        response = tools.make_request_with_retry(
+                        response = await quart_utils.make_request_with_retry_async(
                             url=GEMINI_GENERATE_URL,
                             headers=headers,
                             json_data=request_data,
                             stream=False,
                             timeout=300
                         )
-                        response_data = response.json()
+                        response_data = await response.json()
 
                         tools.debug(f"Incoming Gemini Non-Streaming Response: {tools.pretty_json(response_data)}")
 
@@ -557,22 +559,22 @@ async def chat_api():
                     # Original streaming path
                     GEMINI_STREAMING_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:streamGenerateContent"
                     try:
-                        response = tools.make_request_with_retry(
+                        response = await quart_utils.make_request_with_retry_async(
                             url=GEMINI_STREAMING_URL,
                             headers=headers,
                             json_data=request_data,
                             stream=True,
                             timeout=300
                         )
-                    except (HTTPError, ConnectionError, Timeout, RequestException) as e:
+                    except Exception as e:
                         yield f"ERROR: Error from upstream Gemini API: {e}"
                         return
 
                     buffer, decoder = "", json.JSONDecoder()
                     text_buffer = ""  # Buffer for partial text to avoid breaking words
-                    
-                    for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
-                        buffer += chunk
+
+                    async for chunk in response.content.iter_any():
+                        buffer += chunk.decode('utf-8')
                         while True:
                             start_index = buffer.find('{')
                             if start_index == -1:
@@ -646,7 +648,7 @@ async def chat_api():
                     usage_metadata = final_tool_call_response.get('usageMetadata', {})
                     input_tokens = usage_metadata.get('promptTokenCount', 0)
                     output_tokens = usage_metadata.get('candidatesTokenCount', 0)
-                    record_token_usage(api_key_header, model, input_tokens, output_tokens)
+                    await record_token_usage_async(api_key_header, model, input_tokens, output_tokens)
 
                 if not tool_calls: break
 
@@ -654,29 +656,12 @@ async def chat_api():
                 current_contents.append({"role": "model", "parts": model_response_parts})
 
                 tool_response_parts = []
-                for tool_call in tool_calls:
-                    function_name = tool_call.get("name")
-                    tools.debug(f"Executing tool '{function_name}' with args: {tools.pretty_json(tool_call.get('args'))}")
-                    output = mcp_handler.execute_mcp_tool(function_name, tool_call.get("args"))
-                    tools.log(f"Tool '{function_name}' execution completed. Output length: {len(str(output))}")
+                tool_calls_list = [
+                    {'name': tc.get('name'), 'args': tc.get('args')}
+                    for tc in tool_calls
+                ]
+                tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(tool_calls_list)
 
-                    response_payload = {}
-                    if output is not None:
-                        try:
-                            # If tool returns a JSON string, parse it into a JSON object for the API
-                            response_payload = json.loads(output)
-                        except (json.JSONDecodeError, TypeError):
-                            # Otherwise, treat it as plain text and wrap it in a standard 'content' object
-                            response_payload = {"content": str(output)}
-                    else:
-                        response_payload = {} # If there's no output, provide an empty object
-
-                    tool_response_parts.append({
-                        "functionResponse": {
-                            "name": function_name,
-                            "response": response_payload
-                        }
-                    })
 
                 if tool_response_parts:
                     tools.add_message_to_db(chat_id, 'tool', tool_response_parts)
