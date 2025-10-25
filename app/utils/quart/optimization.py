@@ -270,7 +270,8 @@ async def get_cached_context_id_async(
     
     # Create new cached context via Gemini API
     try:
-        from app.utils.core.tools import get_async_session, log
+        from app.utils.quart.utils import get_async_session
+        from app.utils.core.tools import log
         
         cache_url = f"{upstream_url}/v1beta/cachedContents"
         headers = {
