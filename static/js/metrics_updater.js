@@ -14,9 +14,9 @@ function renderKeyTokenStats(stats) {
             html += `<ul class="list-group list-group-flush border-bottom mb-3">`;
 
             // Total Stats
-            html += `<li class="list-group-item d-flex justify-content-between align-items-center small bg-light">`;
+            html += `<li class="list-group-item d-flex justify-content-between align-items-center small">`;
             html += `<strong>TOTAL TOKENS</strong>`;
-            html += `<span class="badge bg-dark">${formatNumber(keyStats.total_tokens || 0)}</span>`;
+            html += `<span class="badge">${formatNumber(keyStats.total_tokens || 0)}</span>`;
             html += `</li>`;
 
             // Model Breakdown
