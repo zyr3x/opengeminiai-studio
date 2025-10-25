@@ -300,7 +300,7 @@ def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_
     if not api_key or not model_name:
         return
 
-    key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:8]
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
     today = date.today().strftime('%Y-%m-%d')
     conn = None
 

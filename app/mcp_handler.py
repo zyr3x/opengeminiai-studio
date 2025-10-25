@@ -885,12 +885,431 @@ def get_file_stats(path: str) -> str:
     except Exception as e:
         return f"Error getting file stats: {e}"
 
+def create_file(path: str, content: str, mode: str = "644") -> str:
+    """
+    Creates a new file with the specified content.
+    Args:
+        path: File path relative to project root
+        content: Content to write to the file
+        mode: File permissions (default: 644)
+    Returns:
+        Success message or error
+    """
+    try:
+        record_tool_call("create_file")
+        resolved_path = _safe_path_resolve(path)
+        if not resolved_path:
+            return f"Error: Access denied to path '{path}' (outside project root)"
+        
+        # Check if file already exists
+        if os.path.exists(resolved_path):
+            return f"Error: File '{path}' already exists. Use write_file to overwrite or choose different name."
+        
+        # Create parent directories if needed
+        os.makedirs(os.path.dirname(resolved_path), exist_ok=True)
+        
+        # Write content
+        with open(resolved_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        # Set permissions
+        try:
+            os.chmod(resolved_path, int(mode, 8))
+        except:
+            pass  # Ignore permission errors on Windows
+        
+        file_size = len(content.encode('utf-8'))
+        lines = content.count('\n') + 1
+        
+        return f"✅ File created successfully: {path}\nSize: {file_size} bytes, Lines: {lines}\nPermissions: {mode}"
+    
+    except Exception as e:
+        return f"Error creating file: {e}"
+
+def write_file(path: str, content: str) -> str:
+    """
+    Writes content to an existing file, overwriting it completely.
+    Args:
+        path: File path relative to project root
+        content: New content for the file
+    Returns:
+        Success message or error
+    """
+    try:
+        record_tool_call("write_file")
+        resolved_path = _safe_path_resolve(path)
+        if not resolved_path:
+            return f"Error: Access denied to path '{path}' (outside project root)"
+        
+        if not os.path.exists(resolved_path):
+            return f"Error: File '{path}' does not exist. Use create_file to create new files."
+        
+        # Backup old content size for reporting
+        old_size = os.path.getsize(resolved_path)
+        
+        # Write new content
+        with open(resolved_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        new_size = len(content.encode('utf-8'))
+        lines = content.count('\n') + 1
+        
+        return f"✅ File updated successfully: {path}\nOld size: {old_size} bytes → New size: {new_size} bytes\nLines: {lines}"
+    
+    except Exception as e:
+        return f"Error writing file: {e}"
+
+def execute_command(command: str, timeout: int = 30) -> str:
+    """
+    Executes a shell command and returns its output.
+    Args:
+        command: Shell command to execute
+        timeout: Maximum execution time in seconds (default: 30, max: 300)
+    Returns:
+        Command output (stdout + stderr) or error
+    """
+    try:
+        record_tool_call("execute_command")
+        
+        # Security: limit timeout
+        timeout = min(max(1, timeout), 300)
+        
+        log(f"Executing command: {command[:100]}...")
+        
+        # Execute command
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=get_project_root()
+        )
+        
+        output_parts = []
+        if result.stdout:
+            output_parts.append(f"STDOUT:\n{result.stdout}")
+        if result.stderr:
+            output_parts.append(f"STDERR:\n{result.stderr}")
+        
+        output = "\n\n".join(output_parts) if output_parts else "(no output)"
+        
+        status = "✅ Success" if result.returncode == 0 else f"❌ Failed (exit code: {result.returncode})"
+        
+        return f"{status}\nCommand: {command}\n\n{output}"
+    
+    except subprocess.TimeoutExpired:
+        return f"❌ Command timed out after {timeout} seconds: {command}"
+    except Exception as e:
+        return f"Error executing command: {e}"
+
+def analyze_project_structure() -> str:
+    """
+    Analyzes the entire project structure and returns a comprehensive overview.
+    Returns:
+        Project analysis including file types, sizes, dependencies, and structure
+    """
+    try:
+        record_tool_call("analyze_project_structure")
+        project_root = get_project_root()
+        
+        analysis = []
+        analysis.append(f"📊 Project Analysis: {os.path.basename(project_root)}")
+        analysis.append(f"Root: {project_root}\n")
+        
+        # Collect file statistics
+        file_types = {}
+        total_files = 0
+        total_size = 0
+        language_files = {}
+        
+        ignore_patterns = get_code_ignore_patterns()
+        
+        for root, dirs, files in os.walk(project_root):
+            # Filter directories
+            dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, p) for p in ignore_patterns)]
+            
+            rel_root = os.path.relpath(root, project_root)
+            if rel_root != '.' and any(fnmatch.fnmatch(rel_root, p) or fnmatch.fnmatch(os.path.join(rel_root, ''), p) for p in ignore_patterns):
+                continue
+            
+            for file in files:
+                filepath = os.path.join(root, file)
+                rel_path = os.path.relpath(filepath, project_root)
+                
+                # Check if file matches ignore patterns
+                if any(fnmatch.fnmatch(rel_path, p) or fnmatch.fnmatch(file, p) for p in ignore_patterns):
+                    continue
+                
+                try:
+                    size = os.path.getsize(filepath)
+                    ext = os.path.splitext(file)[1].lower() or '(no extension)'
+                    
+                    file_types[ext] = file_types.get(ext, 0) + 1
+                    total_files += 1
+                    total_size += size
+                    
+                    # Language detection
+                    lang_map = {
+                        '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
+                        '.java': 'Java', '.cpp': 'C++', '.c': 'C', '.h': 'C/C++',
+                        '.go': 'Go', '.rs': 'Rust', '.rb': 'Ruby', '.php': 'PHP',
+                        '.html': 'HTML', '.css': 'CSS', '.scss': 'SCSS',
+                        '.json': 'JSON', '.xml': 'XML', '.yaml': 'YAML', '.yml': 'YAML',
+                        '.md': 'Markdown', '.txt': 'Text', '.sh': 'Shell',
+                        '.sql': 'SQL', '.kt': 'Kotlin', '.swift': 'Swift'
+                    }
+                    if ext in lang_map:
+                        lang = lang_map[ext]
+                        language_files[lang] = language_files.get(lang, 0) + 1
+                
+                except:
+                    pass
+        
+        # File types summary
+        analysis.append("📁 File Types:")
+        sorted_types = sorted(file_types.items(), key=lambda x: x[1], reverse=True)[:15]
+        for ext, count in sorted_types:
+            analysis.append(f"  {ext}: {count} files")
+        
+        # Language summary
+        if language_files:
+            analysis.append("\n💻 Programming Languages:")
+            sorted_langs = sorted(language_files.items(), key=lambda x: x[1], reverse=True)
+            for lang, count in sorted_langs:
+                analysis.append(f"  {lang}: {count} files")
+        
+        # Size summary
+        size_mb = total_size / (1024 * 1024)
+        analysis.append(f"\n📦 Total: {total_files} files, {size_mb:.2f} MB")
+        
+        # Check for common project files
+        analysis.append("\n📋 Project Configuration:")
+        config_files = [
+            'package.json', 'requirements.txt', 'Cargo.toml', 'go.mod',
+            'pom.xml', 'build.gradle', 'Gemfile', 'composer.json',
+            'Dockerfile', 'docker-compose.yml', '.env', '.gitignore',
+            'README.md', 'LICENSE', 'Makefile', 'CMakeLists.txt'
+        ]
+        found_configs = []
+        for cf in config_files:
+            if os.path.exists(os.path.join(project_root, cf)):
+                found_configs.append(f"  ✓ {cf}")
+        
+        if found_configs:
+            analysis.extend(found_configs)
+        else:
+            analysis.append("  (no standard config files found)")
+        
+        # Git status if available
+        git_dir = os.path.join(project_root, '.git')
+        if os.path.isdir(git_dir):
+            try:
+                result = subprocess.run(
+                    ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                    capture_output=True, text=True, cwd=project_root, timeout=5
+                )
+                if result.returncode == 0:
+                    branch = result.stdout.strip()
+                    analysis.append(f"\n🔀 Git: On branch '{branch}'")
+            except:
+                pass
+        
+        return "\n".join(analysis)
+    
+    except Exception as e:
+        return f"Error analyzing project: {e}"
+
+def find_symbol(symbol_name: str) -> str:
+    """
+    Searches for a symbol (function, class, variable) across the entire project.
+    Args:
+        symbol_name: Name of the symbol to find
+    Returns:
+        List of files and locations where the symbol is defined or used
+    """
+    try:
+        record_tool_call("find_symbol")
+        project_root = get_project_root()
+        ignore_patterns = get_code_ignore_patterns()
+        
+        results = []
+        results.append(f"🔍 Searching for symbol: '{symbol_name}'\n")
+        
+        # Patterns to search for
+        patterns = [
+            f"def {symbol_name}",      # Python function
+            f"class {symbol_name}",    # Python/Java class
+            f"function {symbol_name}", # JavaScript function
+            f"const {symbol_name}",    # JavaScript/TypeScript const
+            f"let {symbol_name}",      # JavaScript/TypeScript let
+            f"var {symbol_name}",      # JavaScript var
+            f"{symbol_name} =",        # Assignment
+            f"{symbol_name}(",         # Function call
+        ]
+        
+        found_items = []
+        
+        for root, dirs, files in os.walk(project_root):
+            dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, p) for p in ignore_patterns)]
+            
+            rel_root = os.path.relpath(root, project_root)
+            if rel_root != '.' and any(fnmatch.fnmatch(rel_root, p) for p in ignore_patterns):
+                continue
+            
+            for file in files:
+                # Only search in code files
+                if not any(file.endswith(ext) for ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.rb', '.php', '.kt', '.swift']):
+                    continue
+                
+                filepath = os.path.join(root, file)
+                rel_path = os.path.relpath(filepath, project_root)
+                
+                if any(fnmatch.fnmatch(rel_path, p) for p in ignore_patterns):
+                    continue
+                
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = f.readlines()
+                        for line_num, line in enumerate(lines, 1):
+                            for pattern in patterns:
+                                if pattern in line:
+                                    found_items.append({
+                                        'file': rel_path,
+                                        'line': line_num,
+                                        'content': line.strip(),
+                                        'type': pattern.split()[0] if ' ' in pattern else 'usage'
+                                    })
+                                    break  # One match per line
+                except:
+                    pass
+        
+        if not found_items:
+            return f"❌ Symbol '{symbol_name}' not found in the project."
+        
+        # Group by file
+        from collections import defaultdict
+        by_file = defaultdict(list)
+        for item in found_items:
+            by_file[item['file']].append(item)
+        
+        results.append(f"✅ Found {len(found_items)} occurrences in {len(by_file)} files:\n")
+        
+        for file, items in sorted(by_file.items()):
+            results.append(f"📄 {file}:")
+            for item in items[:5]:  # Limit to first 5 per file
+                results.append(f"  Line {item['line']}: {item['content'][:80]}")
+            if len(items) > 5:
+                results.append(f"  ... and {len(items) - 5} more occurrences")
+            results.append("")
+        
+        return "\n".join(results)
+    
+    except Exception as e:
+        return f"Error finding symbol: {e}"
+
+def get_dependencies() -> str:
+    """
+    Detects and lists project dependencies from common dependency files.
+    Returns:
+        List of dependencies found in the project
+    """
+    try:
+        record_tool_call("get_dependencies")
+        project_root = get_project_root()
+        
+        results = []
+        results.append("📦 Project Dependencies\n")
+        
+        # Python - requirements.txt
+        req_file = os.path.join(project_root, 'requirements.txt')
+        if os.path.exists(req_file):
+            results.append("🐍 Python (requirements.txt):")
+            with open(req_file, 'r') as f:
+                deps = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                for dep in deps[:20]:
+                    results.append(f"  • {dep}")
+                if len(deps) > 20:
+                    results.append(f"  ... and {len(deps) - 20} more")
+            results.append("")
+        
+        # Python - pyproject.toml
+        pyproject = os.path.join(project_root, 'pyproject.toml')
+        if os.path.exists(pyproject):
+            results.append("🐍 Python (pyproject.toml): (file exists)")
+        
+        # Node.js - package.json
+        package_json = os.path.join(project_root, 'package.json')
+        if os.path.exists(package_json):
+            try:
+                with open(package_json, 'r') as f:
+                    data = json.load(f)
+                    deps = data.get('dependencies', {})
+                    dev_deps = data.get('devDependencies', {})
+                    
+                    if deps:
+                        results.append("📦 Node.js Dependencies:")
+                        for name, version in list(deps.items())[:15]:
+                            results.append(f"  • {name}: {version}")
+                        if len(deps) > 15:
+                            results.append(f"  ... and {len(deps) - 15} more")
+                        results.append("")
+                    
+                    if dev_deps:
+                        results.append("🛠️  Node.js Dev Dependencies:")
+                        for name, version in list(dev_deps.items())[:10]:
+                            results.append(f"  • {name}: {version}")
+                        if len(dev_deps) > 10:
+                            results.append(f"  ... and {len(dev_deps) - 10} more")
+                        results.append("")
+            except:
+                results.append("📦 Node.js (package.json): (file exists but couldn't parse)")
+        
+        # Go - go.mod
+        go_mod = os.path.join(project_root, 'go.mod')
+        if os.path.exists(go_mod):
+            results.append("🔷 Go (go.mod):")
+            with open(go_mod, 'r') as f:
+                lines = f.readlines()
+                in_require = False
+                count = 0
+                for line in lines:
+                    if 'require' in line:
+                        in_require = True
+                    if in_require and count < 15:
+                        stripped = line.strip()
+                        if stripped and not stripped.startswith('//'):
+                            results.append(f"  • {stripped}")
+                            count += 1
+                    if in_require and ')' in line:
+                        break
+            results.append("")
+        
+        # Rust - Cargo.toml
+        cargo_toml = os.path.join(project_root, 'Cargo.toml')
+        if os.path.exists(cargo_toml):
+            results.append("🦀 Rust (Cargo.toml): (file exists)")
+        
+        if len(results) == 2:  # Only header
+            return "❌ No dependency files found (requirements.txt, package.json, go.mod, Cargo.toml, etc.)"
+        
+        return "\n".join(results)
+    
+    except Exception as e:
+        return f"Error getting dependencies: {e}"
+
 BUILTIN_FUNCTIONS = {
     "list_files": list_files,
     "get_file_content": get_file_content,
     "get_code_snippet": get_code_snippet,
     "search_codebase": search_codebase,
     "apply_patch": apply_patch,
+    "create_file": create_file,
+    "write_file": write_file,
+    "execute_command": execute_command,
+    "analyze_project_structure": analyze_project_structure,
+    "find_symbol": find_symbol,
+    "get_dependencies": get_dependencies,
     "git_status": git_status,
     "git_log": git_log,
     "git_diff": git_diff,
@@ -1103,6 +1522,94 @@ BUILTIN_DECLARATIONS = [
                     "description": "Path to the file to analyze."
                 }
             }
+        }
+    },
+    {
+        "name": "create_file",
+        "description": "Creates a new file with specified content. Perfect for creating scripts, config files, or any new files. Use write_file to modify existing files.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["path", "content"],
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Path for the new file relative to project root."
+                },
+                "content": {
+                    "type": "STRING",
+                    "description": "Content to write to the file."
+                },
+                "mode": {
+                    "type": "STRING",
+                    "description": "Optional file permissions in octal format (default: '644', executable: '755')."
+                }
+            }
+        }
+    },
+    {
+        "name": "write_file",
+        "description": "Writes content to an existing file, completely overwriting it. File must already exist (use create_file for new files).",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["path", "content"],
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Path to the existing file."
+                },
+                "content": {
+                    "type": "STRING",
+                    "description": "New content for the file."
+                }
+            }
+        }
+    },
+    {
+        "name": "execute_command",
+        "description": "Executes a shell command and returns its output. Useful for running builds, tests, awk/sed scripts, or any shell commands. Commands run in project root directory.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["command"],
+            "properties": {
+                "command": {
+                    "type": "STRING",
+                    "description": "Shell command to execute (e.g., 'npm test', 'python script.py', 'awk ...')."
+                },
+                "timeout": {
+                    "type": "INTEGER",
+                    "description": "Maximum execution time in seconds (default: 30, max: 300)."
+                }
+            }
+        }
+    },
+    {
+        "name": "analyze_project_structure",
+        "description": "Analyzes the entire project and returns a comprehensive overview: file types, programming languages, dependencies files found, total size, and structure. Great for understanding a new project quickly.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {}
+        }
+    },
+    {
+        "name": "find_symbol",
+        "description": "Searches for a symbol (function, class, variable, constant) across the entire project. Returns all files and line numbers where the symbol is defined or used.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["symbol_name"],
+            "properties": {
+                "symbol_name": {
+                    "type": "STRING",
+                    "description": "Name of the symbol to find (e.g., 'myFunction', 'MyClass')."
+                }
+            }
+        }
+    },
+    {
+        "name": "get_dependencies",
+        "description": "Detects and lists project dependencies from common dependency files (requirements.txt, package.json, go.mod, Cargo.toml, etc.). Shows all dependencies with versions.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {}
         }
     }
 ]
