@@ -56,6 +56,26 @@
             </div>
         </div>
 
+        <!-- Key Token Usage -->
+        <div class="col-md-6">
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header text-white">
+                    <h5 class="mb-0">Key Token Usage</h5>
+                </div>
+                <div class="card-body">
+                    <div id="key-token-stats-container">
+                        <p class="text-muted small">
+                            Token usage tracked per API Key and Model. Data is reset upon application restart.
+                        </p>
+                        <div id="key-token-stats-content">
+                            <!-- Content will be populated by metrics_updater.js -->
+                            <p class="text-center text-muted">No usage recorded yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Tool Usage -->
         <div class="col-md-6">
             <div class="card mb-4 shadow-sm">
@@ -74,8 +94,9 @@
                     </p>
                 </div>
             </div>
-
-            <!-- Manual Cleanup -->
+        </div>
+        <!-- Manual Cleanup -->
+        <div class="col-md-6">
             <div class="card mb-4 shadow-sm">
                 <div class="card-header text-white">
                     <h5 class="mb-0">Manual Cleanup</h5>
@@ -85,26 +106,6 @@
                     <form method="POST" action="{{ url_for('metrics.cleanup_resources') }}" onsubmit="return confirm('Are you sure you want to trigger a manual cleanup of expired resources?');">
                         <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Clean Up Resources</button>
                     </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Key Token Usage -->
-        <div class="col-md-6">
-            <div class="card mb-4 shadow-sm">
-                <div class="card-header text-white">
-                    <h5 class="mb-0">Key Token Usage</h5>
-                </div>
-                <div class="card-body">
-                    <div id="key-token-stats-container">
-                        <p class="text-muted small">
-                            Token usage tracked per API Key and Model. Data is reset upon application restart.
-                        </p>
-                        <div id="key-token-stats-content">
-                            <!-- Content will be populated by metrics_updater.js -->
-                            <p class="text-center text-muted">No usage recorded yet.</p>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
