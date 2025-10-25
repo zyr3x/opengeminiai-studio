@@ -194,7 +194,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const codeBlocks = container.querySelectorAll('pre:not(:has(code.language-mermaid))');
         codeBlocks.forEach(pre => {
             const copyBtn = document.createElement('button');
-            copyBtn.className = 'btn btn-sm btn-outline-secondary copy-code-btn';
+            copyBtn.className = 'btn btn-sm btn-outline-primary copy-code-btn';
             copyBtn.innerHTML = '<span class="material-icons fs-6">content_copy</span> Copy';
             pre.style.position = 'relative';
             pre.appendChild(copyBtn);

@@ -209,12 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 2. Display the correct content section on load
     showSectionBasedOnHash();
 
-    // 3. Initial load of API keys if configuration tab is active
-    if (window.location.hash === '#configuration') {
-        loadApiKeys();
-    }
-
-    // --- Event Listeners ---
+    loadApiKeys();
 
     // 1. Theme toggle
     if (darkModeToggle) {
