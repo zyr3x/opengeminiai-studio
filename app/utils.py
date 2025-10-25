@@ -343,6 +343,57 @@ def save_config_to_file(config_str: str, file_path: str, config_name: str):
         f.write(config_str.strip())
     log(f"{config_name} updated and saved to {file_path}.")
 
+DEFAULT_CODE_IGNORE_PATTERNS = [
+        '.git', '__pycache__', 'node_modules', 'venv', '.venv',
+        'build', 'dist', 'target', 'out', 'coverage', '.nyc_output', '*.egg-info', 'bin', 'obj', 'pkg',
+        '.idea', '.vscode', '.cache', '.pytest_cache',
+        '.DS_Store', 'Thumbs.db',
+        '*.log', '*.swp', '*.pyc', '*~', '*.bak', '*.tmp',
+        '*.zip', '*.tar.gz', '*.rar', '*.7z',
+        '*.o', '*.so', '*.dll', '*.exe', '*.a', '*.lib', '*.dylib',
+        '*.class', '*.jar', '*.war',
+        '*.pdb', '*.nupkg', '*.deps.json', '*.runtimeconfig.json',
+        '*.db', '*.sqlite', '*.sqlite3', 'data.mdb', 'lock.mdb',
+        '*.png', '*.jpg', '*.jpeg', '*.gif', '*.svg',
+        '*.woff', '*.woff2', '*.ttf', '.otf', '.eot', '.ico',
+        '*.mp3', '*.wav', '*.mp4', '*.mov',
+        '*.min.js', '*.min.css', '*.map',
+        'package-lock-v1.json', 'package-lock.json', 'yarn.lock', 'poetry.lock', 'Pipfile.lock',
+    ]
+
+def load_code_ignore_patterns(project_root: str, filename: str = '.aiignore') -> list[str]:
+        """
+        Loads code ignore patterns from a file in the project root and combines them with defaults.
+        """
+        ignore_patterns = DEFAULT_CODE_IGNORE_PATTERNS[:]
+        ignore_file_path = os.path.join(project_root, filename)
+
+        if os.path.exists(ignore_file_path):
+            try:
+                with open(ignore_file_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            # Normalize path separators for consistency
+                            normalized_line = line.replace('\\', '/')
+                            ignore_patterns.append(normalized_line)
+                log(f"Loaded {len(ignore_patterns) - len(DEFAULT_CODE_IGNORE_PATTERNS)} custom patterns from {filename}.")
+            except Exception as e:
+                print(f"Error reading ignore file {ignore_file_path}: {e}")
+        else:
+            log(f"No custom ignore file '{filename}' found. Using default patterns.")
+
+        # Remove duplicates while preserving order as much as possible, prioritizing defaults
+        unique_patterns = []
+        seen = set()
+        for p in ignore_patterns:
+            if p not in seen:
+                unique_patterns.append(p)
+                seen.add(p)
+
+        return unique_patterns
+
+
 EXTENSION_TO_LANGUAGE_MAP = {
     '.py': 'python', '.js': 'javascript', '.ts': 'typescript',
     '.html': 'html', '.css': 'css', '.scss': 'scss', '.less': 'less',

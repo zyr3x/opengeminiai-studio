@@ -14,7 +14,7 @@ import ast
 import re
 from typing import Generator
 
-from .utils import log
+from .utils import log, load_code_ignore_patterns # Import new utility
 from contextlib import contextmanager
 from . import optimization
 from .optimization import record_tool_call # Explicitly import for clarity
@@ -44,23 +44,20 @@ def set_project_root(path: str | None):
         _request_context.project_root = original_path
 
 
-CODE_IGNORE_PATTERNS = [
-    '.git', '__pycache__', 'node_modules', 'venv', '.venv',
-    'build', 'dist', 'target', 'out', 'coverage', '.nyc_output', '*.egg-info', 'bin', 'obj', 'pkg',
-    '.idea', '.vscode', '.cache', '.pytest_cache',
-    '.DS_Store', 'Thumbs.db',
-    '*.log', '*.swp', '*.pyc', '*~', '*.bak', '*.tmp',
-    '*.zip', '*.tar.gz', '*.rar', '*.7z',
-    '*.o', '*.so', '*.dll', '*.exe', '*.a', '*.lib', '*.dylib',
-    '*.class', '*.jar', '*.war',
-    '*.pdb', '*.nupkg', '*.deps.json', '*.runtimeconfig.json',
-    '*.db', '*.sqlite', '*.sqlite3', 'data.mdb', 'lock.mdb',
-    '*.png', '*.jpg', '*.jpeg', '*.gif', '*.svg',
-    '*.woff', '*.woff2', '*.ttf', '*.otf', '*.eot', '*.ico',
-    '*.mp3', '*.wav', '*.mp4', '*.mov',
-    '*.min.js', '*.min.css', '*.map',
-    'package-lock-v1.json', 'package-lock.json', 'yarn.lock', 'poetry.lock', 'Pipfile.lock',
-]
+# Cache for ignore patterns, keyed by project root path
+_ignore_patterns_cache = {}
+
+def get_code_ignore_patterns() -> list[str]:
+    """
+    Loads and caches code ignore patterns from the .aiignore file and defaults.
+    """
+    project_root = get_project_root()
+    if project_root not in _ignore_patterns_cache:
+        patterns = load_code_ignore_patterns(project_root)
+        _ignore_patterns_cache[project_root] = patterns
+        return patterns
+    return _ignore_patterns_cache[project_root]
+
 
 def _safe_path_resolve(path: str) -> str | None:
     """Resolves a path relative to the current request's project root and checks if it stays within bounds."""
@@ -132,6 +129,8 @@ def list_files(path: str = ".", max_depth: int = -1) -> str | Generator[str, Non
     last_progress_report = 0
 
     try:
+        IGNORE_PATTERNS = get_code_ignore_patterns()
+
         for root, dirs, files in os.walk(resolved_path, topdown=True):
             current_level = root.count(os.sep)
             depth = current_level - start_level
@@ -142,7 +141,7 @@ def list_files(path: str = ".", max_depth: int = -1) -> str | Generator[str, Non
             # Filter directories in place first
             dirs[:] = [d for d in dirs if not (
                     d.startswith('.') or
-                    any(fnmatch.fnmatch(os.path.join(rel_root, d).replace(os.sep, '/'), p) or fnmatch.fnmatch(d, p) for p in CODE_IGNORE_PATTERNS)
+                    any(fnmatch.fnmatch(os.path.join(rel_root, d).replace(os.sep, '/'), p) or fnmatch.fnmatch(d, p) for p in IGNORE_PATTERNS)
             )]
 
             # If max_depth is set, stop descending further once reached
@@ -159,7 +158,7 @@ def list_files(path: str = ".", max_depth: int = -1) -> str | Generator[str, Non
 
                 if filename.startswith('.'): continue
 
-                if any(fnmatch.fnmatch(rel_filepath_norm, p) or fnmatch.fnmatch(filename, p) for p in CODE_IGNORE_PATTERNS):
+                if any(fnmatch.fnmatch(rel_filepath_norm, p) or fnmatch.fnmatch(filename, p) for p in IGNORE_PATTERNS):
                     continue
 
                 relative_paths.append(rel_filepath_fs)

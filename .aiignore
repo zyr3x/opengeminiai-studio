@@ -1,0 +1,29 @@
+# This file specifies patterns for files and directories that the AI assistant
+# should ignore when performing codebase analysis, searches, or listings.
+# Patterns should be standard glob patterns (e.g., `*.log`, `temp_dir/`).
+
+# Default patterns (like .git, venv, node_modules, build, dist) are often
+# already ignored by the system, but you can override or add to them here.
+
+# Example additions for common developer-specific or temporary files:
+
+# Configuration files
+.env
+.flaskenv
+*.ini
+*.cfg
+settings.json
+config.ini
+
+# IDE/Editor temporary files
+*.iml
+*.iws
+*.ipr
+*.log
+
+# Sensitive data or large files often found in development
+logs/
+uploads/
+tmp/
+var/
+venv/
