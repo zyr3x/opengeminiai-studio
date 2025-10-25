@@ -343,6 +343,30 @@ def save_config_to_file(config_str: str, file_path: str, config_name: str):
         f.write(config_str.strip())
     log(f"{config_name} updated and saved to {file_path}.")
 
+EXTENSION_TO_LANGUAGE_MAP = {
+    '.py': 'python', '.js': 'javascript', '.ts': 'typescript',
+    '.html': 'html', '.css': 'css', '.scss': 'scss', '.less': 'less',
+    '.java': 'java', '.c': 'c', '.cpp': 'cpp', '.h': 'c', '.hpp': 'cpp',
+    '.go': 'go', '.rb': 'ruby', '.php': 'php', '.swift': 'swift',
+    '.kt': 'kotlin', '.rs': 'rust', '.sh': 'bash', '.yaml': 'yaml',
+    '.yml': 'yaml', '.json': 'json', '.xml': 'xml', '.md': 'markdown',
+    '.diff': 'diff', '.patch': 'diff', '.sql': 'sql', '.txt': 'text',
+}
+
+def get_code_language_from_filename(filename: str) -> str:
+    """
+    Determines the markdown code block language based on the file extension.
+    """
+    if not filename:
+        return 'text'
+
+    # Simple extraction of extension
+    _, ext = os.path.splitext(filename.lower())
+
+    # Look up in map, default to 'text' for unknown extensions
+    return EXTENSION_TO_LANGUAGE_MAP.get(ext, 'text')
+
+
 
 def format_tool_output_for_display(tool_parts: list, use_html_tags: bool = True) -> str | None:
     """
@@ -368,6 +392,7 @@ def format_tool_output_for_display(tool_parts: list, use_html_tags: bool = True)
         if not resp_text:
             continue
 
+        lang_specifier = 'json'
         try:
             # Try to parse and pretty-print if it's a JSON string
             parsed_json = json.loads(resp_text)
@@ -377,12 +402,17 @@ def format_tool_output_for_display(tool_parts: list, use_html_tags: bool = True)
             # If it fails, use the response text as is
             pretty_text = resp_text
 
+            # Check for a filename hint to determine code language
+            filename_hint = resp_data.get('path') or resp_data.get('file_path') or resp_data.get('filename')
+            if filename_hint:
+                lang_specifier = get_code_language_from_filename(filename_hint)
+
         if use_html_tags:
             formatted_output = (f'\n<details><summary>Tool Output: `{name}`</summary>\n\n'
-                                f'```json\n{pretty_text}\n```\n\n</details>\n')
+                                f'```{lang_specifier}\n{pretty_text}\n```\n\n</details>\n')
         else:
             formatted_output = (f'\nTool Output: `{name}`\n'
-                                f'```json\n{pretty_text}\n```\n')
+                                f'```{lang_specifier}\n{pretty_text}\n```\n')
         formatted_tool_outputs.append(formatted_output)
 
     if formatted_tool_outputs:
