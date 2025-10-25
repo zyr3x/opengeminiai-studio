@@ -1,7 +1,7 @@
 """
 Flask routes for optimization metrics and monitoring.
 """
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, flash, redirect, url_for
 from app import optimization
 
 metrics_bp = Blueprint('metrics', __name__)
