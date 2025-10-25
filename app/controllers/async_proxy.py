@@ -87,16 +87,18 @@ async def async_chat_completions():
                                 content = content.replace(find, replace)
 
                     # Handle local file paths
-                    processed_result = file_processing_utils.process_message_for_paths(content)
+                    processed_result = None
+                    if not disable_mcp_tools:
+                        processed_result = file_processing_utils.process_message_for_paths(content)
 
-                    if isinstance(processed_result, tuple):
-                        message['content'], code_path_value = processed_result
-                        if code_path_value:
-                            code_tools_requested = True
-                            if isinstance(code_path_value, str):
-                                code_project_root = code_path_value
-                    else:
-                        message['content'] = processed_result
+                        if isinstance(processed_result, tuple):
+                            message['content'], code_path_value = processed_result
+                            if code_path_value:
+                                code_tools_requested = True
+                                if isinstance(code_path_value, str):
+                                    code_project_root = code_path_value
+                        else:
+                            message['content'] = processed_result
 
                 processed_messages.append(message)
 
@@ -264,7 +266,7 @@ async def async_chat_completions():
 
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
-                if code_tools_requested and not mcp_handler.disable_all_mcp_tools:
+                if code_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(
                         builtin_tool_names
                     )

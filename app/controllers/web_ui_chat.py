@@ -284,7 +284,9 @@ async def chat_api():
 
         if user_message:
             # Process message for local file paths (e.g., code_path=, image_path=)
-            processed_result = file_processing_utils.process_message_for_paths(user_message)
+            processed_result = None
+            if not disable_mcp_tools_override:
+                processed_result = file_processing_utils.process_message_for_paths(user_message)
 
             if isinstance(processed_result, str):
                 # No paths were found, treat as a simple text message
@@ -461,7 +463,7 @@ async def chat_api():
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
                 # Priority for MCP tools:
-                if code_tools_requested and not mcp_handler.disable_all_mcp_tools:
+                if code_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
                     # 1. If code_path= was used, force-enable built-in tools only.
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
                     utils.log(f"Code context requested via code_path=. Forcing use of built-in tools: {builtin_tool_names}")
@@ -604,14 +606,19 @@ async def chat_api():
                                 for part in parts:
                                     if 'text' in part:
                                         text_buffer += part['text']
-                                        # Yield complete words only, keep incomplete word in buffer
-                                        # Split on whitespace but keep last incomplete word
-                                        if ' ' in text_buffer or '\n' in text_buffer:
-                                            # Find last complete word boundary
-                                            last_space = max(text_buffer.rfind(' '), text_buffer.rfind('\n'))
-                                            if last_space > 0:
-                                                complete_text = text_buffer[:last_space + 1]
-                                                text_buffer = text_buffer[last_space + 1:]
+                                        # Yield complete segments only to prevent word splitting
+                                        # Look for natural boundaries: spaces, newlines, punctuation
+                                        if any(c in text_buffer for c in [' ', '\n', '\t', '.', ',', '!', '?', ';', ':', ')', ']', '}', '>', '"', "'"]):
+                                            # Find the last natural boundary
+                                            last_boundary = -1
+                                            for boundary_char in ['\n', ' ', '\t', '.', ',', '!', '?', ';', ':', ')', ']', '}', '>']:
+                                                pos = text_buffer.rfind(boundary_char)
+                                                if pos > last_boundary:
+                                                    last_boundary = pos
+                                            
+                                            if last_boundary > 0:
+                                                complete_text = text_buffer[:last_boundary + 1]
+                                                text_buffer = text_buffer[last_boundary + 1:]
                                                 yield complete_text
                                     if 'functionCall' in part: tool_calls.append(part['functionCall'])
                             except json.JSONDecodeError:

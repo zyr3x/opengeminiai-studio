@@ -222,8 +222,8 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
     log(f"Estimated token count ({estimated_tokens}) exceeds limit ({limit}). Truncating...")
 
     # Try selective context first if enabled
-    from app import config as app_config
-    if current_query and app_config.config.SELECTIVE_CONTEXT_ENABLED:
+    from app.config import config as app_config
+    if current_query and app_config.SELECTIVE_CONTEXT_ENABLED:
         try:
             from app import context_selector
             

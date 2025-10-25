@@ -19,7 +19,7 @@
     "overrides": {
       "Assistant": "Google Gemini Assistant"
     },
-    "disable_tools": true,
+    "disable_tools": false,
     "enable_native_tools": false,
     "selected_mcp_tools": []
   },
@@ -31,7 +31,7 @@
     "overrides": {
       "image_url": ""
     },
-    "disable_tools": true,
+    "disable_tools": false,
     "enable_native_tools": false,
     "selected_mcp_tools": []
   },
@@ -43,7 +43,7 @@
     "overrides": {
       "pdf_path": ""
     },
-    "disable_tools": true,
+    "disable_tools": false,
     "enable_native_tools": false,
     "selected_mcp_tools": []
   },
@@ -55,7 +55,7 @@
     "overrides": {
       "code_path": "code_path"
     },
-    "disable_tools": true,
+    "disable_tools": false,
     "enable_native_tools": false,
     "selected_mcp_tools": []
   },

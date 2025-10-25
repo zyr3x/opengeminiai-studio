@@ -64,7 +64,7 @@ def reset_metrics():
     return redirect(url_for('metrics.get_metrics'))
 
 @metrics_bp.route('/metrics/api', methods=['GET'])
-def get_metrics_api():
+async def get_metrics_api():
     """
     Returns optimization metrics as JSON for AJAX updates.
     """

@@ -737,8 +737,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
                          botMessageContent += chunk;
-                         botMessageContent = botMessageContent.replace(/\\"/g, '"').replace("/\\\n", "\n").replaceAll("\\\n", "\n");
-                         let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
+                        // Clean up escape sequences
+                        botMessageContent = botMessageContent.replace(/\\"/g, '"').replace(/\\\n/g, "\n");
+                        
+                        // Parse markdown - marked.parse is safe with partial content
+                        let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
 
                          const tempDiv = document.createElement('div');
                          tempDiv.innerHTML = html;

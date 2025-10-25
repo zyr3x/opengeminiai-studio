@@ -6,7 +6,7 @@ import mimetypes
 import os
 import re
 from app import utils
-from app.mcp_handler import list_files, set_project_root, get_code_ignore_patterns
+from app.mcp_handler import list_files, set_project_root
 
 # --- Constants ---
 MAX_MULTIMODAL_FILE_SIZE_MB = 12
@@ -125,7 +125,7 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
             MAX_CODE_SIZE = 4 * 1024 * 1024  # 4 MB limit for code injection
 
             # Default ignore patterns for code
-            ignore_patterns = get_code_ignore_patterns()
+            ignore_patterns = utils.DEFAULT_CODE_IGNORE_PATTERNS
 
             # Parse ignore patterns from prompt
             param_pattern = re.compile(r'\s+(ignore_type|ignore_file|ignore_dir)=([^\s]+)')

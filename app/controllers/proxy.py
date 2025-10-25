@@ -79,18 +79,20 @@ def chat_completions():
                                 content = content.replace(find, replace)
 
                     # --- Handle local file paths like image_path=... and pdf_path=... ---
-                    processed_result = file_processing_utils.process_message_for_paths(content)
+                    processed_result = None
+                    if not disable_mcp_tools:
+                        processed_result = file_processing_utils.process_message_for_paths(content)
 
-                    if isinstance(processed_result, tuple):
-                        # (parts, code_path_or_bool)
-                        message['content'], code_path_value = processed_result
-                        if code_path_value:
-                            code_tools_requested = True
-                            # If code_path_value is a string (path), save it for the entire request
-                            if isinstance(code_path_value, str):
-                                code_project_root = code_path_value
-                    else:
-                        message['content'] = processed_result
+                        if isinstance(processed_result, tuple):
+                            # (parts, code_path_or_bool)
+                            message['content'], code_path_value = processed_result
+                            if code_path_value:
+                                code_tools_requested = True
+                                # If code_path_value is a string (path), save it for the entire request
+                                if isinstance(code_path_value, str):
+                                    code_project_root = code_path_value
+                        else:
+                            message['content'] = processed_result
 
                 processed_messages.append(message)
 
@@ -263,7 +265,7 @@ def chat_completions():
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
                 # Priority for MCP tools:
-                if code_tools_requested and not mcp_handler.disable_all_mcp_tools:
+                if code_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
                     # 1. If code_path= was used, force-enable built-in tools only.
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
                     utils.log(f"Code context requested via code_path=. Forcing use of built-in tools: {builtin_tool_names}")

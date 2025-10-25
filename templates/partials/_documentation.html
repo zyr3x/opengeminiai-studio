@@ -16,7 +16,14 @@
         <li><b>OpenAI API Compatibility:</b> Accepts requests on <code>/v1/chat/completions</code> and <code>/v1/models</code>, transforming them for the Gemini API.</li>
         <li><b>🚀 High Performance (NEW):</b> Async architecture with HTTP connection pooling, parallel tool execution, and smart caching delivers 3-5x speed improvement.</li>
         <li><b>Streaming & History:</b> Handles streaming responses with word-boundary buffering (no broken words!) and automatically truncates conversation history to fit context windows.</li>
-        <li><b>Multimodal & Code Injection:</b> Supports image, audio, and PDF file embedding directly from local paths (e.g., <code>image_path=...</code>). It also features a powerful <b>code injector</b> (<code>code_path=...</code>) that can embed single files or entire directory structures as text context in your prompt.</li>
+        <li><b>🆕 Dual Path Mode (NEW):</b> Two distinct modes for working with code:
+            <ul>
+                <li><b><code>code_path=</code></b> - Recursively loads all code files as text context (up to 4MB) for review and analysis. No tools, just pure code context.</li>
+                <li><b><code>project_path=</code></b> - Activates full AI agent mode with 19 built-in development tools for navigation, analysis, modification, execution, and git operations. Perfect for actual development work.</li>
+            </ul>
+        </li>
+        <li><b>Multimodal Support:</b> Supports image, audio, and PDF file embedding directly from local paths (e.g., <code>image_path=...</code>, <code>pdf_path=...</code>, <code>audio_path=...</code>).</li>
+        <li><b>Built-in Development Tools:</b> 19 tools including file operations, code search, patch application, command execution (pytest, awk, sed, grep, npm), and full git integration.</li>
         <li><b>Function Calling:</b> Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling. **Tool selection is highly configurable:** profiles (System Prompts/Overrides) can explicitly select or disable specific MCP functions/tools, overriding the default context-aware selection logic. Native Google tools (Search, URL Context) can also be enabled via profiles.</li>
         <li><b>Image Generation:</b> Includes a dedicated UI and API endpoint for generating images with compatible models.</li>
         <li><b>Advanced Prompt Control:</b> Lets you define and apply both system-level prompts and dynamic prompt overrides based on keywords.</li>
@@ -77,48 +84,235 @@
     <p class="mt-3"><em>Screenshot of JetBrains AI Assistant settings:</em></p>
     <img src="/static/img/placeholder_jetbrains_config.png" class="img-fluid rounded shadow-sm" alt="JetBrains AI Assistant Configuration">
 
-    <h3 class="mt-4">3. Local File Embedding & Code Injection (via Proxy)</h3>
-    <p>The proxy can automatically embed local files into your request directly from the prompt. This is especially useful when using the proxy with tools like JetBrains AI Assistant, as it allows you to reference local project files without leaving your IDE.</p>
+    <h3 class="mt-4">3. Dual Path Mode: Two Ways to Work with Code 🆕</h3>
+    <p>Version 2.2 introduces two distinct modes for working with code projects. Choose the right mode for your workflow!</p>
 
-    <h4>Multimodal Files (image, pdf, audio)</h4>
-    <p>Specify the path to the file using <code>image_path=</code>, <code>pdf_path=</code>, or <code>audio_path=</code>. The proxy will read the file, encode it, and include it as a multimodal part in the request to the Gemini API.</p>
-    <pre><code class="language-bash">
-# Example prompts sent to the proxy:
-"Please describe this image: image_path=/Users/me/Pictures/diagram.png"
-"Summarize this document: pdf_path=~/Documents/report.pdf"
-    </code></pre>
-
-    <h4 class="mt-4">Code Injection (code_path)</h4>
-    <p>Use <code>code_path=</code> to inject source code as plain text context. This is a powerful feature for code analysis, refactoring, or documentation tasks.</p>
-    <ul>
-        <li><b>Single File:</b> Provide a path to a single file (e.g., <code>code_path=app/main.py</code>).</li>
-        <li><b>Entire Directory:</b> Provide a path to a directory (e.g., <code>code_path=app/controllers/</code>). The proxy will recursively read all non-hidden files, format them, and inject them into the prompt.</li>
-    </ul>
-    <pre><code class="language-bash">
-# Example prompt for code analysis:
-"Analyze the following code for potential bugs: code_path=/path/to/my_project/src"
-
-# Example with custom ignores:
-"Refactor this code: code_path=./ ignore_dir=tests ignore_file=*.md"
-    </code></pre>
-    <div class="alert alert-info">
-        <h5 class="alert-heading">How Code Injection Works</h5>
-        <p>
-            <b>Intelligent Filtering:</b> The directory scanner is optimized for code analysis and automatically ignores common version control folders (<code>.git</code>), dependency folders (<code>node_modules</code>), build artifacts (<code>dist</code>, <code>target</code>), compiled files (<code>*.pyc</code>), archives, images, and other non-source files to provide clean, relevant context.
-        </p>
-        <p>
-            <b>Custom Ignores:</b> You can add your own ignore patterns directly in the prompt. Multiple patterns can be separated by <code>|</code>.
-            <ul>
-                <li><code>ignore_file=PATTERN</code>: Ignores files matching the pattern (e.g., <code>*.log|*.tmp</code>).</li>
-                <li><code>ignore_dir=PATTERN</code>: Ignores directories matching the pattern (e.g., <code>docs|build</code>).</li>
-                <li><code>ignore_type=EXT</code>: A shorthand to ignore files by extension (e.g., <code>md|txt</code> becomes patterns <code>*.md</code> and <code>*.txt</code>).</li>
-            </ul>
-        </p>
-        <hr>
-        <p class="mb-0">
-            <b>Size Limits:</b> For performance and to respect context window limits, code injection operates in "TEXT MODE" up to a configurable size limit (default 512 KB). The total size of all files to be injected must not exceed a binary limit of 8MB. If limits are exceeded, the proxy will inform you in the response instead of attaching the files.
-        </p>
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">🔷 Mode 1: <code>code_path=</code></h5>
+                    <small>Code Context Loading (Read-Only)</small>
+                </div>
+                <div class="card-body">
+                    <p><strong>Purpose:</strong> Recursively loads all code files as text context for review and analysis.</p>
+                    <p><strong>Features:</strong></p>
+                    <ul class="mb-2">
+                        <li>✅ Loads ALL files recursively</li>
+                        <li>✅ Formats with markdown</li>
+                        <li>✅ Supports ignore patterns</li>
+                        <li>❌ NO tools activated</li>
+                        <li>📦 Up to 4 MB limit</li>
+                    </ul>
+                    <p><strong>Usage:</strong></p>
+                    <pre><code class="language-bash">"Review this code for bugs: code_path=~/myproject/src"</code></pre>
+                    <p><strong>Perfect For:</strong></p>
+                    <ul class="mb-0">
+                        <li>Code review & auditing</li>
+                        <li>Q&A about code</li>
+                        <li>Understanding codebases</li>
+                        <li>Static analysis</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">🔶 Mode 2: <code>project_path=</code></h5>
+                    <small>AI Agent Mode (Full Development)</small>
+                </div>
+                <div class="card-body">
+                    <p><strong>Purpose:</strong> Activates AI agent with 19 development tools for comprehensive project work.</p>
+                    <p><strong>Features:</strong></p>
+                    <ul class="mb-2">
+                        <li>✅ Shows project structure</li>
+                        <li>✅ 19 built-in dev tools</li>
+                        <li>✅ Can read files on-demand</li>
+                        <li>✅ Can modify/create files</li>
+                        <li>✅ Can execute commands</li>
+                        <li>✅ Full git operations</li>
+                        <li>📦 Unlimited size</li>
+                    </ul>
+                    <p><strong>Usage:</strong></p>
+                    <pre><code class="language-bash">"Fix the auth bug: project_path=~/myproject"</code></pre>
+                    <p><strong>Perfect For:</strong></p>
+                    <ul class="mb-0">
+                        <li>Bug fixing & debugging</li>
+                        <li>Feature development</li>
+                        <li>Refactoring code</li>
+                        <li>Running tests/builds</li>
+                        <li>Full dev workflows</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <div class="alert alert-info mt-4">
+        <h5 class="alert-heading">📊 Quick Comparison</h5>
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th><code>code_path=</code></th>
+                    <th><code>project_path=</code></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Loads code files</td>
+                    <td>✅ All at once</td>
+                    <td>❌ On-demand</td>
+                </tr>
+                <tr>
+                    <td>In prompt context</td>
+                    <td>✅ Full text</td>
+                    <td>✅ Structure only</td>
+                </tr>
+                <tr>
+                    <td>Activates tools</td>
+                    <td>❌ No</td>
+                    <td>✅ Yes (19 tools)</td>
+                </tr>
+                <tr>
+                    <td>Can modify files</td>
+                    <td>❌ No</td>
+                    <td>✅ Yes</td>
+                </tr>
+                <tr>
+                    <td>Can execute commands</td>
+                    <td>❌ No</td>
+                    <td>✅ Yes</td>
+                </tr>
+                <tr>
+                    <td>Size limit</td>
+                    <td>4 MB</td>
+                    <td>Unlimited</td>
+                </tr>
+                <tr>
+                    <td><strong>Best for</strong></td>
+                    <td><strong>Reading</strong> code</td>
+                    <td><strong>Working</strong> with code</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h4 class="mt-4">🔧 19 Built-in Development Tools (with <code>project_path=</code>)</h4>
+    <p>When you use <code>project_path=</code>, the AI gets access to a comprehensive development toolkit:</p>
+    <div class="row">
+        <div class="col-md-6">
+            <h6>🗂️ Navigation & Search</h6>
+            <ul class="small">
+                <li><code>list_files</code> - Browse directory contents</li>
+                <li><code>get_file_content</code> - Read any file</li>
+                <li><code>get_code_snippet</code> - Extract specific lines</li>
+                <li><code>search_codebase</code> - grep-like search</li>
+            </ul>
+            
+            <h6>📊 Analysis</h6>
+            <ul class="small">
+                <li><code>analyze_file_structure</code> - File stats & info</li>
+                <li><code>analyze_project_structure</code> - Project tree</li>
+                <li><code>get_file_stats</code> - Line counts, size</li>
+                <li><code>find_symbol</code> - Find functions/classes</li>
+                <li><code>get_dependencies</code> - Analyze imports</li>
+            </ul>
+        </div>
+        <div class="col-md-6">
+            <h6>✏️ Modification</h6>
+            <ul class="small">
+                <li><code>apply_patch</code> - Apply unified diffs</li>
+                <li><code>create_file</code> - Create new files</li>
+                <li><code>write_file</code> - Overwrite files</li>
+            </ul>
+            
+            <h6>⚙️ Execution</h6>
+            <ul class="small">
+                <li><code>execute_command</code> - Run any shell command (pytest, awk, sed, grep, npm, etc.)</li>
+            </ul>
+            
+            <h6>🔀 Git Operations</h6>
+            <ul class="small">
+                <li><code>git_status</code> - Check repo status</li>
+                <li><code>git_log</code> - View commit history</li>
+                <li><code>git_diff</code> - See changes</li>
+                <li><code>git_show</code> - Show commit details</li>
+                <li><code>git_blame</code> - Find who changed what</li>
+                <li><code>list_recent_changes</code> - Recent file changes</li>
+            </ul>
+        </div>
+    </div>
+    <p class="small text-muted">See <a href="https://github.com/your-repo/BUILTIN_TOOLS_ENHANCED.md" target="_blank">BUILTIN_TOOLS_ENHANCED.md</a> for complete reference.</p>
+
+    <h4 class="mt-4">💡 Real-World Examples</h4>
+    
+    <div class="card mb-3">
+        <div class="card-header"><strong>Example 1:</strong> Code Review</div>
+        <div class="card-body">
+            <p><strong>Prompt:</strong></p>
+            <pre><code class="language-bash">"Review for security vulnerabilities: code_path=~/webapp/src"</code></pre>
+            <p><strong>Result:</strong> AI receives all source files and analyzes them (no modifications made)</p>
+        </div>
+    </div>
+    
+    <div class="card mb-3">
+        <div class="card-header"><strong>Example 2:</strong> Bug Fixing</div>
+        <div class="card-body">
+            <p><strong>Prompt:</strong></p>
+            <pre><code class="language-bash">"Fix the SQL injection in user login: project_path=~/webapp"</code></pre>
+            <p><strong>Result:</strong> AI uses tools to search code, analyze vulnerabilities, patch files, and run tests</p>
+        </div>
+    </div>
+    
+    <div class="card mb-3">
+        <div class="card-header"><strong>Example 3:</strong> New Feature Development</div>
+        <div class="card-body">
+            <p><strong>Prompt:</strong></p>
+            <pre><code class="language-bash">"Add /api/users endpoint with JWT auth: project_path=~/api-server"</code></pre>
+            <p><strong>Result:</strong> AI creates new files, modifies routes, writes tests, runs pytest</p>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header"><strong>Example 4:</strong> Mixed Workflow</div>
+        <div class="card-body">
+            <p><strong>Step 1:</strong></p>
+            <pre><code class="language-bash">"Understand this codebase: code_path=~/project/src"</code></pre>
+            <p><strong>Step 2:</strong></p>
+            <pre><code class="language-bash">"Now refactor to use async/await everywhere: project_path=~/project"</code></pre>
+            <p><strong>Result:</strong> First loads all code for context, then activates tools for modifications</p>
+        </div>
+    </div>
+
+    <h4 class="mt-4">🎯 Ignore Patterns (Both Modes)</h4>
+    <p>Both <code>code_path=</code> and <code>project_path=</code> support custom ignore patterns:</p>
+    <pre><code class="language-bash"># Ignore specific file types
+code_path=. ignore_type=log|tmp|cache
+
+# Ignore specific files
+code_path=. ignore_file=*.test.js|*.spec.ts
+
+# Ignore directories
+code_path=. ignore_dir=docs|examples|legacy
+
+# Same syntax for project_path
+project_path=. ignore_type=cache</code></pre>
+    
+    <p><strong>Default Ignores:</strong> <code>.git</code>, <code>node_modules</code>, <code>__pycache__</code>, <code>venv</code>, <code>build</code>, <code>dist</code>, <code>*.pyc</code>, <code>*.log</code>, minified files, lock files, and more.</p>
+    
+    <div class="alert alert-success mt-3">
+        <strong>📖 Complete Guide:</strong> See PATH_SYNTAX_GUIDE.md for comprehensive documentation with more examples.
+    </div>
+
+    <h4 class="mt-4">Multimodal Files (image, pdf, audio)</h4>
+    <p>Specify the path to the file using <code>image_path=</code>, <code>pdf_path=</code>, or <code>audio_path=</code>. The proxy will read the file, encode it, and include it as a multimodal part in the request to the Gemini API.</p>
+    <pre><code class="language-bash"># Example prompts sent to the proxy:
+"Please describe this image: image_path=/Users/me/Pictures/diagram.png"
+"Summarize this document: pdf_path=~/Documents/report.pdf"</code></pre>
+
 
     <h2 class="mt-4">📡 Available Endpoints</h2>
     <ul>

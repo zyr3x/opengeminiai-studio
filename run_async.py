@@ -16,7 +16,13 @@ async def create_async_app():
     app = Quart(__name__)
     
     # Set secret key for sessions (required by Quart)
-    app.secret_key = os.getenv('SECRET_KEY', os.urandom(24).hex())
+    # Generate a persistent key if not set in environment
+    secret_key = os.getenv('SECRET_KEY')
+    if not secret_key or secret_key == 'your-secret-key-here' or secret_key == 'your-secret-key-here-change-this-to-random-string':
+        import secrets
+        secret_key = secrets.token_hex(32)
+        print(f"⚠️  Warning: Using generated SECRET_KEY. Set SECRET_KEY in .env for persistent sessions.")
+    app.secret_key = secret_key
     
     # Import async utilities
     import app.async_utils as async_utils

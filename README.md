@@ -1,4 +1,4 @@
-# OpenGeminiAI Studio V2.2 (Async Edition)
+# OpenGeminiAI Studio V2.3 (Async Edition)
 
 <!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
@@ -12,7 +12,15 @@ An advanced, high-performance proxy that enables seamless integration of Google'
 
 This proxy includes a web interface for easy configuration, chat, and management of MCP (Multi-Tool Communication Protocol) tools for advanced function calling.
 
-## 🚀 What's New in V2.2
+## 🚀 What's New in V2.3
+
+**Bug Fixes & Improvements:**
+- 🐛 **Fixed Async Issues**: Resolved async/await compatibility in Quart controllers
+- 🔐 **Session Management**: Improved SECRET_KEY handling for persistent sessions
+- ✨ **Text Streaming**: Enhanced word-boundary detection to prevent mid-word splits
+- 📝 **Dual-Path System**: Clear separation between `code_path` and `project_path`
+
+## ⚡ What's New in V2.2
 
 **Major Performance Upgrade:**
 - ✨ **Async/Await Architecture**: 3-5x faster for concurrent requests
@@ -34,7 +42,19 @@ See [ASYNC_README.md](ASYNC_README.md) for details on async features and perform
 -   **🚀 High Performance (NEW):** Async architecture with connection pooling delivers 3-5x speed improvement for concurrent workloads.
 -   **Advanced Web Interface:** A comprehensive UI featuring multi-chat management, file uploads, an image generation playground, and persistent conversation history.
 -   **Powerful Prompt Control:** Define system prompts to guide model behavior and create dynamic prompt overrides that trigger on keywords.
--   **Local File & Code Injection:** Automatically embed local images, PDFs, and audio files in your prompts using syntax like `image_path=...`. It also includes a powerful **code injector** (`code_path=...`) to include single source files or entire directories as context—perfect for IDE integration. The directory scanner intelligently ignores common build artifacts, version control directories, and other non-essential files (`.git`, `node_modules`, `__pycache__`, `*.pyc`, etc.) to provide cleaner context to the model. You can also add custom ignore patterns directly in your prompt using `ignore_dir`, `ignore_file`, and `ignore_type` (for file extensions), e.g., `code_path=... ignore_dir=docs ignore_file=*.tmp ignore_type=log`.
+-   **🆕 Dual Path Mode (NEW):**
+    -   **`code_path=`**: Recursively loads all code files from a directory as text context—perfect for code review, Q&A, and understanding codebases. No tools activated, just pure code context (up to 4MB).
+    -   **`project_path=`**: Activates full AI agent mode with 19 built-in development tools for navigation, analysis, modification, and execution. AI can read, write, create files, run commands (tests, builds, awk/sed/grep), and perform git operations. Perfect for actual development work.
+    -   Both modes support custom ignore patterns: `ignore_dir=`, `ignore_file=`, `ignore_type=`
+    -   See **[PATH_SYNTAX_GUIDE.md](PATH_SYNTAX_GUIDE.md)** for complete guide and examples.
+-   **Local File Injection:** Automatically embed local images, PDFs, and audio files in your prompts using syntax like `image_path=...`, `pdf_path=...`, `audio_path=...`.
+-   **Built-in Development Tools (19 tools):** When using `project_path=`, AI gets access to a comprehensive toolkit:
+    -   **Navigation**: `list_files`, `get_file_content`, `get_code_snippet`, `search_codebase`
+    -   **Analysis**: `analyze_file_structure`, `analyze_project_structure`, `get_file_stats`, `find_symbol`, `get_dependencies`
+    -   **Modification**: `apply_patch`, `create_file`, `write_file`
+    -   **Execution**: `execute_command` (run tests, builds, awk/sed/grep, any shell command with 5-min timeout)
+    -   **Git Operations**: `git_status`, `git_log`, `git_diff`, `git_show`, `git_blame`, `list_recent_changes`
+    -   See **[BUILTIN_TOOLS_ENHANCED.md](BUILTIN_TOOLS_ENHANCED.md)** for complete reference.
 -   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling. **Tools/functions can be explicitly selected or disabled via System Prompt and Prompt Override profiles.**
 -   **Native Google Tools:** Enable built-in Google tools like Search directly within your prompts for enhanced, real-time data retrieval.
 -   **Integrated Developer Toolkit:** The container comes with a pre-configured development environment, including **Node.js 22+** and the **Docker CLI**. This allows you to run `npx mcp-tools` directly and manage host Docker containers from within the proxy, streamlining development and automation tasks.
@@ -131,6 +151,115 @@ The IDE will automatically fetch the model list and route AI Assistant features 
 ![JetBrains AI Assistant Configuration](/static/img/placeholder_jetbrains_config.png)
 <!-- TODO: Add screenshot of JetBrains AI Assistant configuration -->
 
+## 🎯 Dual Path Mode: Two Ways to Work with Code
+
+OpenGeminiAI Studio V2.2 introduces two distinct modes for working with code projects:
+
+### 🔷 Mode 1: `code_path=` - Code Context Loading
+
+**Purpose:** Recursively loads all code files as text context for review and analysis.
+
+**Features:**
+- ✅ Loads ALL code files recursively from directory
+- ✅ Formats with markdown code blocks
+- ✅ Supports ignore patterns
+- ❌ NO tools activated (read-only mode)
+- 📦 Up to 4 MB code limit
+
+**Usage Example:**
+```
+Review this code for security issues: code_path=~/myproject/src
+```
+
+**Perfect For:**
+- Code review and auditing
+- Q&A about code
+- Understanding existing codebases
+- Static analysis
+
+### 🔶 Mode 2: `project_path=` - AI Agent Mode
+
+**Purpose:** Activates full AI agent with 19 development tools for comprehensive project work.
+
+**Features:**
+- ✅ Shows project structure (tree view, depth 3)
+- ✅ Activates ALL 19 built-in development tools
+- ✅ Can read files on-demand
+- ✅ Can modify and create files
+- ✅ Can execute commands (tests, builds, awk/sed/grep)
+- ✅ Full git operations
+- 📦 Unlimited size (tools fetch on-demand)
+
+**Usage Example:**
+```
+Find and fix the authentication bug: project_path=~/myproject
+```
+
+**Perfect For:**
+- Bug fixing and debugging
+- Feature development
+- Refactoring code
+- Running tests and builds
+- Full development workflows
+
+### 📊 Quick Comparison
+
+| Feature | `code_path=` | `project_path=` |
+|---------|--------------|-----------------|
+| Loads code files | ✅ All at once | ❌ On-demand via tools |
+| In prompt context | ✅ Full text | ✅ Structure only |
+| Activates tools | ❌ No | ✅ Yes (19 tools) |
+| Can modify files | ❌ No | ✅ Yes |
+| Can execute commands | ❌ No | ✅ Yes |
+| Size limit | 4 MB | Unlimited |
+| Best for | **Reading** code | **Working** with code |
+
+### 🔧 Both Support Ignore Patterns
+
+```bash
+# Ignore specific file types
+code_path=. ignore_type=log|tmp|cache
+
+# Ignore specific files
+code_path=. ignore_file=*.test.js|*.spec.ts
+
+# Ignore directories
+code_path=. ignore_dir=docs|examples|legacy
+
+# Same works for project_path
+project_path=. ignore_type=cache
+```
+
+**Default Ignores:** `.git`, `node_modules`, `__pycache__`, `venv`, `build`, `dist`, `*.pyc`, `*.log`, minified files, lock files, and more.
+
+### 💡 Real-World Examples
+
+**Example 1: Code Review**
+```
+Prompt: "Review for security vulnerabilities: code_path=~/webapp/src"
+```
+→ AI receives all source files and analyzes them (no modifications)
+
+**Example 2: Bug Fixing**
+```
+Prompt: "Fix the SQL injection in user login: project_path=~/webapp"
+```
+→ AI uses tools to search, analyze, patch files, and run tests
+
+**Example 3: New Feature**
+```
+Prompt: "Add /api/users endpoint with authentication: project_path=~/api-server"
+```
+→ AI creates files, modifies routes, writes tests, runs pytest
+
+**Example 4: Mixed Workflow**
+```
+First: "Understand this codebase: code_path=~/project/src"
+Then: "Now refactor to use async/await: project_path=~/project"
+```
+
+See **[PATH_SYNTAX_GUIDE.md](PATH_SYNTAX_GUIDE.md)** for complete documentation and more examples.
+
 ## 🌐 Web Interface
 
 The proxy includes a comprehensive web interface at `http://localhost:8080` for configuration and testing.
@@ -191,6 +320,8 @@ python benchmark_async.py
 
 ## 📚 Documentation
 
+- **[PATH_SYNTAX_GUIDE.md](PATH_SYNTAX_GUIDE.md)** - 🆕 Guide to `code_path=` vs `project_path=` modes
+- **[BUILTIN_TOOLS_ENHANCED.md](BUILTIN_TOOLS_ENHANCED.md)** - 🆕 Complete reference for 19 built-in development tools
 - **[ASYNC_README.md](ASYNC_README.md)** - Complete async mode guide
 - **[ULTIMATE_MIGRATION_SUMMARY.md](ULTIMATE_MIGRATION_SUMMARY.md)** - Async implementation details
 - **[GIT_COMMIT_GUIDE.md](GIT_COMMIT_GUIDE.md)** - Git commit instructions
