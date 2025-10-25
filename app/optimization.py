@@ -47,8 +47,8 @@ def clean_cache():
         _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
 
 def get_cache_key(function_name: str, tool_args: dict) -> str:
-    """Генерирует ключ кэша для инструмента"""
-    # Сортируем ключи для стабильности хеша
+    """Generates a cache key for the tool"""
+    # Sort keys for hash stability
     args_str = json.dumps(tool_args, sort_keys=True, default=str)
     cache_string = f"{function_name}:{args_str}"
     return hashlib.md5(cache_string.encode()).hexdigest()

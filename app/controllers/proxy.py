@@ -224,7 +224,7 @@ def chat_completions():
                             # Attempt to use the cached context for the system instruction
                 cached_context_id = None
                 if system_instruction:
-                    # Извлекаем текст системной инструкции
+                    # Extract system instruction text
                     system_text = ""
                     for part in system_instruction.get("parts", []):
                         if "text" in part:

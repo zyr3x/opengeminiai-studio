@@ -178,46 +178,46 @@ def select_relevant_messages(
     min_relevance: float = MIN_RELEVANCE_SCORE
 ) -> List[dict]:
     """
-    Умный выбор релевантных сообщений из истории.
-    
-    Алгоритм:
-    1. Всегда берем system prompt (первое сообщение)
-    2. Всегда берем последние keep_recent сообщений
-    3. Из оставшихся выбираем по relevance score
-    4. Сортируем по времени (сохраняем хронологию)
-    
+    Intelligent selection of relevant messages from history.
+
+    Algorithm:
+    1. Always include the system prompt (first message)
+    2. Always include the last `keep_recent` messages
+    3. Select remaining messages based on relevance score
+    4. Sort by time (preserve chronology)
+
     Args:
-        messages: Список всех сообщений
-        current_query: Текущий запрос пользователя
-        max_tokens: Максимальный лимит токенов
-        keep_recent: Сколько последних сообщений всегда сохранять
-        min_relevance: Минимальный relevance score
-        
+        messages: List of all messages
+        current_query: The user's current query
+        max_tokens: Maximum token limit
+        keep_recent: How many recent messages to always keep
+        min_relevance: Minimum relevance score
+
     Returns:
-        Отфильтрованный список сообщений
+        The filtered list of messages
     """
     from app.utils import estimate_token_count
     
-    # Если сообщений мало, возвращаем все
+    # If there are few messages, return all
     if len(messages) <= keep_recent + 1:
         return messages
-    
-    # Проверяем, нужна ли фильтрация вообще
+
+    # Check if filtering is even necessary
     total_tokens = estimate_token_count(messages)
-    if total_tokens <= max_tokens * 0.8:  # Если занимаем < 80% лимита
+    if total_tokens <= max_tokens * 0.8:  # If we occupy < 80% of the limit
         return messages
-    
-    # 1. Извлекаем ключевые слова из текущего запроса
+
+    # 1. Extract keywords from the current query
     keywords = extract_keywords(current_query)
-    
+
     if not keywords:
-        # Если не смогли извлечь ключевые слова, используем простое усечение
+        # If we couldn't extract keywords, use simple truncation
         return messages[:1] + messages[-keep_recent:]
-    
-    # 2. Всегда сохраняем первое сообщение (system prompt)
+
+    # 2. Always keep the first message (system prompt)
     result = [messages[0]]
-    
-    # 3. Последние сообщения тоже всегда сохраняем
+
+    # 3. Always keep the last messages too
     recent_messages = messages[-keep_recent:]
 
     middle_messages = messages[1:-keep_recent]

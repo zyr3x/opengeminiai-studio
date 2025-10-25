@@ -4,10 +4,7 @@ Module for incremental streaming of tool results.
 Instead of waiting for the full tool result, we stream the results
 as they are received to improve UX and reduce perceived latency.
 """
-import os
-import io
 from typing import Generator
-
 from .utils import log
 
 # Chunk size for streaming file content (e.g., 8KB)
@@ -41,5 +38,3 @@ def stream_string(content: str, chunk_size: int = 500) -> Generator[str, None, N
         return
     for i in range(0, len(content), chunk_size):
         yield content[i:i + chunk_size]
-
-# Note: Further functions for streaming process output (for external MCP tools) will be added later.
