@@ -1,6 +1,5 @@
 import json
 import os
-from threading import Lock
 
 class APIKeyManager:
     def __init__(self, config_path='var/config/api_keys.json'):

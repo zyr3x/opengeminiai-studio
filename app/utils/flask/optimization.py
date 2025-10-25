@@ -623,7 +623,7 @@ def execute_tools_parallel(tool_calls: List[Dict]) -> List[Tuple[Dict, str]]:
         return []
 
     # Import here to avoid circular dependencies
-    from app.utils.core.tools import mcp_handler
+    from app.utils.quart import mcp_handler
 
     executor = get_tool_executor()
     futures = {}

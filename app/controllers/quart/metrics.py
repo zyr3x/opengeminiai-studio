@@ -2,7 +2,7 @@
 Quart routes for optimization metrics and monitoring.
 """
 from quart import Blueprint, jsonify, flash, redirect, url_for
-from app.utils.quart import optimization
+from app.utils.flask import optimization
 
 metrics_bp = Blueprint('metrics', __name__)
 

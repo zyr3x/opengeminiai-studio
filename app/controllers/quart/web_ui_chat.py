@@ -12,7 +12,7 @@ from quart import Blueprint, request, jsonify, Response, send_from_directory
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from werkzeug.utils import secure_filename
 from app.config import config
-from app.utils.quart import mcp_handler
+from app.utils.flask import mcp_handler
 from app.utils.core import tools
 from app.utils.core import tool_config_utils
 from app.utils.core import file_processing_utils
@@ -260,7 +260,7 @@ async def chat_api():
         full_prompt_for_override_check = f"{history_text} {user_message}".strip()
 
         # Apply Prompt Engineering & Tool Control Overrides
-        override_config = tool_config_tools.get_prompt_override_config(full_prompt_for_override_check)
+        override_config = tool_config_utils.get_prompt_override_config(full_prompt_for_override_check)
 
         active_overrides = override_config['active_overrides']
         disable_mcp_tools_override = override_config['disable_mcp_tools_by_profile']
@@ -278,9 +278,9 @@ async def chat_api():
 
         if user_message:
             # Process message for local file paths (e.g., code_path=, image_path=)
-            processed_result = None
+            processed_result = user_message
             if not disable_mcp_tools_override:
-                processed_result = file_processing_tools.process_message_for_paths(user_message)
+                processed_result = file_processing_utils.process_message_for_paths(user_message)
 
             if isinstance(processed_result, str):
                 # No paths were found, treat as a simple text message

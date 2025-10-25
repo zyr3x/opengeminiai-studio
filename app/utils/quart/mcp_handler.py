@@ -52,7 +52,7 @@ async def execute_mcp_tool_async(function_name: str, tool_args: dict) -> str:
             )
         else:
             # External MCP tool - run process async
-            output = await execute_external_mcp_tool_async(function_name, tool_args)
+            output = await sync_execute_mcp_tool(function_name, tool_args)
         
         # Cache the result if applicable
         if should_cache_tool(function_name):
@@ -69,8 +69,8 @@ async def execute_external_mcp_tool_async(function_name: str, tool_args: dict) -
     """
     Async version: Executes an external MCP tool via subprocess.
     """
-    from .mcp_handler import mcp_servers
-    
+    from app.utils.flask.mcp_handler import mcp_function_to_tool_map as mcp_servers
+
     # Find the MCP server configuration
     server_config = None
     for server_name, config in mcp_servers.items():

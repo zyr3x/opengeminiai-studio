@@ -9,7 +9,8 @@ from typing import AsyncGenerator
 from app.config import config
 from app.utils.core import tools as utils
 from app.utils.core import tool_config_utils
-from app.utils.quart import mcp_handler, optimization, utils
+from app.utils.quart import optimization, utils
+from app.utils.flask import mcp_handler
 import traceback
 
 async_proxy_bp = Blueprint('proxy', __name__)
@@ -67,7 +68,7 @@ async def async_chat_completions():
                 profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
 
             # Process messages - file processing
-            from app.utils.core.tools import file_processing_utils
+            from app.utils.core import file_processing_utils
             processed_messages = []
 
             for message in messages:

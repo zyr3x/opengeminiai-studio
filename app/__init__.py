@@ -57,7 +57,7 @@ async def create_quart_app(app: Quart):
 
     # Import async utilities
     import app.utils.quart.utils as async_utils
-    import app.utils.quart.mcp_handler as mcp_handler
+    import app.utils.flask.mcp_handler as mcp_handler
     import app.utils.core.tools as utils
 
     # Import Blueprints - mix of async and sync

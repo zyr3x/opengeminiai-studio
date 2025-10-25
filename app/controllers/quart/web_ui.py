@@ -6,7 +6,7 @@ from datetime import datetime
 import os
 from quart import Blueprint, Response, render_template
 from app.config import config
-from app.utils.quart import mcp_handler
+from app.utils.flask import mcp_handler
 from app.utils.core import tools as utils
 from .metrics import get_metrics
 

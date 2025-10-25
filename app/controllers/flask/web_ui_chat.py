@@ -278,10 +278,9 @@ def chat_api():
 
         if user_message:
             # Process message for local file paths (e.g., code_path=, image_path=)
-            processed_result = None
+            processed_result = user_message
             if not disable_mcp_tools_override:
                 processed_result = file_processing_utils.process_message_for_paths(user_message)
-
             if isinstance(processed_result, str):
                 # No paths were found, treat as a simple text message
                 if processed_result:

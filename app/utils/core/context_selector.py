@@ -7,6 +7,7 @@ based on the current query, saving 40-60% of tokens in long dialogues.
 import re
 from typing import List, Tuple
 from collections import Counter
+from app.utils.core.tools import log
 
 # --- Configuration Constants ---
 MIN_RELEVANCE_SCORE = 0.3  # Minimum score for message inclusion
