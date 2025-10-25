@@ -7,9 +7,9 @@ from app.utils.core import tools as utils
 prompt_settings_bp = Blueprint('prompt_settings', __name__)
 
 @prompt_settings_bp.route('/set_prompt_config', methods=['POST'])
-async def set_prompt_config():
+def set_prompt_config():
     """Saves prompt override configuration from web form to a JSON file and reloads it."""
-    form = await request.form
+    form = request.form
     config_str = form.get('prompt_overrides', '')
 
     try:
@@ -26,9 +26,9 @@ async def set_prompt_config():
     return redirect(url_for('web_ui.index', _anchor='prompts'))
 
 @prompt_settings_bp.route('/set_system_prompt_config', methods=['POST'])
-async def set_system_prompt_config():
+def set_system_prompt_config():
     """Saves system prompt configuration from web form to a JSON file and reloads it."""
-    form = await request.form
+    form = request.form
     config_str = form.get('system_prompts', '')
 
     try:
