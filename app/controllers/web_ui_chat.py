@@ -657,7 +657,8 @@ def chat_api():
 
                 current_contents.append({"role": "tool", "parts": tool_response_parts})
 
-        return Response(generate(), mimetype='text/plain')
+        return Response(generate(), mimetype='text/event-stream'
+                        )
     except Exception as e:
         utils.log(f"An error occurred in chat API: {str(e)}")
         return jsonify({"error": f"An error occurred in chat API: {str(e)}"}), 500
