@@ -8,15 +8,9 @@ import shutil
 import requests
 import os
 import mimetypes
-
-try:
-    from quart import Blueprint, request, jsonify, Response, send_from_directory
-except ImportError:
-    from flask import Blueprint, request, jsonify, Response, send_from_directory
-
+from flask import Blueprint, request, jsonify, Response, send_from_directory
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from werkzeug.utils import secure_filename
-
 from app.config import config
 from app import mcp_handler
 from app import utils
@@ -49,8 +43,8 @@ def create_chat():
     return jsonify(new_chat), 201
 
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>/title', methods=['PUT'])
-async def update_chat_title(chat_id):
-    data = await request.json
+def update_chat_title(chat_id):
+    data = request.json
     new_title = data.get('title')
     if not new_title:
         return jsonify({'error': 'Title is required'}), 400
@@ -119,12 +113,12 @@ def delete_message(message_id):
 
 
 @web_ui_chat_bp.route('/api/generate_image', methods=['POST'])
-async def generate_image_api():
+def generate_image_api():
     if not config.API_KEY:
         return jsonify({"error": "API key not configured."}), 401
 
     try:
-        form = await request.form
+        form = request.form
         chat_id = form.get('chat_id', type=int)
         model = form.get('model', 'gemini-1.5-pro-latest')
         prompt = form.get('prompt', '')
@@ -223,7 +217,7 @@ async def generate_image_api():
 
 
 @web_ui_chat_bp.route('/chat_api', methods=['POST'])
-async def chat_api():
+def chat_api():
     """
     Handles direct chat requests from the web UI, with session support.
     """
@@ -231,8 +225,8 @@ async def chat_api():
         return jsonify({"error": "API key not configured."}), 401
 
     try:
-        form = await request.form
-        files = await request.files
+        form = request.form
+        files = request.files
         
         chat_id = form.get('chat_id', type=int)
         if not chat_id:

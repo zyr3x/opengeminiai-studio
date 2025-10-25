@@ -1,12 +1,7 @@
 """
 Flask routes for handling prompt override settings.
-Compatible with both Flask and Quart.
 """
-try:
-    from quart import Blueprint, request, redirect, url_for
-except ImportError:
-    from flask import Blueprint, request, redirect, url_for
-
+from flask import Blueprint, request, redirect, url_for
 from app import utils
 
 prompt_settings_bp = Blueprint('prompt_settings', __name__)

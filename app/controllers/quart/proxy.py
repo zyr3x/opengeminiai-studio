@@ -1,14 +1,11 @@
 """
-Async Flask routes for the OpenAI-compatible proxy endpoints.
-Uses Quart for async support while maintaining Flask compatibility.
+Async Quart routes for the OpenAI-compatible proxy endpoints.
 """
 import json
 import os
 import time
-import asyncio
 from quart import Blueprint, request, jsonify, Response
 from typing import AsyncGenerator
-
 from app.config import config
 from app import mcp_handler
 from app import utils
@@ -18,7 +15,7 @@ from app import async_optimization
 from app import async_mcp_handler
 import traceback
 
-async_proxy_bp = Blueprint('async_proxy', __name__)
+async_proxy_bp = Blueprint('proxy', __name__)
 
 @async_proxy_bp.route('/v1/chat/completions', methods=['POST'])
 async def async_chat_completions():

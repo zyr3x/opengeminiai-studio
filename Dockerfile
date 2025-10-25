@@ -36,7 +36,7 @@ EXPOSE 8080
 # Async mode: set ASYNC_MODE=true
 CMD if [ "$ASYNC_MODE" = "true" ]; then \
       echo "🚀 Starting in ASYNC mode..."; \
-      python run_async.py; \
+      python run.py; \
     else \
       echo "🚀 Starting in SYNC mode..."; \
       python run.py; \

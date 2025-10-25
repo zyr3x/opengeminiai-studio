@@ -15,6 +15,7 @@ class AppConfig:
         self.UPSTREAM_URL = os.getenv("UPSTREAM_URL")
         self.SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
         self.SERVER_PORT = int(os.getenv("SERVER_PORT", 8080))
+        self.ASYNC_MODE = os.getenv("ASYNC_MODE", "true").lower() == "true"
         if not self.UPSTREAM_URL:
             raise ValueError("UPSTREAM_URL environment variable not set")
         

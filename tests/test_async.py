@@ -33,7 +33,7 @@ def test_imports():
         return False
     
     try:
-        import app.controllers.async_proxy
+        import app.controllers.
         print("  ✓ app.controllers.async_proxy")
     except Exception as e:
         print(f"  ✗ app.controllers.async_proxy: {e}")
@@ -142,8 +142,8 @@ async def test_async_proxy():
     print("\n🧪 Testing async_proxy...")
     
     try:
-        from app.controllers import async_proxy
-        
+        from app.controllers.
+
         # Test that blueprint exists
         assert hasattr(async_proxy, 'async_proxy_bp')
         print("  ✓ async_proxy_bp blueprint exists")

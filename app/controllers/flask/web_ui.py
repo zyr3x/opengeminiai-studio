@@ -6,11 +6,7 @@ import json
 from datetime import datetime
 import os
 
-try:
-    from quart import Blueprint, Response, render_template
-except ImportError:
-    from flask import Blueprint, Response, render_template
-
+from flask import Blueprint, Response, render_template
 from app.config import config
 from app import mcp_handler
 from app import utils
@@ -19,7 +15,7 @@ from .metrics import get_metrics
 web_ui_bp = Blueprint('web_ui', __name__)
 
 @web_ui_bp.route('/', methods=['GET'])
-async def index():
+def index():
     """
     Serves the main documentation and configuration page.
     Compatible with both Flask and Quart (async).
@@ -84,7 +80,7 @@ async def index():
                 mcp_functions_by_tool[tool_name] = []
             mcp_functions_by_tool[tool_name].append(func_decl)
 
-    return await render_template(
+    return render_template(
         'index.html',
         API_KEY=config.API_KEY, api_key_status=api_key_status,
         current_mcp_config_str=current_mcp_config_str, mcp_config=mcp_config_data,
@@ -107,7 +103,7 @@ async def index():
     )
 
 @web_ui_bp.route('/favicon.ico')
-async def favicon():
+def favicon():
     """Serves the favicon for the web interface."""
     favicon_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚙️</text></svg>'
     return Response(favicon_svg, mimetype='image/svg+xml')
