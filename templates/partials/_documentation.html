@@ -7,7 +7,7 @@
         <h5><i class="material-icons">rocket_launch</i> Performance Upgrade!</h5>
         <p class="mb-0">
             Version 2.2 introduces <strong>async/await architecture</strong> for 3-5x performance improvements on concurrent workloads. 
-            Enable with <code>ASYNC_MODE=true</code> in your .env file or run <code>python run_async.py</code>.
+            Enable with <code>ASYNC_MODE=true</code> in your .env file or run <code>python run.py</code>.
         </p>
     </div>
 
@@ -57,18 +57,14 @@
     </code></pre>
     <p>Then, run the server:</p>
     <pre><code class="language-bash">
- # Sync mode (original)
  python run.py
- 
- # Async mode (recommended for production)
- python run_async.py
     </code></pre>
     <p>or with Docker:</p>
     <pre><code class="language-bash">docker-compose up -d</code></pre>
     <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
     
     <div class="alert alert-success mt-3">
-        <strong>💡 Pro Tip:</strong> Use <code>python run_async.py</code> or set <code>ASYNC_MODE=true</code> for 3-5x better performance with concurrent requests!
+        <strong>💡 Pro Tip:</strong> Use <code>ASYNC_MODE=true</code> for 3-5x better performance with concurrent requests!
     </div>
 
 

@@ -31,8 +31,8 @@ This proxy includes a web interface for easy configuration, chat, and management
 - 🌊 **Smooth Streaming**: Word-boundary buffering prevents text breaks
 
 **Two Modes Available:**
-- **Async Mode** (recommended): `python run_async.py` - High performance
-- **Sync Mode** (compatible): `python run.py` - Legacy support
+- **Async Mode** (recommended): - High performance
+- **Sync Mode** (compatible): - Legacy support
 
 See [ASYNC_README.md](ASYNC_README.md) for details on async features and performance benchmarks.
 
@@ -344,15 +344,6 @@ See [ASYNC_README.md](ASYNC_README.md) for detailed async configuration options.
 - 10 concurrent requests: ~3x faster
 - 50 concurrent requests: ~5x faster
 - Multi-tool requests (3+ tools): 2-4x faster with parallel execution
-
-**Run Benchmarks:**
-```bash
-# Start server
-python run_async.py
-
-# In another terminal
-python benchmark_async.py
-```
 
 ## 📚 Documentation
 
