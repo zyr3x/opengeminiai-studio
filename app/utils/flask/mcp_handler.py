@@ -2221,11 +2221,10 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                 if function_name == 'list_files':
                     path = normalized_args.get('path')
                     func_args['path'] = path if path is not None else '.'
-
-                if 'max_depth' in normalized_args:
-                    max_depth_val = normalized_args.get('max_depth')
-                    if max_depth_val is not None:
-                        func_args['max_depth'] = int(max_depth_val)
+                    if 'max_depth' in normalized_args:
+                        max_depth_val = normalized_args.get('max_depth')
+                        if max_depth_val is not None:
+                            func_args['max_depth'] = int(max_depth_val)
 
                 elif function_name == 'get_file_content':
                     path = normalized_args.get('path')
@@ -2255,10 +2254,45 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                         raise TypeError("Patch content argument is required and cannot be null or empty.")
                     func_args['patch_content'] = patch_content
 
+                elif function_name == 'create_file':
+                    path = normalized_args.get('path')
+                    content = normalized_args.get('content')
+                    if not path:
+                        raise TypeError("Path argument is required.")
+                    if content is None: # Can be empty string
+                        raise TypeError("Content argument is required.")
+                    func_args['path'] = path
+                    func_args['content'] = content
+                    if 'mode' in normalized_args:
+                        func_args['mode'] = normalized_args.get('mode')
+
+                elif function_name == 'write_file':
+                    path = normalized_args.get('path')
+                    content = normalized_args.get('content')
+                    if not path:
+                        raise TypeError("Path argument is required.")
+                    if content is None:
+                        raise TypeError("Content argument is required.")
+                    func_args['path'] = path
+                    func_args['content'] = content
+
+                elif function_name == 'execute_command':
+                    command = normalized_args.get('command')
+                    if not command:
+                        raise TypeError("Command argument is required.")
+                    func_args['command'] = command
+                    if 'timeout' in normalized_args:
+                        func_args['timeout'] = normalized_args.get('timeout')
+
+                elif function_name == 'find_symbol':
+                    symbol_name = normalized_args.get('symbol_name')
+                    if not symbol_name:
+                        raise TypeError("Symbol name argument is required.")
+                    func_args['symbol_name'] = symbol_name
+
                 # Git operations
                 elif function_name == 'git_status':
-                    # No arguments needed
-                    pass
+                    pass # No arguments needed
 
                 elif function_name == 'git_log':
                     if 'max_count' in normalized_args:
@@ -2306,6 +2340,9 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                     if not path:
                         raise TypeError("Path argument is required.")
                     func_args['path'] = path
+
+                # No-arg functions don't need an entry:
+                # analyze_project_structure, get_dependencies
 
             except KeyError as e:
                 log(f"Error: Missing required argument '{e.args[0]}' for function '{function_name}'. Normalized args: {normalized_args}")
