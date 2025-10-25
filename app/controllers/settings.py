@@ -1,7 +1,11 @@
 """
 Flask routes for handling general application settings.
+Compatible with both Flask and Quart.
 """
-from flask import Blueprint, request, redirect, url_for, jsonify
+try:
+    from quart import Blueprint, request, redirect, url_for, jsonify
+except ImportError:
+    from flask import Blueprint, request, redirect, url_for, jsonify
 
 from app.config import config
 from app import utils
@@ -17,9 +21,9 @@ def get_api_key_data():
 
 
 @settings_bp.route('/add_or_update_api_key', methods=['POST'])
-def add_or_update_api_key():
+async def add_or_update_api_key():
     """Adds or updates an API key."""
-    data = request.json
+    data = await request.json
     key_id = data.get('key_id')
     key_value = data.get('key_value')
     set_active = data.get('set_active', False)
@@ -37,9 +41,9 @@ def add_or_update_api_key():
 
 
 @settings_bp.route('/set_active_api_key', methods=['POST'])
-def set_active_api_key():
+async def set_active_api_key():
     """Sets the active API key."""
-    data = request.json
+    data = await request.json
     key_id = data.get('key_id')
     if not key_id:
         return jsonify({"error": "key_id is required"}), 400
@@ -52,9 +56,9 @@ def set_active_api_key():
 
 
 @settings_bp.route('/delete_api_key', methods=['POST'])
-def delete_api_key():
+async def delete_api_key():
     """Deletes an API key."""
-    data = request.json
+    data = await request.json
     key_id = data.get('key_id')
     if not key_id:
         return jsonify({"error": "key_id is required"}), 400
@@ -66,11 +70,12 @@ def delete_api_key():
     return jsonify({"error": f"API Key ID '{key_id}' not found."}), 404
 
 @settings_bp.route('/set_api_key', methods=['POST'])
-def set_api_key():
+async def set_api_key():
     """
     Sets the API_KEY from a web form and saves it to the .env file for persistence.
     """
-    new_key = request.form.get('api_key')
+    form = await request.form
+    new_key = form.get('api_key')
     if new_key:
         config.set_api_key(new_key)
         utils.log("API Key has been updated via web interface and saved to .env file.")
@@ -80,10 +85,11 @@ def set_api_key():
     return redirect(url_for('web_ui.index', _anchor='configuration'))
 
 @settings_bp.route('/set_logging', methods=['POST'])
-def set_logging():
+async def set_logging():
     """Enables or disables verbose and debug client logging."""
-    verbose_logging_enabled = request.form.get('verbose_logging') == 'on'
-    debug_client_logging_enabled = request.form.get('debug_client_logging') == 'on'
+    form = await request.form
+    verbose_logging_enabled = form.get('verbose_logging') == 'on'
+    debug_client_logging_enabled = form.get('debug_client_logging') == 'on'
     utils.set_verbose_logging(verbose_logging_enabled)
     utils.set_debug_client_logging(debug_client_logging_enabled)
     return redirect(url_for('web_ui.index', _anchor='configuration'))

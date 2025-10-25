@@ -7,6 +7,10 @@ services:
       - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
     env_file:
       - .env
+    environment:
+      # Set ASYNC_MODE=true to enable async mode (recommended for production)
+      # Set ASYNC_MODE=false or omit for sync mode (default)
+      - ASYNC_MODE=${ASYNC_MODE:-false}
     restart: unless-stopped
     volumes:
        - ./:/app/

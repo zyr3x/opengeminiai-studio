@@ -1,7 +1,14 @@
 """
 Flask routes for optimization metrics and monitoring.
+Compatible with both Flask and Quart.
 """
-from flask import Blueprint, jsonify, flash, redirect, url_for
+try:
+    # Try Quart first (async mode)
+    from quart import Blueprint, jsonify, flash, redirect, url_for
+except ImportError:
+    # Fallback to Flask (sync mode)
+    from flask import Blueprint, jsonify, flash, redirect, url_for
+
 from app import optimization
 
 metrics_bp = Blueprint('metrics', __name__)

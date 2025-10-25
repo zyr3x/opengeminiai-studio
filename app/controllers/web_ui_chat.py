@@ -1,5 +1,6 @@
 """
 Flask routes for the web chat UI, including the main page and direct chat API.
+Compatible with both Flask and Quart.
 """
 import base64
 import json
@@ -7,7 +8,12 @@ import shutil
 import requests
 import os
 import mimetypes
-from flask import Blueprint, request, jsonify, Response, send_from_directory
+
+try:
+    from quart import Blueprint, request, jsonify, Response, send_from_directory
+except ImportError:
+    from flask import Blueprint, request, jsonify, Response, send_from_directory
+
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from werkzeug.utils import secure_filename
 
@@ -43,8 +49,8 @@ def create_chat():
     return jsonify(new_chat), 201
 
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>/title', methods=['PUT'])
-def update_chat_title(chat_id):
-    data = request.json
+async def update_chat_title(chat_id):
+    data = await request.json
     new_title = data.get('title')
     if not new_title:
         return jsonify({'error': 'Title is required'}), 400
@@ -113,14 +119,15 @@ def delete_message(message_id):
 
 
 @web_ui_chat_bp.route('/api/generate_image', methods=['POST'])
-def generate_image_api():
+async def generate_image_api():
     if not config.API_KEY:
         return jsonify({"error": "API key not configured."}), 401
 
     try:
-        chat_id = request.form.get('chat_id', type=int)
-        model = request.form.get('model', 'gemini-1.5-pro-latest')
-        prompt = request.form.get('prompt', '')
+        form = await request.form
+        chat_id = form.get('chat_id', type=int)
+        model = form.get('model', 'gemini-1.5-pro-latest')
+        prompt = form.get('prompt', '')
 
         if not all([chat_id, model, prompt]):
             return jsonify({"error": "chat_id, model, and prompt are required"}), 400
@@ -216,7 +223,7 @@ def generate_image_api():
 
 
 @web_ui_chat_bp.route('/chat_api', methods=['POST'])
-def chat_api():
+async def chat_api():
     """
     Handles direct chat requests from the web UI, with session support.
     """
@@ -224,15 +231,18 @@ def chat_api():
         return jsonify({"error": "API key not configured."}), 401
 
     try:
-        chat_id = request.form.get('chat_id', type=int)
+        form = await request.form
+        files = await request.files
+        
+        chat_id = form.get('chat_id', type=int)
         if not chat_id:
             return jsonify({"error": "chat_id is required"}), 400
 
-        model = request.form.get('model', 'gemini-flash-latest')
-        user_message = request.form.get('message', '')
-        attached_files = request.files.getlist('file')
-        system_prompt_name = request.form.get('system_prompt_name')
-        selected_mcp_tools = request.form.getlist('mcp_tools')
+        model = form.get('model', 'gemini-flash-latest')
+        user_message = form.get('message', '')
+        attached_files = files.getlist('file')
+        system_prompt_name = form.get('system_prompt_name')
+        selected_mcp_tools = form.getlist('mcp_tools')
 
         utils.log(f"Incoming Web UI Chat Request (Chat ID: {chat_id}): "
                   f"Model='{model}', User='{user_message[:50]}...', "
@@ -563,6 +573,8 @@ def chat_api():
                         return
 
                     buffer, decoder = "", json.JSONDecoder()
+                    text_buffer = ""  # Buffer for partial text to avoid breaking words
+                    
                     for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
                         buffer += chunk
                         while True:
@@ -590,11 +602,25 @@ def chat_api():
 
                                 model_response_parts.extend(parts)
                                 for part in parts:
-                                    if 'text' in part: yield part['text']
+                                    if 'text' in part:
+                                        text_buffer += part['text']
+                                        # Yield complete words only, keep incomplete word in buffer
+                                        # Split on whitespace but keep last incomplete word
+                                        if ' ' in text_buffer or '\n' in text_buffer:
+                                            # Find last complete word boundary
+                                            last_space = max(text_buffer.rfind(' '), text_buffer.rfind('\n'))
+                                            if last_space > 0:
+                                                complete_text = text_buffer[:last_space + 1]
+                                                text_buffer = text_buffer[last_space + 1:]
+                                                yield complete_text
                                     if 'functionCall' in part: tool_calls.append(part['functionCall'])
                             except json.JSONDecodeError:
                                 if len(buffer) > 65536: buffer = buffer[-32768:]
                                 break
+                    
+                    # Yield any remaining text in buffer
+                    if text_buffer:
+                        yield text_buffer
 
                 # Handle silent model response after a tool call
                 is_after_tool_call = current_contents and current_contents[-1].get('role') == 'tool'

@@ -27,11 +27,17 @@ COPY requirements.txt .
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-
 # Make port 8080 available to the world outside this container
 EXPOSE 8080
 
 # Run the application
-# Note: You MUST provide the API_KEY environment variable when running the container.
-# Example: docker run -p 8081:8081 -e API_KEY="YOUR_GEMINI_API_KEY" gemini-proxy
-CMD ["python", "run.py"]
+# Use ASYNC_MODE environment variable to switch between sync and async modes
+# Default: sync mode (run.py)
+# Async mode: set ASYNC_MODE=true
+CMD if [ "$ASYNC_MODE" = "true" ]; then \
+      echo "🚀 Starting in ASYNC mode..."; \
+      python run_async.py; \
+    else \
+      echo "🚀 Starting in SYNC mode..."; \
+      python run.py; \
+    fi

@@ -1,10 +1,15 @@
 """
 Flask routes for the web UI, including the main page and direct chat API.
+Compatible with both Flask and Quart.
 """
 import json
 from datetime import datetime
 import os
-from flask import Blueprint, Response, render_template
+
+try:
+    from quart import Blueprint, Response, render_template
+except ImportError:
+    from flask import Blueprint, Response, render_template
 
 from app.config import config
 from app import mcp_handler
@@ -14,9 +19,10 @@ from .metrics import get_metrics
 web_ui_bp = Blueprint('web_ui', __name__)
 
 @web_ui_bp.route('/', methods=['GET'])
-def index():
+async def index():
     """
     Serves the main documentation and configuration page.
+    Compatible with both Flask and Quart (async).
     """
     api_key_status = "Set" if config.API_KEY else "Not Set"
     current_mcp_config_str = ""
@@ -78,7 +84,7 @@ def index():
                 mcp_functions_by_tool[tool_name] = []
             mcp_functions_by_tool[tool_name].append(func_decl)
 
-    return render_template(
+    return await render_template(
         'index.html',
         API_KEY=config.API_KEY, api_key_status=api_key_status,
         current_mcp_config_str=current_mcp_config_str, mcp_config=mcp_config_data,
@@ -96,7 +102,7 @@ def index():
     )
 
 @web_ui_bp.route('/favicon.ico')
-def favicon():
+async def favicon():
     """Serves the favicon for the web interface."""
     favicon_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚙️</text></svg>'
     return Response(favicon_svg, mimetype='image/svg+xml')

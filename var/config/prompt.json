@@ -29,7 +29,7 @@
       "image_url"
     ],
     "overrides": {
-      "image_url": "image_url"
+      "image_url": ""
     },
     "disable_tools": true,
     "enable_native_tools": false,
@@ -41,7 +41,7 @@
       "pdf_path"
     ],
     "overrides": {
-      "pdf_path": "pdf_path"
+      "pdf_path": ""
     },
     "disable_tools": true,
     "enable_native_tools": false,
