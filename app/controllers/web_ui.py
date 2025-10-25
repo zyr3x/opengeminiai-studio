@@ -94,6 +94,10 @@ async def index():
         system_prompt_profiles=system_prompt_profiles, current_system_prompts_str=current_system_prompts_str,
         default_system_prompts_json=utils.pretty_json(default_system_prompts),
         verbose_logging_status=utils.VERBOSE_LOGGING,
+        debug_client_logging_status=utils.DEBUG_CLIENT_LOGGING,
+        selective_context_enabled=config.SELECTIVE_CONTEXT_ENABLED,
+        context_min_relevance_score=config.CONTEXT_MIN_RELEVANCE_SCORE,
+        context_always_keep_recent=config.CONTEXT_ALWAYS_KEEP_RECENT,
         current_max_function_declarations=mcp_config_data.get("maxFunctionDeclarations", mcp_handler.max_function_declarations_limit),
         current_disable_all_mcp_tools=mcp_handler.disable_all_mcp_tools, # Pass current status of global disable
         current_year=datetime.now().year,

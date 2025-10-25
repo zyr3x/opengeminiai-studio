@@ -71,6 +71,40 @@
 
     <div class="card mt-3">
         <div class="card-body">
+            <h5 class="card-title">🧠 Context Management</h5>
+            <form action="/set_context_settings" method="POST">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="selective_context_enabled" name="selective_context_enabled"
+                           {% if selective_context_enabled %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="form-check-label" for="selective_context_enabled">Enable Selective Context</label>
+                </div>
+                <div class="form-text">When enabled, only the most relevant context from conversation history is sent to the model.</div>
+                
+                <div class="mt-3">
+                    <label for="context_min_relevance_score" class="form-label">Minimum Relevance Score</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="context_min_relevance_score" name="context_min_relevance_score"
+                               value="{{ context_min_relevance_score }}" min="0" max="1" step="0.1">
+                        <button class="btn btn-primary" type="submit">Save</button>
+                    </div>
+                    <div class="form-text">Threshold for context relevance (0.0 - 1.0). Higher values mean stricter filtering.</div>
+                </div>
+
+                <div class="mt-3">
+                    <label for="context_always_keep_recent" class="form-label">Always Keep Recent Messages</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="context_always_keep_recent" name="context_always_keep_recent"
+                               value="{{ context_always_keep_recent }}" min="1" max="100" step="1">
+                        <button class="btn btn-primary" type="submit">Save</button>
+                    </div>
+                    <div class="form-text">Number of most recent messages to always include in context, regardless of relevance.</div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
             <h5 class="card-title">🐞 Debugging</h5>
             <form action="/set_logging" method="POST">
                 <div class="form-check form-switch">

@@ -93,3 +93,28 @@ async def set_logging():
     utils.set_verbose_logging(verbose_logging_enabled)
     utils.set_debug_client_logging(debug_client_logging_enabled)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
+
+@settings_bp.route('/set_context_settings', methods=['POST'])
+async def set_context_settings():
+    """Updates context management settings and saves them to .env file."""
+    from dotenv import set_key
+    form = await request.form
+    
+    # Get values from form
+    selective_context_enabled = form.get('selective_context_enabled') == 'on'
+    context_min_relevance_score = form.get('context_min_relevance_score', '0.3')
+    context_always_keep_recent = form.get('context_always_keep_recent', '15')
+    
+    # Update .env file
+    env_file = '.env'
+    set_key(env_file, 'SELECTIVE_CONTEXT_ENABLED', 'true' if selective_context_enabled else 'false')
+    set_key(env_file, 'CONTEXT_MIN_RELEVANCE_SCORE', str(context_min_relevance_score))
+    set_key(env_file, 'CONTEXT_ALWAYS_KEEP_RECENT', str(context_always_keep_recent))
+    
+    # Update config in memory
+    config.SELECTIVE_CONTEXT_ENABLED = selective_context_enabled
+    config.CONTEXT_MIN_RELEVANCE_SCORE = float(context_min_relevance_score)
+    config.CONTEXT_ALWAYS_KEEP_RECENT = int(context_always_keep_recent)
+    
+    utils.log(f"Context settings updated: selective={selective_context_enabled}, min_score={context_min_relevance_score}, keep_recent={context_always_keep_recent}")
+    return redirect(url_for('web_ui.index', _anchor='configuration'))
