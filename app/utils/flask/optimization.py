@@ -45,11 +45,11 @@ def clean_cache():
         # If the cache is too large, remove the oldest entries
         if len(_tool_output_cache) > CACHE_MAX_SIZE:
             sorted_items = sorted(
-            _tool_output_cache.items(),
-            key=lambda x: x[1][1]  # Sort by timestamp
-        )
-        # Keep only the CACHE_MAX_SIZE newest entries
-        _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
+                _tool_output_cache.items(),
+                key=lambda x: x[1][1]  # Sort by timestamp
+            )
+            # Keep only the CACHE_MAX_SIZE newest entries
+            _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
 
 def get_cache_key(function_name: str, tool_args: dict) -> str:
     """Generates a cache key for the tool"""

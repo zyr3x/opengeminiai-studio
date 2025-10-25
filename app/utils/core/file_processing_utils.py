@@ -57,7 +57,8 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
     if not isinstance(content, str):
         return content
 
-    path_pattern = re.compile(r'(image|pdf|audio|code|project)_path=([^\s]+)')
+    # Improved regex to handle quoted paths and avoid trailing punctuation
+    path_pattern = re.compile(r'(image|pdf|audio|code|project)_path=("[^"]+"|\'[^\']+\'|[^\s,;)]+)')
     matches = list(path_pattern.finditer(content))
 
     if not matches:
@@ -76,7 +77,14 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
         command_end = _parse_ignore_patterns(content, match, matches, i)
 
         file_type = match.group(1)
-        file_path_str = match.group(2)
+        raw_path = match.group(2)
+
+        # Strip quotes if they exist to handle paths with spaces
+        if raw_path.startswith(('"', "'")) and raw_path.endswith(raw_path[0]):
+            file_path_str = raw_path[1:-1]
+        else:
+            file_path_str = raw_path
+
         expanded_path = os.path.expanduser(file_path_str)
 
         if file_type == 'project':

@@ -911,7 +911,6 @@ def create_file(path: str, content: str, mode: str = "644") -> str:
         Success message or error
     """
     try:
-        record_tool_call("create_file")
         resolved_path = _safe_path_resolve(path)
         if not resolved_path:
             return f"Error: Access denied to path '{path}' (outside project root)"
@@ -951,7 +950,6 @@ def write_file(path: str, content: str) -> str:
         Success message or error
     """
     try:
-        record_tool_call("write_file")
         resolved_path = _safe_path_resolve(path)
         if not resolved_path:
             return f"Error: Access denied to path '{path}' (outside project root)"
@@ -984,8 +982,6 @@ def execute_command(command: str, timeout: int = 30) -> str:
         Command output (stdout + stderr) or error
     """
     try:
-        record_tool_call("execute_command")
-        
         # Security: limit timeout
         timeout = min(max(1, timeout), 300)
         
@@ -1025,7 +1021,6 @@ def analyze_project_structure() -> str:
         Project analysis including file types, sizes, dependencies, and structure
     """
     try:
-        record_tool_call("analyze_project_structure")
         project_root = get_project_root()
         
         analysis = []
@@ -1144,7 +1139,6 @@ def find_symbol(symbol_name: str) -> str:
         List of files and locations where the symbol is defined or used
     """
     try:
-        record_tool_call("find_symbol")
         project_root = get_project_root()
         ignore_patterns = get_code_ignore_patterns()
         
@@ -1230,7 +1224,6 @@ def get_dependencies() -> str:
         List of dependencies found in the project
     """
     try:
-        record_tool_call("get_dependencies")
         project_root = get_project_root()
         
         results = []
