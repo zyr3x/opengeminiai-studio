@@ -100,6 +100,16 @@ bash git clone <your-repository-url> cd <repository-name>
     
     # Optional: Set a secret key for sessions (auto-generated if not set)
     # SECRET_KEY=your-random-secret-key-here
+    
+    # Context Management Settings (configurable via Web UI)
+    SELECTIVE_CONTEXT_ENABLED=true
+    CONTEXT_MIN_RELEVANCE_SCORE=0.3
+    CONTEXT_ALWAYS_KEEP_RECENT=15
+    
+    # Security Settings (configurable via Web UI)
+    # Comma-separated allowed root directories for builtin tools
+    # Leave empty to allow all paths
+    ALLOWED_CODE_PATHS=
     ```
 3.  Start the service using Docker Compose:
     ```bash
@@ -265,7 +275,7 @@ See **[PATH_SYNTAX_GUIDE.md](PATH_SYNTAX_GUIDE.md)** for complete documentation 
 The proxy includes a comprehensive web interface at `http://localhost:8080` for configuration and testing.
 
 -   **Chat:** An advanced interface to test models. Features include multi-chat management, persistent conversation history, file uploads, a dedicated image generation mode, system prompts, and manual tool selection.
--   **Configuration:** Set your Gemini API Key and Upstream URL. Changes are saved to the `.env` file.
+-   **Configuration:** Set your Gemini API Key and Upstream URL. Manage context settings including selective context filtering, relevance scoring thresholds, and recent message retention. Configure security restrictions for builtin tools. Configure debugging options. Changes are saved to the `.env` file.
 -   **Prompts:** Create, edit, and manage libraries of reusable system prompts and keyword-based prompt overrides.
 -   **MCP:** Configure MCP (Multi-Tool Communication Protocol) tools for function calling and test their responses.
 -   **Documentation:** View API endpoint details and setup instructions.
@@ -281,10 +291,36 @@ The proxy can be configured in three ways (in order of precedence):
 1.  **Web Interface:** Settings saved via the UI persist in `.env` and `var/config/mcp.json`.
 2.  **Environment Variables:** Set `API_KEY`, `UPSTREAM_URL`, and `ASYNC_MODE` when running the container.
 3.  **Configuration Files:**
-    -   `.env`: For `API_KEY`, `UPSTREAM_URL`, `ASYNC_MODE`, and `SECRET_KEY`.
+    -   `.env`: For `API_KEY`, `UPSTREAM_URL`, `ASYNC_MODE`, `SECRET_KEY`, and context management settings.
     -   `var/config/mcp.json`: For MCP tool definitions.
     -   `var/config/prompts.json`: For saved user prompts.
     -   `var/config/system_prompts.json`: For system prompt profiles.
+
+### Context Management Settings
+
+Control how the proxy handles conversation history and context selection:
+
+-   **`SELECTIVE_CONTEXT_ENABLED`** (default: `true`): When enabled, uses relevance scoring to select the most pertinent context from conversation history instead of sending all messages.
+-   **`CONTEXT_MIN_RELEVANCE_SCORE`** (default: `0.3`): Minimum relevance threshold (0.0-1.0) for including context. Higher values mean stricter filtering.
+-   **`CONTEXT_ALWAYS_KEEP_RECENT`** (default: `15`): Number of most recent messages to always include, regardless of relevance score.
+
+These settings can be easily adjusted through the **Configuration** page in the Web UI under the "Context Management" section.
+
+### Security Settings
+
+Control access restrictions for builtin development tools:
+
+-   **`ALLOWED_CODE_PATHS`** (default: empty/unrestricted): Comma-separated list of root directories that builtin tools can access. When set, tools like `list_files`, `get_file_content`, `create_file`, etc., will only work within these directories. Leave empty to allow access to all paths.
+    
+    **Example:** `ALLOWED_CODE_PATHS=/home/user/projects,/opt/workspace,/var/www`
+    
+    **Use cases:**
+    - Restrict AI access to specific project directories
+    - Prevent accidental access to system files
+    - Create sandboxed development environments
+    - Multi-user scenarios where isolation is needed
+
+This setting can be configured through the **Configuration** page in the Web UI under the "Security Settings" section.
 
 ### Async Mode Configuration
 

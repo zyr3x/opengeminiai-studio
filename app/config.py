@@ -23,6 +23,19 @@ class AppConfig:
         self.CONTEXT_ALWAYS_KEEP_RECENT = int(os.getenv("CONTEXT_ALWAYS_KEEP_RECENT", "5"))
         self.STREAMING_ENABLED = os.getenv("STREAMING_ENABLED", "true").lower() == "true"
         self.STREAMING_PROGRESS_ENABLED = os.getenv("STREAMING_PROGRESS_ENABLED", "true").lower() == "true"
+        
+        # Allowed root directories for builtin tools (comma-separated paths)
+        allowed_paths_str = os.getenv("ALLOWED_CODE_PATHS", "")
+        if allowed_paths_str:
+            # Parse and normalize paths
+            self.ALLOWED_CODE_PATHS = [
+                os.path.realpath(os.path.expanduser(p.strip())) 
+                for p in allowed_paths_str.split(',') 
+                if p.strip()
+            ]
+        else:
+            # If not set, allow all paths (no restrictions)
+            self.ALLOWED_CODE_PATHS = []
 
     def reload_api_key(self):
         """Reloads the API key from the key manager."""

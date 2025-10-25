@@ -118,3 +118,30 @@ async def set_context_settings():
     
     utils.log(f"Context settings updated: selective={selective_context_enabled}, min_score={context_min_relevance_score}, keep_recent={context_always_keep_recent}")
     return redirect(url_for('web_ui.index', _anchor='configuration'))
+
+@settings_bp.route('/set_security_settings', methods=['POST'])
+async def set_security_settings():
+    """Updates security settings and saves them to .env file."""
+    from dotenv import set_key
+    import os
+    form = await request.form
+    
+    # Get values from form
+    allowed_code_paths = form.get('allowed_code_paths', '').strip()
+    
+    # Update .env file
+    env_file = '.env'
+    set_key(env_file, 'ALLOWED_CODE_PATHS', allowed_code_paths)
+    
+    # Update config in memory
+    if allowed_code_paths:
+        config.ALLOWED_CODE_PATHS = [
+            os.path.realpath(os.path.expanduser(p.strip())) 
+            for p in allowed_code_paths.split(',') 
+            if p.strip()
+        ]
+    else:
+        config.ALLOWED_CODE_PATHS = []
+    
+    utils.log(f"Security settings updated: allowed_code_paths={config.ALLOWED_CODE_PATHS}")
+    return redirect(url_for('web_ui.index', _anchor='configuration'))

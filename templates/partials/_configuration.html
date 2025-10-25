@@ -105,6 +105,24 @@
 
     <div class="card mt-3">
         <div class="card-body">
+            <h5 class="card-title">🔒 Security Settings</h5>
+            <form action="/set_security_settings" method="POST">
+                <div class="mb-3">
+                    <label for="allowed_code_paths" class="form-label">Allowed Code Paths</label>
+                    <textarea class="form-control" id="allowed_code_paths" name="allowed_code_paths" rows="3" placeholder="/home/user/projects,/opt/workspace">{{ allowed_code_paths }}</textarea>
+                    <div class="form-text">
+                        Comma-separated list of root directories that builtin tools can access. 
+                        Leave empty to allow all paths. Example: <code>/home/user/projects,/opt/workspace</code>
+                        <br><strong>Note:</strong> Tools will only access files within these directories when specified.
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Security Settings</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
             <h5 class="card-title">🐞 Debugging</h5>
             <form action="/set_logging" method="POST">
                 <div class="form-check form-switch">

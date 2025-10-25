@@ -36,7 +36,7 @@
     <p>The proxy includes a comprehensive web interface at the root URL (<code>/</code>) for configuration and testing.</p>
     <ul>
         <li><strong>Chat:</strong> An advanced interface for testing models. Features include multi-chat management, conversation history, file uploads, a dedicated image generation mode, system prompts, and manual tool selection for function calls.</li>
-        <li><strong>Configuration:</strong> Set your Gemini API Key and Upstream URL. Changes are saved to the <code>.env</code> file.</li>
+        <li><strong>Configuration:</strong> Set your Gemini API Key and Upstream URL. Manage context settings (selective context, relevance scoring, recent message retention) and security restrictions (allowed code paths for builtin tools). Configure debugging options. Changes are saved to the <code>.env</code> file.</li>
         <li><strong>Prompts:</strong> Create, edit, and manage libraries of reusable prompt overrides and system prompts.</li>
         <li><strong>MCP:</strong> Configure MCP (Multi-Tool Communication Protocol) tools for function calling and test them.</li>
         <li><strong>Documentation:</strong> View API endpoint details and setup instructions.</li>
@@ -313,6 +313,90 @@ project_path=. ignore_type=cache</code></pre>
 "Please describe this image: image_path=/Users/me/Pictures/diagram.png"
 "Summarize this document: pdf_path=~/Documents/report.pdf"</code></pre>
 
+
+    <h2 class="mt-4">⚙️ Configuration</h2>
+    <p>The proxy can be configured through:</p>
+    <ul>
+        <li><strong>Web Interface:</strong> The Configuration tab provides an easy way to manage API keys, context settings, and debugging options.</li>
+        <li><strong>Environment Variables:</strong> Set <code>API_KEY</code>, <code>UPSTREAM_URL</code>, and other settings.</li>
+        <li><strong>Configuration Files:</strong> <code>.env</code> file for environment variables, <code>var/config/</code> for MCP and prompt configurations.</li>
+    </ul>
+
+    <h3 class="mt-3">🧠 Context Management Settings</h3>
+    <p>Control how conversation history is processed and sent to the model:</p>
+    
+    <div class="table-responsive">
+        <table class="table table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Setting</th>
+                    <th>Default</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>SELECTIVE_CONTEXT_ENABLED</code></td>
+                    <td><code>true</code></td>
+                    <td>When enabled, uses relevance scoring to intelligently select the most pertinent messages from conversation history instead of sending all messages. This helps optimize token usage and improve response quality.</td>
+                </tr>
+                <tr>
+                    <td><code>CONTEXT_MIN_RELEVANCE_SCORE</code></td>
+                    <td><code>0.3</code></td>
+                    <td>Minimum relevance threshold (0.0-1.0) for including a message in context. Higher values (e.g., 0.5-0.7) mean stricter filtering, only keeping highly relevant messages. Lower values (e.g., 0.1-0.3) are more permissive.</td>
+                </tr>
+                <tr>
+                    <td><code>CONTEXT_ALWAYS_KEEP_RECENT</code></td>
+                    <td><code>15</code></td>
+                    <td>Number of most recent messages to always include in context, regardless of their relevance score. This ensures continuity in the conversation even if recent messages don't score highly.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="alert alert-info">
+        <strong>💡 Tip:</strong> These settings can be easily adjusted through the <strong>Configuration</strong> page in the Web UI under the "Context Management" section. Changes are saved to the <code>.env</code> file and take effect immediately.
+    </div>
+
+    <h3 class="mt-3">🔒 Security Settings</h3>
+    <p>Control access restrictions for builtin development tools:</p>
+    
+    <div class="table-responsive">
+        <table class="table table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Setting</th>
+                    <th>Default</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>ALLOWED_CODE_PATHS</code></td>
+                    <td>Empty (unrestricted)</td>
+                    <td>
+                        Comma-separated list of root directories that builtin tools can access. When set, tools like <code>list_files</code>, <code>get_file_content</code>, <code>create_file</code>, <code>execute_command</code>, etc., will only work within these directories.
+                        <br><br>
+                        <strong>Example:</strong> <code>/home/user/projects,/opt/workspace,/var/www</code>
+                        <br><br>
+                        <strong>Use cases:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Restrict AI access to specific project directories</li>
+                            <li>Prevent accidental access to system files</li>
+                            <li>Create sandboxed development environments</li>
+                            <li>Multi-user scenarios where isolation is needed</li>
+                        </ul>
+                        <br>
+                        Leave empty to allow access to all paths (default behavior).
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="alert alert-warning">
+        <strong>⚠️ Important:</strong> This setting affects all 19 builtin development tools. When <code>project_path=</code> or <code>code_path=</code> is used, tools will only access files within the configured allowed directories. This provides an additional security layer beyond the standard project root restriction.
+    </div>
 
     <h2 class="mt-4">📡 Available Endpoints</h2>
     <ul>

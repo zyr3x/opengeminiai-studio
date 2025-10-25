@@ -98,6 +98,7 @@ async def index():
         selective_context_enabled=config.SELECTIVE_CONTEXT_ENABLED,
         context_min_relevance_score=config.CONTEXT_MIN_RELEVANCE_SCORE,
         context_always_keep_recent=config.CONTEXT_ALWAYS_KEEP_RECENT,
+        allowed_code_paths=','.join(config.ALLOWED_CODE_PATHS) if config.ALLOWED_CODE_PATHS else '',
         current_max_function_declarations=mcp_config_data.get("maxFunctionDeclarations", mcp_handler.max_function_declarations_limit),
         current_disable_all_mcp_tools=mcp_handler.disable_all_mcp_tools, # Pass current status of global disable
         current_year=datetime.now().year,

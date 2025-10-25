@@ -59,6 +59,8 @@ def get_code_ignore_patterns() -> list[str]:
 
 def _safe_path_resolve(path: str) -> str | None:
     """Resolves a path relative to the current request's project root and checks if it stays within bounds."""
+    from app.config import config
+    
     project_root = get_project_root()
     # We always join the relative path to the project_root first
     full_path = os.path.join(project_root, path)
@@ -68,6 +70,19 @@ def _safe_path_resolve(path: str) -> str | None:
     if not resolved_path.startswith(project_root):
         log(f"Security violation attempt: Path '{path}' resolves outside project root ({resolved_path} vs {project_root}).")
         return None
+    
+    # Additional check: if ALLOWED_CODE_PATHS is configured, ensure the path is within allowed directories
+    if config.ALLOWED_CODE_PATHS:
+        is_allowed = False
+        for allowed_path in config.ALLOWED_CODE_PATHS:
+            if resolved_path.startswith(allowed_path):
+                is_allowed = True
+                break
+        
+        if not is_allowed:
+            log(f"Access denied: Path '{path}' ({resolved_path}) is not within allowed directories: {config.ALLOWED_CODE_PATHS}")
+            return None
+    
     return resolved_path
 
 def _generate_tree_local(file_paths, root_name):
