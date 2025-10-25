@@ -24,10 +24,15 @@ from .optimization import (
 # Thread-local storage for async context
 _async_context = threading.local()
 
-async def execute_mcp_tool_async(function_name: str, tool_args: dict) -> str:
+async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_root_override: str | None = None) -> str:
     """
     Async version: Executes an MCP tool (built-in or external) and returns the result.
     Uses caching for read-only operations.
+
+    Args:
+        function_name: The name of the function to call.
+        tool_args: Dictionary of arguments for the tool function.
+        project_root_override: Optional path to set as the project root for built-in tools.
     """
     log(f"🔧 Executing tool (async): {function_name} with args: {tool_args}")
     
@@ -48,11 +53,12 @@ async def execute_mcp_tool_async(function_name: str, tool_args: dict) -> str:
                 None,
                 sync_execute_mcp_tool,
                 function_name,
-                tool_args
+                tool_args,
+                project_root_override # Pass the override to the sync function
             )
         else:
             # External MCP tool - run process async
-            output = await sync_execute_mcp_tool(function_name, tool_args)
+            output = await sync_execute_mcp_tool(function_name, tool_args, project_root_override)
         
         # Cache the result if applicable
         if should_cache_tool(function_name):
@@ -148,25 +154,27 @@ async def execute_external_mcp_tool_async(function_name: str, tool_args: dict) -
         return json.dumps({"error": f"Failed to execute tool: {str(e)}"})
 
 async def execute_multiple_tools_async(
-    tool_calls: List[Dict[str, Any]]
+    tool_calls: List[Dict[str, Any]],
+    project_root_override: str | None = None
 ) -> List[Dict[str, Any]]:
     """
     Executes multiple tool calls in parallel when possible.
-    
+
     Args:
         tool_calls: List of dicts with 'name' and 'args' keys
-    
+        project_root_override: Optional path to set as the project root for built-in tools.
+
     Returns:
         List of function response parts
     """
     from .optimization import can_execute_parallel
-    
+
     if can_execute_parallel(tool_calls):
         log(f"✓ Executing {len(tool_calls)} tools in parallel")
-        
+
         # Execute all tools concurrently
         tasks = [
-            execute_mcp_tool_async(tc['name'], tc['args'])
+            execute_mcp_tool_async(tc['name'], tc['args'], project_root_override)
             for tc in tool_calls
         ]
         
@@ -207,7 +215,7 @@ async def execute_multiple_tools_async(
             function_name = tool_call['name']
             tool_args = tool_call['args']
             
-            output = await execute_mcp_tool_async(function_name, tool_args)
+            output = await execute_mcp_tool_async(function_name, tool_args, project_root_override)
             
             response_payload = {}
             if output:

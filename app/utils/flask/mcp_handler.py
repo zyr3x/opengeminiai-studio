@@ -2174,12 +2174,17 @@ def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
 
     return result
 
-def execute_mcp_tool(function_name, tool_args):
+def execute_mcp_tool(function_name, tool_args, project_root_override: str | None = None):
     """
     Executes an MCP tool function using MCP protocol and returns its output.
     This function maintains a pool of long-running tool processes and reuses them for subsequent calls.
     If a process for a tool is not running, it will be started and initialized.
     Includes caching and optimization for performance.
+
+    Args:
+        function_name: The name of the function to call.
+        tool_args: Dictionary of arguments for the tool function.
+        project_root_override: Optional path to set as the project root for built-in tools.
     """
     global mcp_tool_processes, mcp_request_id_counter
 
@@ -2214,104 +2219,107 @@ def execute_mcp_tool(function_name, tool_args):
         normalized_args = _normalize_mcp_args(tool_args)
         log(f"Normalized args for {function_name}: {normalized_args}")
 
-        # Prepare args for the specific built-in function call
-        func_args = {}
-        try:
-            if function_name == 'list_files':
-                path = normalized_args.get('path')
-                func_args['path'] = path if path is not None else '.'
+        # Use set_project_root to ensure the context is set correctly in the current thread (the executor thread)
+        with set_project_root(project_root_override):
+
+            # Prepare args for the specific built-in function call
+            func_args = {}
+            try:
+                if function_name == 'list_files':
+                    path = normalized_args.get('path')
+                    func_args['path'] = path if path is not None else '.'
 
                 if 'max_depth' in normalized_args:
                     max_depth_val = normalized_args.get('max_depth')
                     if max_depth_val is not None:
                         func_args['max_depth'] = int(max_depth_val)
 
-            elif function_name == 'get_file_content':
-                path = normalized_args.get('path')
-                if not path:
-                    raise TypeError("Path argument is required and cannot be null or empty.")
-                func_args['path'] = path
+                elif function_name == 'get_file_content':
+                    path = normalized_args.get('path')
+                    if not path:
+                        raise TypeError("Path argument is required and cannot be null or empty.")
+                    func_args['path'] = path
 
-            elif function_name == 'get_code_snippet':
-                path = normalized_args.get('path')
-                symbol_name = normalized_args.get('symbol_name')
-                if not path:
-                    raise TypeError("Path argument is required and cannot be null or empty.")
-                if not symbol_name:
-                    raise TypeError("Symbol name argument is required and cannot be null or empty.")
-                func_args['path'] = path
-                func_args['symbol_name'] = symbol_name
+                elif function_name == 'get_code_snippet':
+                    path = normalized_args.get('path')
+                    symbol_name = normalized_args.get('symbol_name')
+                    if not path:
+                        raise TypeError("Path argument is required and cannot be null or empty.")
+                    if not symbol_name:
+                        raise TypeError("Symbol name argument is required and cannot be null or empty.")
+                    func_args['path'] = path
+                    func_args['symbol_name'] = symbol_name
 
-            elif function_name == 'search_codebase':
-                query = normalized_args.get('query')
-                if not query:
-                    raise TypeError("Query argument is required and cannot be null or empty.")
-                func_args['query'] = query
+                elif function_name == 'search_codebase':
+                    query = normalized_args.get('query')
+                    if not query:
+                        raise TypeError("Query argument is required and cannot be null or empty.")
+                    func_args['query'] = query
 
-            elif function_name == 'apply_patch':
-                patch_content = normalized_args.get('patch_content')
-                if not patch_content:
-                    raise TypeError("Patch content argument is required and cannot be null or empty.")
-                func_args['patch_content'] = patch_content
-            
-            # Git operations
-            elif function_name == 'git_status':
-                # No arguments needed
-                pass
-            
-            elif function_name == 'git_log':
-                if 'max_count' in normalized_args:
-                    func_args['max_count'] = normalized_args.get('max_count')
-                if 'path' in normalized_args:
-                    func_args['path'] = normalized_args.get('path')
-            
-            elif function_name == 'git_diff':
-                if 'staged' in normalized_args:
-                    func_args['staged'] = bool(normalized_args.get('staged'))
-                if 'path' in normalized_args:
-                    func_args['path'] = normalized_args.get('path')
-            
-            elif function_name == 'git_show':
-                if 'commit' in normalized_args:
-                    func_args['commit'] = normalized_args.get('commit')
-                if 'path' in normalized_args:
-                    func_args['path'] = normalized_args.get('path')
-            
-            elif function_name == 'git_blame':
-                path = normalized_args.get('path')
-                if not path:
-                    raise TypeError("Path argument is required.")
-                func_args['path'] = path
-                if 'start_line' in normalized_args:
-                    func_args['start_line'] = normalized_args.get('start_line')
-                if 'end_line' in normalized_args:
-                    func_args['end_line'] = normalized_args.get('end_line')
-            
-            elif function_name == 'list_recent_changes':
-                if 'days' in normalized_args:
-                    func_args['days'] = normalized_args.get('days')
-                if 'max_files' in normalized_args:
-                    func_args['max_files'] = normalized_args.get('max_files')
-            
-            # File analysis
-            elif function_name == 'analyze_file_structure':
-                path = normalized_args.get('path')
-                if not path:
-                    raise TypeError("Path argument is required.")
-                func_args['path'] = path
-            
-            elif function_name == 'get_file_stats':
-                path = normalized_args.get('path')
-                if not path:
-                    raise TypeError("Path argument is required.")
-                func_args['path'] = path
+                elif function_name == 'apply_patch':
+                    patch_content = normalized_args.get('patch_content')
+                    if not patch_content:
+                        raise TypeError("Patch content argument is required and cannot be null or empty.")
+                    func_args['patch_content'] = patch_content
 
-        except KeyError as e:
-            log(f"Error: Missing required argument '{e.args[0]}' for function '{function_name}'. Normalized args: {normalized_args}")
-            return f"Error: Missing required argument '{e.args[0]}' for function '{function_name}'."
-        except (ValueError, TypeError) as e:
-            log(f"Error: Invalid argument type or null value provided for function '{function_name}'. Details: {e}. Normalized args: {normalized_args}")
-            return f"Error: Invalid argument type provided for function '{function_name}': {e}"
+                # Git operations
+                elif function_name == 'git_status':
+                    # No arguments needed
+                    pass
+
+                elif function_name == 'git_log':
+                    if 'max_count' in normalized_args:
+                        func_args['max_count'] = normalized_args.get('max_count')
+                    if 'path' in normalized_args:
+                        func_args['path'] = normalized_args.get('path')
+
+                elif function_name == 'git_diff':
+                    if 'staged' in normalized_args:
+                        func_args['staged'] = bool(normalized_args.get('staged'))
+                    if 'path' in normalized_args:
+                        func_args['path'] = normalized_args.get('path')
+
+                elif function_name == 'git_show':
+                    if 'commit' in normalized_args:
+                        func_args['commit'] = normalized_args.get('commit')
+                    if 'path' in normalized_args:
+                        func_args['path'] = normalized_args.get('path')
+
+                elif function_name == 'git_blame':
+                    path = normalized_args.get('path')
+                    if not path:
+                        raise TypeError("Path argument is required.")
+                    func_args['path'] = path
+                    if 'start_line' in normalized_args:
+                        func_args['start_line'] = normalized_args.get('start_line')
+                    if 'end_line' in normalized_args:
+                        func_args['end_line'] = normalized_args.get('end_line')
+
+                elif function_name == 'list_recent_changes':
+                    if 'days' in normalized_args:
+                        func_args['days'] = normalized_args.get('days')
+                    if 'max_files' in normalized_args:
+                        func_args['max_files'] = normalized_args.get('max_files')
+
+                # File analysis
+                elif function_name == 'analyze_file_structure':
+                    path = normalized_args.get('path')
+                    if not path:
+                        raise TypeError("Path argument is required.")
+                    func_args['path'] = path
+
+                elif function_name == 'get_file_stats':
+                    path = normalized_args.get('path')
+                    if not path:
+                        raise TypeError("Path argument is required.")
+                    func_args['path'] = path
+
+            except KeyError as e:
+                log(f"Error: Missing required argument '{e.args[0]}' for function '{function_name}'. Normalized args: {normalized_args}")
+                return f"Error: Missing required argument '{e.args[0]}' for function '{function_name}'."
+            except (ValueError, TypeError) as e:
+                log(f"Error: Invalid argument type or null value provided for function '{function_name}'. Details: {e}. Normalized args: {normalized_args}")
+                return f"Error: Invalid argument type provided for function '{function_name}': {e}"
 
         try:
             result = builtin_func(**func_args)

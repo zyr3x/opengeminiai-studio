@@ -6,7 +6,6 @@ import mimetypes
 import os
 import re
 from app.utils.core import tools as utils
-from app.utils.flask.mcp_handler import list_files, set_project_root
 
 # --- Constants ---
 MAX_MULTIMODAL_FILE_SIZE_MB = 12
@@ -84,25 +83,26 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
             # project_path: Activate tools and provide project structure for agent
             project_path_found = expanded_path
 
-            # Proactively get the file tree for the requested path using the new context
-            with set_project_root(project_path_found):
-                project_tree = list_files(path=".", max_depth=3)
-
             # Insert detailed context message for the model
             context_text = (
-                f"🚀 **PROJECT MODE ACTIVATED** for path: '{file_path_str}'\n\n"
-                f"All built-in development tools are now available with this project as the working directory.\n\n"
-                f"📁 **Project Structure** (depth=3):\n"
-                f"```\n{project_tree}\n```\n\n"
+                f"🚀 **PROJECT MODE ACTIVATED** for project root: '{file_path_str}'\n\n"
+                f"The current project context has been set to this directory for all built-in tools.\n"
+                f"**Action Required:** You must first call the `list_files(path='.', max_depth=3)` tool "
+                f"to see the project structure before proceeding with any other file operations. "
+                f"Use `list_files` with specific paths and larger `max_depth` for deeper exploration.\n\n"
                 f"**Available Tools:**\n"
                 f"• Navigation: list_files, get_file_content, get_code_snippet, search_codebase\n"
                 f"• Analysis: analyze_file_structure, analyze_project_structure, get_file_stats, find_symbol, get_dependencies\n"
                 f"• Modification: apply_patch, create_file, write_file\n"
                 f"• Execution: execute_command (run tests, builds, awk/sed, etc.)\n"
                 f"• Git: git_status, git_log, git_diff, git_show, git_blame, list_recent_changes\n\n"
-                f"**Usage:** Use these tools to analyze, modify, or work with the project. "
-                f"For deeper directory exploration, use `list_files` with specific paths and larger `max_depth`."
             )
+
+            # Check if path is valid for proactive feedback
+            if not os.path.isdir(expanded_path):
+                project_path_found = None # Do not set context if path is invalid
+                context_text = f"[Error: Project path '{file_path_str}' not found or is not a directory. All tools remain enabled but the project context is the current working directory.]"
+
             new_content_parts.append({"type": "text", "text": context_text})
 
             last_end = command_end

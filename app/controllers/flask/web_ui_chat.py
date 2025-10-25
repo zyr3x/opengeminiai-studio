@@ -274,20 +274,26 @@ def chat_api():
         # --- End Prompt Engineering ---
 
         user_parts = []
-        code_tools_requested = False
+        code_project_root = None # Path for project context if 'project_path=' was used
+        code_tools_requested = False # Flag to force built-in tool enablement
 
         if user_message:
             # Process message for local file paths (e.g., code_path=, image_path=)
             processed_result = user_message
             if not disable_mcp_tools_override:
                 processed_result = file_processing_utils.process_message_for_paths(user_message)
+
             if isinstance(processed_result, str):
                 # No paths were found, treat as a simple text message
                 if processed_result:
                     user_parts.append({"text": processed_result})
             elif isinstance(processed_result, tuple):
-                # Paths were found and processed into parts. (list[parts], bool code_tools_requested)
-                processed_content, code_tools_requested = processed_result
+                # Paths were found and processed into parts. (list[parts], project_root_path_or_None)
+                processed_content, project_path_found = processed_result
+
+                if project_path_found:
+                    code_project_root = project_path_found
+                    code_tools_requested = True
 
                 chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
                 os.makedirs(chat_upload_folder, exist_ok=True)
@@ -656,7 +662,8 @@ def chat_api():
                 for tool_call in tool_calls:
                     function_name = tool_call.get("name")
                     utils.debug(f"Executing tool '{function_name}' with args: {utils.pretty_json(tool_call.get('args'))}")
-                    output = mcp_handler.execute_mcp_tool(function_name, tool_call.get("args"))
+                    # Pass the project root for built-in tools executed in this sync thread.
+                    output = mcp_handler.execute_mcp_tool(function_name, tool_call.get("args"), code_project_root)
                     utils.log(f"Tool '{function_name}' execution completed. Output length: {len(str(output))}")
 
                     response_payload = {}

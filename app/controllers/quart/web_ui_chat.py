@@ -276,7 +276,8 @@ async def chat_api():
         # --- End Prompt Engineering ---
 
         user_parts = []
-        code_tools_requested = False
+        code_project_root = None # Path for project context if 'project_path=' was used
+        code_tools_requested = False # Flag to force built-in tool enablement
 
         if user_message:
             # Process message for local file paths (e.g., code_path=, image_path=)
@@ -289,8 +290,12 @@ async def chat_api():
                 if processed_result:
                     user_parts.append({"text": processed_result})
             elif isinstance(processed_result, tuple):
-                # Paths were found and processed into parts. (list[parts], bool code_tools_requested)
-                processed_content, code_tools_requested = processed_result
+                # Paths were found and processed into parts. (list[parts], project_root_path_or_None)
+                processed_content, project_path_found = processed_result
+
+                if project_path_found:
+                    code_project_root = project_path_found
+                    code_tools_requested = True
 
                 chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
                 os.makedirs(chat_upload_folder, exist_ok=True)
@@ -660,7 +665,11 @@ async def chat_api():
                     {'name': tc.get('name'), 'args': tc.get('args')}
                     for tc in tool_calls
                 ]
-                tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(tool_calls_list)
+                # Pass the project root override to ensure correct context for built-in tools in the executor thread.
+                tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
+                    tool_calls_list,
+                    project_root_override=code_project_root
+                )
 
 
                 if tool_response_parts:

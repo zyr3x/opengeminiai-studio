@@ -457,16 +457,12 @@ async def async_chat_completions():
                     for tc in tool_calls
                 ]
 
-                # Set project root context if needed
-                if code_project_root:
-                    with mcp_handler.set_project_root(code_project_root):
-                        tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
-                            tool_calls_list
-                        )
-                else:
-                    tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
-                        tool_calls_list
-                    )
+                # Pass project root to the async handler, which will ensure it is set correctly
+                # within the executor thread before running built-in tools.
+                tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
+                    tool_calls_list,
+                    project_root_override=code_project_root
+                )
 
                 current_contents.append({
                     "role": "tool",

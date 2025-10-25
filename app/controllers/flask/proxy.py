@@ -436,13 +436,9 @@ def chat_completions():
                             'name': tool_call.get("name"),
                             'args': tool_call.get("args")
                         })
-                    
-                    # Выполняем параллельно с учетом project root
-                    if code_project_root:
-                        with mcp_handler.set_project_root(code_project_root):
-                            results = optimization.execute_tools_parallel(parallel_calls)
-                    else:
-                        results = optimization.execute_tools_parallel(parallel_calls)
+
+                    # Pass project root to the async handler, which will ensure it is set correctly
+                    results = optimization.execute_tools_parallel(parallel_calls, code_project_root)
                     
                     # Обрабатываем результаты
                     for tool_call_data, output in results:
@@ -478,12 +474,9 @@ def chat_completions():
                         utils.log(feedback_message)
                         # --- End User Feedback ---
 
-                        # Set project root context for built-in tools if code_path was used
-                        if code_project_root:
-                            with mcp_handler.set_project_root(code_project_root):
-                                output = mcp_handler.execute_mcp_tool(function_name, tool_args)
-                        else:
-                            output = mcp_handler.execute_mcp_tool(function_name, tool_args)
+                        # The project root context is now managed inside execute_mcp_tool,
+                        # but we still need to pass the explicit override path if one was detected.
+                        output = mcp_handler.execute_mcp_tool(function_name, tool_args, code_project_root)
 
                         response_payload = {}
                         if output is not None:
