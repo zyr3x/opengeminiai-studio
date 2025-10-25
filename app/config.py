@@ -3,6 +3,7 @@ Global configuration for Gemini-Proxy.
 """
 import os
 from dotenv import load_dotenv, set_key
+from .api_key_manager import api_key_manager
 
 # Load environment variables from .env file at startup
 load_dotenv()
@@ -10,7 +11,7 @@ load_dotenv()
 class AppConfig:
     """A class to hold application configuration."""
     def __init__(self):
-        self.API_KEY = os.getenv("API_KEY")
+        self.API_KEY = api_key_manager.get_active_key_value() or os.getenv("API_KEY", "")
         self.UPSTREAM_URL = os.getenv("UPSTREAM_URL")
         self.SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
         self.SERVER_PORT = int(os.getenv("SERVER_PORT", 8080))
@@ -22,6 +23,10 @@ class AppConfig:
         self.CONTEXT_ALWAYS_KEEP_RECENT = int(os.getenv("CONTEXT_ALWAYS_KEEP_RECENT", "5"))
         self.STREAMING_ENABLED = os.getenv("STREAMING_ENABLED", "true").lower() == "true"
         self.STREAMING_PROGRESS_ENABLED = os.getenv("STREAMING_PROGRESS_ENABLED", "true").lower() == "true"
+
+    def reload_api_key(self):
+        """Reloads the API key from the key manager."""
+        self.API_KEY = api_key_manager.get_active_key_value() or os.getenv("API_KEY", "")
 
     def set_api_key(self, new_key: str):
         """Updates the API key in memory and in the .env file."""

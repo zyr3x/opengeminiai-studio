@@ -1,32 +1,95 @@
 <!-- Configuration Section -->
 <div id="configuration" class="content-section">
     <h1 class="mt-4">⚙️ Configuration</h1>
-    <p>You can set your Gemini API Key using the form below. The key is stored in memory and will be reset when the server restarts. You can also set it permanently using the <code>API_KEY</code> environment variable.</p>
-    <form action="/set_api_key" method="POST">
-        <div class="mb-3">
-            <label for="api_key" class="form-label"><b>🔑 Gemini API Key:</b></label>
-            <input type="text" class="form-control" id="api_key" name="api_key" placeholder="Enter your Gemini API key" value="{{ API_KEY or '' }}">
-        </div>
-        <button type="submit" class="btn btn-primary"><span class="material-icons">save</span> Save Key</button>
-    </form>
-    <p class="mt-3"><b>Current Status:</b> The API Key is currently <strong class="text-{{ 'success' if API_KEY else 'danger' }}">{{ api_key_status }}</strong>.</p>
 
-    <hr class="my-4">
-    <h3 class="mt-4">🐞 Debugging</h3>
-    <form action="/set_logging" method="POST">
-        <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" role="switch" id="verbose_logging" name="verbose_logging"
-                   {% if verbose_logging_status %}checked{% endif %} onchange="this.form.submit()">
-            <label class="form-check-label" for="verbose_logging">Enable Verbose Console Logging</label>
+    <!-- API Key Management Card -->
+    <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">API Key Management</h5>
+                <p class="card-text">Manage multiple Gemini API keys. Select an active key for use in requests.</p>
+
+                <!-- Active Key Selection -->
+                <div class="mb-3">
+                    <label for="active-key-select" class="form-label">Active API Key</label>
+                    <div class="input-group">
+                        <select class="form-select" id="active-key-select">
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                        <button class="btn btn-secondary" type="button" id="set-active-key-btn">Set Active</button>
+                    </div>
+                </div>
+
+                <!-- Add/Update Key Form -->
+                <div class="accordion" id="add-key-accordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingOne">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                                Add or Update a Key
+                            </button>
+                        </h2>
+                        <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#add-key-accordion">
+                            <div class="accordion-body">
+                                <form id="key-manager-form">
+                                    <div class="mb-3">
+                                        <label for="key-id-input" class="form-label">Key ID (a unique name)</label>
+                                        <input type="text" class="form-control" id="key-id-input" placeholder="e.g., personal-key" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="key-value-input" class="form-label">API Key Value</label>
+                                        <input type="password" class="form-control" id="key-value-input" placeholder="Enter the secret key" required>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="set-as-active-checkbox">
+                                        <label class="form-check-label" for="set-as-active-checkbox">
+                                            Set as active key upon saving
+                                        </label>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Save Key</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stored Keys List -->
+                <h6 class="mt-4">Stored Keys</h6>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th scope="col">ID</th>
+                            <th scope="col">Value (Masked)</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="api-key-list-body">
+                        <!-- Rows will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5 class="card-title">🐞 Debugging</h5>
+            <form action="/set_logging" method="POST">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="verbose_logging" name="verbose_logging"
+                           {% if verbose_logging_status %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="form-check-label" for="verbose_logging">Enable Verbose Console Logging</label>
+                </div>
+                <div class="form-text">Toggles detailed logging of events in the server console.</div>
+                <div class="form-check form-switch mt-3">
+                    <input class="form-check-input" type="checkbox" id="debugClientLoggingSwitch" name="debug_client_logging"
+                           {% if debug_client_logging_status %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="form-check-label" for="debugClientLoggingSwitch">
+                        Enable Debug Client Logging
+                    </label>
+                </div>
+                <div class="form-text">Toggles detailed logging of requests, responses in the server console.</div>
+            </form>
         </div>
-        <div class="form-text">Toggles detailed logging of events in the server console.</div>
-        <div class="form-check form-switch mt-3">
-            <input class="form-check-input" type="checkbox" id="debugClientLoggingSwitch" name="debug_client_logging"
-                   {% if debug_client_logging_status %}checked{% endif %} onchange="this.form.submit()">
-            <label class="form-check-label" for="debugClientLoggingSwitch">
-                Enable Debug Client Logging
-            </label>
-        </div>
-        <div class="form-text">Toggles detailed logging of requests, responses in the server console.</div>
-    </form>
+    </div>
+
+
 </div>
