@@ -17,6 +17,7 @@ from app import utils
 from app import tool_config_utils
 from app import file_processing_utils
 from app.db import get_db_connection, UPLOAD_FOLDER
+from app.optimization import record_token_usage # Import token usage tracking
 
 
 web_ui_chat_bp = Blueprint('web_ui_chat', __name__)
@@ -413,6 +414,7 @@ def chat_api():
         def generate():
             headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
             current_contents = gemini_contents.copy()
+            final_tool_call_response = {} # Initialize for token usage tracking
 
             while True:
                 token_limit = utils.get_model_input_limit(model, config.API_KEY, config.UPSTREAM_URL)
@@ -507,6 +509,8 @@ def chat_api():
 
                         utils.debug(f"Incoming Gemini Non-Streaming Response: {utils.pretty_json(response_data)}")
 
+                        final_tool_call_response = response_data
+
                         if not response_data.get('candidates'):
                             err_msg = "The model did not return a response. This could be due to a safety filter."
                             model_response_parts = [{'text': err_msg}]
@@ -579,7 +583,11 @@ def chat_api():
                                     return
 
                                 parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-                                if not parts and 'usageMetadata' in json_data: continue
+
+                                if 'usageMetadata' in json_data:
+                                    final_tool_call_response = json_data
+                                    if not parts: continue # Skip chunk if it contains only metadata
+
                                 model_response_parts.extend(parts)
                                 for part in parts:
                                     if 'text' in part: yield part['text']
@@ -604,6 +612,14 @@ def chat_api():
                     # Yield a special event with the message ID so the frontend can add a delete button
                     yield f'__LLM_EVENT__{json.dumps({"type": "message_id", "id": bot_message_id})}'
 
+                # Record token usage after a response turn is complete
+                if not tool_calls:
+                    # The last chunk usually contains usage metadata in Gemini API responses
+                    api_key_header = headers.get('X-goog-api-key') or config.API_KEY
+                    usage_metadata = final_tool_call_response.get('usageMetadata', {})
+                    input_tokens = usage_metadata.get('promptTokenCount', 0)
+                    output_tokens = usage_metadata.get('candidatesTokenCount', 0)
+                    record_token_usage(api_key_header, model, input_tokens, output_tokens)
 
                 if not tool_calls: break
 

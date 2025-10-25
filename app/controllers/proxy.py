@@ -194,6 +194,7 @@ def chat_completions():
         # Use a generator function to handle the streaming response and tool calls
         def generate():
             current_contents = gemini_contents.copy()
+            final_usage_metadata = {}
 
             while True:  # Loop to handle sequential tool calls
                 # Truncate messages before each call to ensure they fit within the token limit
@@ -359,6 +360,10 @@ def chat_completions():
                                 yield "data: [DONE]\n\n"
                                 return
 
+                            # Check for and record usage metadata (usually in the final chunk)
+                            if 'usageMetadata' in json_data:
+                                final_usage_metadata.update(json_data['usageMetadata'])
+
                             parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
 
                             if not parts and 'usageMetadata' in json_data:
@@ -503,11 +508,11 @@ def chat_completions():
                 })
 
             # --- Record Token Usage (Streaming) ---
-            api_key_header = config.API_KEY
+            api_key_header = headers.get('X-goog-api-key') or config.API_KEY
             model_name = COMPLETION_MODEL # Model is set globally in this context
 
             # The last chunk usually contains usage metadata in Gemini API responses
-            usage_metadata = {} #final_tool_call_response.get('usageMetadata', {})
+            usage_metadata = final_usage_metadata
             input_tokens = usage_metadata.get('promptTokenCount', 0)
             output_tokens = usage_metadata.get('candidatesTokenCount', 0)
 

@@ -15,21 +15,18 @@ def init_db():
     os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-    if os.path.exists(DATABASE_FILE) and os.path.getsize(DATABASE_FILE) > 0:
-        return
-
-    print("Initializing database...")
+    print("Checking/Initializing database tables...")
     conn = get_db_connection()
     conn.execute('PRAGMA foreign_keys = ON;')
     conn.execute('''
-        CREATE TABLE chats (
+        CREATE TABLE IF NOT EXISTS chats (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
     ''')
     conn.execute('''
-        CREATE TABLE messages (
+        CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chat_id INTEGER NOT NULL,
             role TEXT NOT NULL, -- user, model, or tool
@@ -37,8 +34,18 @@ def init_db():
             FOREIGN KEY (chat_id) REFERENCES chats (id) ON DELETE CASCADE
         );
     ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS token_usage (
+            date TEXT NOT NULL,
+            key_hash TEXT NOT NULL,
+            model_name TEXT NOT NULL,
+            input_tokens INTEGER NOT NULL DEFAULT 0,
+            output_tokens INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (date, key_hash, model_name)
+        );
+    ''')
     conn.commit()
     conn.close()
-    print("Database initialized.")
+    print("Database check/initialization complete.")
 
 init_db()

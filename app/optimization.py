@@ -9,6 +9,8 @@ import time
 import re
 import threading
 from typing import Optional, Tuple, List, Dict
+from datetime import date
+from app.db import get_db_connection
 from functools import lru_cache, wraps
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -289,51 +291,109 @@ def smart_truncate_contents(contents: list, limit: int, keep_recent: int = 5) ->
 
 # --- Stats and Metrics ---
 
-# Global tracking for token usage per key
-_key_token_stats = {}
+# Lock for thread-safe DB operations on token stats
 _token_stats_lock = threading.Lock()
 
 
 def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_tokens: int):
-    """Records token usage for a specific API key and model."""
+    """Records token usage for a specific API key and model, persisting to DB."""
     if not api_key or not model_name:
         return
 
-    # Use a truncated key/hash for display/keying
-    key_display = hashlib.sha256(api_key.encode()).hexdigest()[:8]
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:8]
+    today = date.today().strftime('%Y-%m-%d')
+    conn = None
 
     with _token_stats_lock:
-        if key_display not in _key_token_stats:
-            _key_token_stats[key_display] = {
-                'key_id': key_display,
-                'models': {},
-                'total_input': 0,
-                'total_output': 0,
-                'total_tokens': 0,
-            }
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
 
-        key_stats = _key_token_stats[key_display]
+            # 1. Attempt UPDATE (if row exists)
+            cursor.execute("""
+                UPDATE token_usage
+                SET input_tokens = input_tokens + ?,
+                    output_tokens = output_tokens + ?
+                WHERE date = ? AND key_hash = ? AND model_name = ?
+            """, (input_tokens, output_tokens, today, key_hash, model_name))
 
-        if model_name not in key_stats['models']:
-            key_stats['models'][model_name] = {'input': 0, 'output': 0}
+            # 2. If no row was updated, INSERT (first usage of the day)
+            if cursor.rowcount == 0:
+                cursor.execute("""
+                    INSERT INTO token_usage (date, key_hash, model_name, input_tokens, output_tokens)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (today, key_hash, model_name, input_tokens, output_tokens))
 
-        key_stats['models'][model_name]['input'] += input_tokens
-        key_stats['models'][model_name]['output'] += output_tokens
-        key_stats['total_input'] += input_tokens
-        key_stats['total_output'] += output_tokens
-        key_stats['total_tokens'] += input_tokens + output_tokens
+            conn.commit()
+        except Exception as e:
+            # In a real app, use a logger here
+            print(f"Error recording token usage to DB: {e}")
+        finally:
+            if conn:
+                conn.close()
+
 
 def get_key_token_stats() -> List[Dict]:
-    """Returns token usage statistics structured by API key."""
+    """Returns token usage statistics structured by API key, aggregated from DB."""
+    stats = {}
+    conn = None
     with _token_stats_lock:
-        # Create a deep copy to prevent external modification
-        return json.loads(json.dumps(list(_key_token_stats.values())))
+        try:
+            conn = get_db_connection()
+            # Aggregate total usage across all models and days for each key
+            results = conn.execute("""
+                SELECT
+                    key_hash,
+                    model_name,
+                    SUM(input_tokens) AS input_tokens,
+                    SUM(output_tokens) AS output_tokens
+                FROM token_usage
+                GROUP BY key_hash, model_name
+            """).fetchall()
+
+            for row in results:
+                key_hash = row['key_hash']
+                model_name = row['model_name']
+                input_t = row['input_tokens']
+                output_t = row['output_tokens']
+
+                if key_hash not in stats:
+                    stats[key_hash] = {
+                        'key_id': key_hash,
+                        'models': {},
+                        'total_input': 0,
+                        'total_output': 0,
+                        'total_tokens': 0,
+                    }
+
+                key_stats = stats[key_hash]
+                key_stats['models'][model_name] = {'input': input_t, 'output': output_t}
+                key_stats['total_input'] += input_t
+                key_stats['total_output'] += output_t
+                key_stats['total_tokens'] += input_t + output_t
+
+        except Exception as e:
+            # In a real app, use a logger here
+            print(f"Error retrieving token usage from DB: {e}")
+        finally:
+            if conn:
+                conn.close()
+
+    return list(stats.values())
 
 def reset_token_stats():
-    """Resets the token usage statistics."""
-    global _key_token_stats
+    """Resets the token usage statistics by clearing the database table."""
+    conn = None
     with _token_stats_lock:
-        _key_token_stats = {}
+        try:
+            conn = get_db_connection()
+            conn.execute("DELETE FROM token_usage")
+            conn.commit()
+        except Exception as e:
+            print(f"Error resetting token usage in DB: {e}")
+        finally:
+            if conn:
+                conn.close()
 
 
 _metrics = {
