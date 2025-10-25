@@ -24,7 +24,7 @@ def get_metrics():
 
     # Add information about PHASE 3
     try:
-        from app.utils.core.tools import context_selector
+        from app.utils.core import context_selector
         from app.config import config as app_config
 
         phase3_metrics = {
