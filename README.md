@@ -360,10 +360,6 @@ See [ASYNC_README.md](ASYNC_README.md) for detailed async configuration options.
 ## 📚 Documentation
 
 - **[PATH_SYNTAX_GUIDE.md](PATH_SYNTAX_GUIDE.md)** - 🆕 Guide to `code_path=` vs `project_path=` modes
-- **[BUILTIN_TOOLS_ENHANCED.md](BUILTIN_TOOLS_ENHANCED.md)** - 🆕 Complete reference for 19 built-in development tools
-- **[ASYNC_README.md](ASYNC_README.md)** - Complete async mode guide
-- **[ULTIMATE_MIGRATION_SUMMARY.md](ULTIMATE_MIGRATION_SUMMARY.md)** - Async implementation details
-- **[GIT_COMMIT_GUIDE.md](GIT_COMMIT_GUIDE.md)** - Git commit instructions
 - Web UI at `http://localhost:8080` - Interactive documentation
 
 ## 🔗 Available Endpoints
