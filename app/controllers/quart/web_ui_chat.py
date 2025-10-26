@@ -422,7 +422,15 @@ async def chat_api():
         for m in db_messages:
             role = m['role']
             reconstructed_parts = tools.prepare_message_parts_for_gemini(m['parts'])
-            gemini_contents.append({'role': role, 'parts': reconstructed_parts})
+
+            # Consolidate consecutive messages of the same role to ensure strict alternation for Gemini API
+            if gemini_contents and gemini_contents[-1]['role'] == role:
+                gemini_contents[-1]['parts'].extend(reconstructed_parts)
+            else:
+                gemini_contents.append({'role': role, 'parts': reconstructed_parts})
+
+        if gemini_contents and gemini_contents[0]['role'] == 'model':
+            gemini_contents.insert(0, {'role': 'user', 'parts': [{'text': '----'}]})
 
         async def generate():
             headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
