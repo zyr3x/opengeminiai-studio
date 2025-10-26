@@ -232,7 +232,9 @@ async def async_chat_completions():
                         if "text" in part:
                             system_text += part["text"]
                     
-                    if system_text and len(system_text) > 500:
+                    # Attempt to retrieve/create cached context, only for prompts that meet the minimum token count
+                    # This avoids API errors for prompts that are too short to be cached.
+                    if system_text and utils.estimate_token_count([system_instruction]) >= config.MIN_CONTEXT_CACHING_TOKENS:
                         try:
                             cached_context_id = await optimization.get_cached_context_id_async(
                                 config.API_KEY,
@@ -244,14 +246,14 @@ async def async_chat_completions():
                                 utils.log(f"✓ Using cached context: {cached_context_id}")
                                 request_data["cachedContent"] = cached_context_id
                             else:
+                                # If caching fails (e.g., API error), use the normal instruction
                                 request_data["systemInstruction"] = system_instruction
                         except Exception as e:
-                            utils.log(f"Failed to use cached context: {e}")
+                            utils.log(f"Failed to use cached context, falling back to normal: {e}")
                             request_data["systemInstruction"] = system_instruction
                     else:
+                        # If prompt is too short or empty, use the normal instruction
                         request_data["systemInstruction"] = system_instruction
-                elif system_instruction:
-                    request_data["systemInstruction"] = system_instruction
 
                 # --- Tool Configuration ---
                 final_tools = []

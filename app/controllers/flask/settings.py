@@ -99,19 +99,44 @@ def set_context_settings():
     selective_context_enabled = form.get('selective_context_enabled') == 'on'
     context_min_relevance_score = form.get('context_min_relevance_score', '0.3')
     context_always_keep_recent = form.get('context_always_keep_recent', '15')
-    
+    min_context_caching_tokens = form.get('min_context_caching_tokens', '512')
+
     # Update .env file
     env_file = '.env'
     set_key(env_file, 'SELECTIVE_CONTEXT_ENABLED', 'true' if selective_context_enabled else 'false')
     set_key(env_file, 'CONTEXT_MIN_RELEVANCE_SCORE', str(context_min_relevance_score))
     set_key(env_file, 'CONTEXT_ALWAYS_KEEP_RECENT', str(context_always_keep_recent))
-    
+    set_key(env_file, 'MIN_CONTEXT_CACHING_TOKENS', str(min_context_caching_tokens))
+
     # Update config in memory
     config.SELECTIVE_CONTEXT_ENABLED = selective_context_enabled
     config.CONTEXT_MIN_RELEVANCE_SCORE = float(context_min_relevance_score)
     config.CONTEXT_ALWAYS_KEEP_RECENT = int(context_always_keep_recent)
-    
-    utils.log(f"Context settings updated: selective={selective_context_enabled}, min_score={context_min_relevance_score}, keep_recent={context_always_keep_recent}")
+    config.MIN_CONTEXT_CACHING_TOKENS = int(min_context_caching_tokens)
+
+    utils.log(f"Context settings updated: selective={selective_context_enabled}, min_score={context_min_relevance_score}, keep_recent={context_always_keep_recent}, min_cache_tokens={min_context_caching_tokens}")
+    return redirect(url_for('web_ui.index', _anchor='configuration'))
+
+@settings_bp.route('/set_streaming_settings', methods=['POST'])
+def set_streaming_settings():
+    """Updates streaming settings and saves them to .env file."""
+    from dotenv import set_key
+    form = request.form
+
+    # Get values from form
+    streaming_enabled = form.get('streaming_enabled') == 'on'
+    streaming_progress_enabled = form.get('streaming_progress_enabled') == 'on'
+
+    # Update .env file
+    env_file = '.env'
+    set_key(env_file, 'STREAMING_ENABLED', 'true' if streaming_enabled else 'false')
+    set_key(env_file, 'STREAMING_PROGRESS_ENABLED', 'true' if streaming_progress_enabled else 'false')
+
+    # Update config in memory
+    config.STREAMING_ENABLED = streaming_enabled
+    config.STREAMING_PROGRESS_ENABLED = streaming_progress_enabled
+
+    utils.log(f"Streaming settings updated: enabled={streaming_enabled}, progress_enabled={streaming_progress_enabled}")
     return redirect(url_for('web_ui.index', _anchor='configuration'))
 
 @settings_bp.route('/set_security_settings', methods=['POST'])
@@ -123,11 +148,13 @@ def set_security_settings():
     
     # Get values from form
     allowed_code_paths = form.get('allowed_code_paths', '').strip()
-    
+    max_code_injection_size_kb = form.get('max_code_injection_size_kb', '128')
+
     # Update .env file
     env_file = '.env'
     set_key(env_file, 'ALLOWED_CODE_PATHS', allowed_code_paths)
-    
+    set_key(env_file, 'MAX_CODE_INJECTION_SIZE_KB', str(max_code_injection_size_kb))
+
     # Update config in memory
     if allowed_code_paths:
         config.ALLOWED_CODE_PATHS = [
@@ -137,6 +164,8 @@ def set_security_settings():
         ]
     else:
         config.ALLOWED_CODE_PATHS = []
-    
-    utils.log(f"Security settings updated: allowed_code_paths={config.ALLOWED_CODE_PATHS}")
+
+    config.MAX_CODE_INJECTION_SIZE_KB = int(max_code_injection_size_kb)
+
+    utils.log(f"Security settings updated: allowed_code_paths={config.ALLOWED_CODE_PATHS}, max_code_injection_size_kb={config.MAX_CODE_INJECTION_SIZE_KB}")
     return redirect(url_for('web_ui.index', _anchor='configuration'))

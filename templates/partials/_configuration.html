@@ -99,6 +99,38 @@
                     </div>
                     <div class="form-text">Number of most recent messages to always include in context, regardless of relevance.</div>
                 </div>
+
+                <div class="mt-3">
+                    <label for="min_context_caching_tokens" class="form-label">Minimum Context Caching Tokens</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="min_context_caching_tokens" name="min_context_caching_tokens"
+                               value="{{ min_context_caching_tokens }}" min="0" step="1">
+                        <button class="btn btn-primary" type="submit">Save</button>
+                    </div>
+                    <div class="form-text">Minimum token count for a context item to be eligible for caching. 0 disables caching.</div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5 class="card-title">🚀 Streaming Settings</h5>
+            <form action="/set_streaming_settings" method="POST">
+                <!--
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="streaming_enabled" name="streaming_enabled"
+                           {% if streaming_enabled %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="form-check-label" for="streaming_enabled">Enable Response Streaming</label>
+                </div>
+                <div class="form-text">When enabled, the model's response will be streamed back to the client as it's generated.</div>
+                -->
+                <div class="form-check form-switch mt-3">
+                    <input class="form-check-input" type="checkbox" role="switch" id="streaming_progress_enabled" name="streaming_progress_enabled"
+                           {% if streaming_progress_enabled %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="form-check-label" for="streaming_progress_enabled">Enable Tool Progress Streaming</label>
+                </div>
+                <div class="form-text">When enabled, progress updates from long-running tools (like <code>list_files</code> or <code>search_codebase</code>) will be streamed back to the user in real-time.</div>
             </form>
         </div>
     </div>
@@ -114,6 +146,14 @@
                         Comma-separated list of root directories that builtin tools can access. 
                         Leave empty to allow all paths. Example: <code>/home/user/projects,/opt/workspace</code>
                         <br><strong>Note:</strong> Tools will only access files within these directories when specified.
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="max_code_injection_size_kb" class="form-label">Max Code Injection Size (KB)</label>
+                    <input type="number" class="form-control" id="max_code_injection_size_kb" name="max_code_injection_size_kb"
+                           value="{{ max_code_injection_size_kb }}" min="0">
+                    <div class="form-text">
+                        Maximum size in kilobytes for code automatically injected into the context (e.g., from <code>read_file</code>). Prevents excessively large context.
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary">Save Security Settings</button>

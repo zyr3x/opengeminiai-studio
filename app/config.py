@@ -25,6 +25,9 @@ class AppConfig:
         self.STREAMING_ENABLED = os.getenv("STREAMING_ENABLED", "true").lower() == "true"
         self.STREAMING_PROGRESS_ENABLED = os.getenv("STREAMING_PROGRESS_ENABLED", "true").lower() == "true"
         
+        # Minimum token count for a system prompt to be eligible for Gemini API context caching.
+        self.MIN_CONTEXT_CACHING_TOKENS = int(os.getenv("MIN_CONTEXT_CACHING_TOKENS", "2048"))
+
         # Max size for code injection via code_path= in KB. Prevents exceeding token limits.
         self.MAX_CODE_INJECTION_SIZE_KB = int(os.getenv("MAX_CODE_INJECTION_SIZE_KB", "512")) # Default to 512 KB
 
