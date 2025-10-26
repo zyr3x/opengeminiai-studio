@@ -67,6 +67,7 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
     new_content_parts = []
     last_end = 0
     project_path_found = None
+    processed_paths = set()
 
     for i, match in enumerate(matches):
         start, end = match.span()
@@ -85,7 +86,12 @@ def process_message_for_paths(content: str) -> tuple[list, bool] | str:
         else:
             file_path_str = raw_path
 
-        expanded_path = os.path.expanduser(file_path_str)
+        expanded_path = os.path.realpath(os.path.expanduser(file_path_str))
+
+        if expanded_path in processed_paths:
+            last_end = command_end
+            continue
+        processed_paths.add(expanded_path)
 
         if file_type == 'project':
             # project_path: Activate tools and provide project structure for agent
