@@ -3,10 +3,9 @@
 <!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/username/repo)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/zyr3x/opengeminiai-studio)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
-[![Async Support](https://img.shields.io/badge/async-enabled-green.svg)](ASYNC_README.md)
 
 An advanced, high-performance proxy that enables seamless integration of Google's Gemini API with any client or tool built for the OpenAI API. Now featuring **async/await architecture** for 3-5x performance improvements on concurrent workloads.
 
@@ -46,7 +45,6 @@ Version 2.3 transforms OpenGeminiAI Studio into a powerful **AI-driven software 
 - **Async Mode** (recommended): - High performance
 - **Sync Mode** (compatible): - Legacy support
 
-See [ASYNC_README.md](ASYNC_README.md) for details on async features and performance benchmarks.
 
 ## ✨ Features
 
@@ -66,7 +64,6 @@ See [ASYNC_README.md](ASYNC_README.md) for details on async features and perform
     -   **Modification**: `apply_patch`, `create_file`, `write_file`
     -   **Execution**: `execute_command` (run tests, builds, awk/sed/grep, any shell command with 5-min timeout)
     -   **Git Operations**: `git_status`, `git_log`, `git_diff`, `git_show`, `git_blame`, `list_recent_changes`
-    -   See **[BUILTIN_TOOLS_ENHANCED.md](BUILTIN_TOOLS_ENHANCED.md)** for complete reference.
 -   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling. **Tools/functions can be explicitly selected or disabled via System Prompt and Prompt Override profiles.**
 -   **Native Google Tools:** Enable built-in Google tools like Search directly within your prompts for enhanced, real-time data retrieval.
 -   **Integrated Developer Toolkit:** The container comes with a pre-configured development environment, including **Node.js 22+** and the **Docker CLI**. This allows you to run `npx mcp-tools` directly and manage host Docker containers from within the proxy, streamlining development and automation tasks.
