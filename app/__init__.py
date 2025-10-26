@@ -119,7 +119,8 @@ async def run_quart_app(app: Quart):
 if config.ASYNC_MODE:
     async def run(name):
         template_dir = Path(__file__).parent.parent / 'templates'
-        return await run_quart_app(Quart(__name__, template_folder=template_dir))
+        static_dir = Path(__file__).parent.parent / 'static'
+        return await run_quart_app(Quart(__name__, template_folder=template_dir, static_folder=static_dir))
 else:
     def run(name):
        return run_flask_app(Flask(name))
