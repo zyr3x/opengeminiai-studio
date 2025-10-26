@@ -1,7 +1,7 @@
 <!-- Documentation Section -->
 <div id="documentation" class="content-section">
     <h1 class="my-4">📚 Documentation</h1>
-    <p class="lead">Dive into the details of OpenGeminiAI Studio v2.2 (Async Edition): learn how to set up, configure, and maximize the utility of this high-performance proxy for Google's Gemini API.</p>
+    <p class="lead">Dive into the details of OpenGeminiAI Studio v2.3 (Async Edition): learn how to set up, configure, and maximize the utility of this high-performance proxy for Google's Gemini API.</p>
     
     <div class="alert alert-info">
         <h5><i class="material-icons">rocket_launch</i> Performance Upgrade!</h5>
@@ -98,7 +98,7 @@
                         <li>✅ Formats with markdown</li>
                         <li>✅ Supports ignore patterns</li>
                         <li>❌ NO tools activated</li>
-                        <li>📦 Up to 4 MB limit</li>
+                        <li>📦 Up to 512 KB limit (configurable)</li>
                     </ul>
                     <p><strong>Usage:</strong></p>
                     <pre><code class="language-bash">"Review this code for bugs: code_path=~/myproject/src"</code></pre>
@@ -184,7 +184,7 @@
                 </tr>
                 <tr>
                     <td>Size limit</td>
-                    <td>4 MB</td>
+                    <td>512 KB</td>
                     <td>Unlimited</td>
                 </tr>
                 <tr>
@@ -210,9 +210,9 @@
             
             <h6>📊 Analysis</h6>
             <ul class="small">
-                <li><code>analyze_file_structure</code> - File stats & info</li>
+                <li><code>analyze_file_structure</code> - File structure (classes, functions)</li>
                 <li><code>analyze_project_structure</code> - Project tree</li>
-                <li><code>get_file_stats</code> - Line counts, size</li>
+                <li><code>get_file_stats</code> - File stats (size, lines, lang, git info)</li>
                 <li><code>find_symbol</code> - Find functions/classes</li>
                 <li><code>get_dependencies</code> - Analyze imports</li>
             </ul>
@@ -383,6 +383,13 @@ project_path=. ignore_type=cache</code></pre>
                         </ul>
                         <br>
                         Leave empty to allow access to all paths (default behavior).
+                    </td>
+                </tr>
+                <tr>
+                    <td><code>MAX_CODE_INJECTION_SIZE_KB</code></td>
+                    <td><code>512</code></td>
+                    <td>
+                        Maximum total size in kilobytes for files loaded via <code>code_path=</code>. This prevents excessive token usage from very large codebases or directories. Can be configured on the main page.
                     </td>
                 </tr>
             </tbody>

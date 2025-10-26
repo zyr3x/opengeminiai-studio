@@ -12,13 +12,25 @@ An advanced, high-performance proxy that enables seamless integration of Google'
 
 This proxy includes a web interface for easy configuration, chat, and management of MCP (Multi-Tool Communication Protocol) tools for advanced function calling.
 
-## 🚀 What's New in V2.3
+## 🤔 Why OpenGeminiAI Studio?
 
-**Bug Fixes & Improvements:**
-- 🐛 **Fixed Async Issues**: Resolved async/await compatibility in Quart controllers
-- 🔐 **Session Management**: Improved SECRET_KEY handling for persistent sessions
-- ✨ **Text Streaming**: Enhanced word-boundary detection to prevent mid-word splits
-- 📝 **Dual-Path System**: Clear separation between `code_path` and `project_path`
+In a world of AI coding assistants, OpenGeminiAI Studio stands out by combining the power of Google's state-of-the-art Gemini models with a robust, locally-hosted toolkit designed for professional developers. It's more than just a proxy; it's a complete, extensible, and secure development environment.
+
+-   **Go Beyond Chat:** While other tools stop at generating code snippets, OpenGeminiAI Studio acts as an **autonomous agent**. It can understand your project structure, read and write files, execute tests, manage git history, and apply patches. It doesn't just suggest code; it *implements* it.
+-   **Your Tools, Your Workflow:** Seamlessly integrate with any OpenAI-compatible client, including the JetBrains AI Assistant, VS Code, or your own scripts. Keep your preferred development environment without sacrificing power.
+-   **Total Control & Privacy:** Host it on your own machine or private network. Your code and API keys never leave your control. Sandbox the AI's access to specific project directories for complete peace of mind.
+-   **Extensible & Open:** Built with a modular MCP architecture, you can easily add your own custom tools to extend its capabilities. The project is open and transparent.
+-   **Cost-Effective:** Leverage powerful optimization features like selective context, prompt caching, and tool output summarization to significantly reduce token usage and lower your API costs.
+
+## 🚀 What's New in V2.3 - The Agentic Developer Update
+
+Version 2.3 transforms OpenGeminiAI Studio into a powerful **AI-driven software developer**. With an expanded toolkit and deeper project understanding, it can now take on complex development tasks autonomously.
+
+-   **🤖 Full Agentic Capabilities**: With `project_path=`, the AI can now **write, modify, and create files** (`apply_patch`, `create_file`, `write_file`), **execute shell commands** (`execute_command` for tests, builds, and scripts), and perform **full git operations** (`git_diff`, `git_status`, etc.). It's not just a code assistant; it's an active development partner.
+-   **🔬 Advanced Code Analysis**: New tools like `analyze_project_structure`, `find_symbol`, and `get_dependencies` give the AI a comprehensive understanding of your entire codebase, enabling more accurate and context-aware responses.
+-   **✍️ Better Streaming & UI**: Text streaming is now more robust, preventing broken words and improving readability in the chat UI.
+-   **🔐 Enhanced Security & Control**: The `ALLOWED_CODE_PATHS` setting allows you to sandbox the AI's file system access to specific project directories, providing crucial security for your development environment.
+-   **🐛 Stability Fixes**: Resolved several async compatibility issues, improved session management, and streamlined tool execution logic for a more reliable experience.
 
 ## ⚡ What's New in V2.2
 
