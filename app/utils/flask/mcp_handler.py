@@ -1997,7 +1997,7 @@ def create_tool_declarations(prompt_text: str = ""):
         final_declarations = selected_declarations
     else:
         # Fallback: use all declarations
-        final_declarations = mcp_function_declarations
+        final_declarations = []
 
     if len(final_declarations) > max_function_declarations_limit:
         log(f"Warning: Number of function declarations ({len(final_declarations)}) exceeds the limit of {max_function_declarations_limit}. Truncating list.")
