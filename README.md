@@ -3,7 +3,7 @@
 <!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/username/repo)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/zyr3x/opengeminiai-studio)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 
