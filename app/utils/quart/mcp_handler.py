@@ -27,7 +27,8 @@ _async_context = threading.local()
 async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_root_override: str | None = None) -> str:
     """
     Async version: Executes an MCP tool (built-in or external) and returns the result.
-    Uses caching for read-only operations.
+    Uses caching for read-only operations. All sync tool executions are run in a thread pool
+    to avoid blocking the event loop.
 
     Args:
         function_name: The name of the function to call.
@@ -35,30 +36,24 @@ async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_ro
         project_root_override: Optional path to set as the project root for built-in tools.
     """
     log(f"🔧 Executing tool (async): {function_name} with args: {tool_args}")
-    
+
     # Check cache first
     if should_cache_tool(function_name):
         cached_output = await get_cached_tool_output(function_name, tool_args)
         if cached_output is not None:
             log(f"✓ Cache hit for {function_name}")
             return cached_output
-    
-    # Execute the tool
+
+    # Execute the tool in an executor to avoid blocking the event loop
     try:
-        # Check if it's a built-in function
-        if function_name in BUILTIN_FUNCTIONS:
-            # Built-in functions are sync, run in executor
-            loop = asyncio.get_event_loop()
-            output = await loop.run_in_executor(
-                None,
-                sync_execute_mcp_tool,
-                function_name,
-                tool_args,
-                project_root_override # Pass the override to the sync function
-            )
-        else:
-            # External MCP tool - run process async
-            output = await sync_execute_mcp_tool(function_name, tool_args, project_root_override)
+        loop = asyncio.get_event_loop()
+        output = await loop.run_in_executor(
+            None,
+            sync_execute_mcp_tool,
+            function_name,
+            tool_args,
+            project_root_override
+        )
         
         # Cache the result if applicable
         if should_cache_tool(function_name):
@@ -75,15 +70,14 @@ async def execute_external_mcp_tool_async(function_name: str, tool_args: dict) -
     """
     Async version: Executes an external MCP tool via subprocess.
     """
-    from app.utils.flask.mcp_handler import mcp_function_to_tool_map as mcp_servers
+    from app.utils.flask.mcp_handler import mcp_function_to_tool_map, mcp_config
+
+    tool_name = mcp_function_to_tool_map.get(function_name)
+    if not tool_name:
+        return json.dumps({"error": f"Tool '{function_name}' is not registered to any MCP server."})
 
     # Find the MCP server configuration
-    server_config = None
-    for server_name, config in mcp_servers.items():
-        tools = config.get('tools', [])
-        if any(tool.get('name') == function_name for tool in tools):
-            server_config = config
-            break
+    server_config = mcp_config.get("mcpServers", {}).get(tool_name)
     
     if not server_config:
         return json.dumps({"error": f"No MCP server found for tool: {function_name}"})

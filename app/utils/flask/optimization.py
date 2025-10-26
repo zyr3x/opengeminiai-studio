@@ -628,12 +628,13 @@ def shutdown_tool_executor():
         _tool_executor.shutdown(wait=True)
         _tool_executor = None
 
-def execute_tools_parallel(tool_calls: List[Dict]) -> List[Tuple[Dict, str]]:
+def execute_tools_parallel(tool_calls: List[Dict], project_root_override: str | None = None) -> List[Tuple[Dict, str]]:
     """
-    Executes multiple tool calls in parallel.
+    Executes multiple tool calls in parallel using a thread pool.
 
     Args:
         tool_calls: List of dictionaries with 'name' and 'args'
+        project_root_override: The project root path to be used by all tool calls in this batch.
 
     Returns:
         List of tuples (tool_call, result)
@@ -642,7 +643,7 @@ def execute_tools_parallel(tool_calls: List[Dict]) -> List[Tuple[Dict, str]]:
         return []
 
     # Import here to avoid circular dependencies
-    from app.utils.quart import mcp_handler
+    from app.utils.flask import mcp_handler
 
     executor = get_tool_executor()
     futures = {}
@@ -652,7 +653,8 @@ def execute_tools_parallel(tool_calls: List[Dict]) -> List[Tuple[Dict, str]]:
         future = executor.submit(
             mcp_handler.execute_mcp_tool,
             tool_call.get('name'),
-            tool_call.get('args', {})
+            tool_call.get('args', {}),
+            project_root_override # Pass the override to each submitted task
         )
         futures[future] = tool_call
 
