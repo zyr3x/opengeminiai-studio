@@ -347,8 +347,6 @@ SECRET_KEY=your-long-random-secret-key-here  # Optional but recommended
 docker run -e ASYNC_MODE=true -e SECRET_KEY="..." -e API_KEY="..." gemini-proxy
 ```
 
-See [ASYNC_README.md](ASYNC_README.md) for detailed async configuration options.
-
 ## 🚀 Performance
 
 **Async Mode Performance Gains:**
