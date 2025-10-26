@@ -25,6 +25,9 @@ class AppConfig:
         self.STREAMING_ENABLED = os.getenv("STREAMING_ENABLED", "true").lower() == "true"
         self.STREAMING_PROGRESS_ENABLED = os.getenv("STREAMING_PROGRESS_ENABLED", "true").lower() == "true"
         
+        # Max size for code injection via code_path= in KB. Prevents exceeding token limits.
+        self.MAX_CODE_INJECTION_SIZE_KB = int(os.getenv("MAX_CODE_INJECTION_SIZE_KB", "512")) # Default to 512 KB
+
         # Allowed root directories for builtin tools (comma-separated paths)
         allowed_paths_str = os.getenv("ALLOWED_CODE_PATHS", "")
         if allowed_paths_str:

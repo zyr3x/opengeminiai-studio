@@ -5,6 +5,7 @@ import base64
 import mimetypes
 import os
 import re
+from app.config import config
 from app.utils.core import tools as utils
 
 # --- Constants ---
@@ -136,7 +137,7 @@ def process_message_for_paths(content: str) -> tuple[list, str | None] | str:
             # Collect code files
             code_files = []
             total_size = 0
-            MAX_CODE_SIZE = 4 * 1024 * 1024  # 4 MB limit for code injection
+            MAX_CODE_SIZE = config.MAX_CODE_INJECTION_SIZE_KB * 1024
 
             # Default ignore patterns for code
             ignore_patterns = utils.DEFAULT_CODE_IGNORE_PATTERNS
@@ -191,7 +192,7 @@ def process_message_for_paths(content: str) -> tuple[list, str | None] | str:
                         try:
                             size = os.path.getsize(filepath)
                             if total_size + size > MAX_CODE_SIZE:
-                                utils.log(f"Code injection limit reached at {total_size / (1024*1024):.2f} MB")
+                                utils.log(f"Code injection size limit ({config.MAX_CODE_INJECTION_SIZE_KB} KB) reached. Stopping file collection.")
                                 break
 
                             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:

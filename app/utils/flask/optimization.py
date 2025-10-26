@@ -497,12 +497,13 @@ def get_http_session() -> requests.Session:
             if _http_session is None:
                 session = requests.Session()
 
-                # Configure retry strategy
+                # Configure retry strategy for rate limiting and server errors
                 retry_strategy = Retry(
-                    total=3,
-                    status_forcelist=[429, 500, 502, 503, 504],
-                    backoff_factor=1,
-                    allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"]
+                    total=5,  # Increased retries
+                    status_forcelist=[429, 502, 503, 504], # Focus on retryable errors
+                    backoff_factor=10, # Significantly increased backoff (e.g., 10s, 20s, 40s...)
+                    allowed_methods=["GET", "POST"], # Only retry methods used by the proxy
+                    respect_retry_after_header=True # Honor Retry-After header from the API
                 )
 
                 # Adapter with connection pooling

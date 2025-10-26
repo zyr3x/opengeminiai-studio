@@ -168,12 +168,22 @@ async def make_request_with_retry_async(
             
             # Handle error status codes
             status_code = response.status
-            if (status_code == 429 or status_code >= 500) and i < retries - 1:
-                if status_code == 429:
-                    current_backoff = 20.0
-                    wait_time = current_backoff * (2 ** i) + random.uniform(0, 5.0)
-                else:
-                    wait_time = backoff_factor * (2 ** i) + random.uniform(0, 0.5)
+            if (status_code == 429 or status_code in [502, 503, 504]) and i < retries - 1:
+                wait_time = 0
+                # Check for Retry-After header from the API
+                if 'Retry-After' in response.headers:
+                    try:
+                        wait_time = int(response.headers.get('Retry-After'))
+                    except (ValueError, TypeError):
+                        pass # Could be a date, ignore for now and use backoff
+
+                if wait_time > 0:
+                    wait_time += random.uniform(0, 1) # Add jitter
+                elif status_code == 429:
+                    # Exponential backoff for rate limiting, starting higher
+                    wait_time = (backoff_factor * 10) * (2 ** i) + random.uniform(0, 3.0)
+                else: # Server errors (502, 503, 504)
+                    wait_time = backoff_factor * (2 ** i) + random.uniform(0, 1.0)
 
                 log(f"Received status {status_code}. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
                 await asyncio.sleep(wait_time)

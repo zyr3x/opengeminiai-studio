@@ -303,13 +303,22 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
             return response
         except requests.exceptions.HTTPError as e:
             status_code = e.response.status_code
-            if (status_code == 429 or status_code >= 500) and i < retries - 1:
-                if status_code == 429:
-                    current_backoff = 20.0
-                    wait_time = current_backoff * (2 ** i) + random.uniform(0, 5.0)
-                else:
+            if (status_code == 429 or status_code in [502, 503, 504]) and i < retries - 1:
+                wait_time = 0
+                # Check for Retry-After header from the API
+                if e.response and 'Retry-After' in e.response.headers:
+                    try:
+                        wait_time = int(e.response.headers.get('Retry-After'))
+                    except (ValueError, TypeError):
+                        pass # Could be a date, ignore and use backoff
 
-                    wait_time = backoff_factor * (2 ** i) + random.uniform(0, 0.5)
+                if wait_time > 0:
+                    wait_time += random.uniform(0, 1) # Add jitter
+                elif status_code == 429:
+                    # Exponential backoff for rate limiting, starting higher
+                    wait_time = (backoff_factor * 10) * (2 ** i) + random.uniform(0, 3.0)
+                else: # Server errors
+                    wait_time = backoff_factor * (2 ** i) + random.uniform(0, 1.0)
 
                 log(f"Received status {status_code}. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
                 time.sleep(wait_time)
