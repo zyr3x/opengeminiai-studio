@@ -279,18 +279,18 @@ def chat_api():
 
         if user_message:
             # Process message for local file paths (e.g., code_path=, image_path=)
-            processed_result = user_message
+            processed_content = user_message
+            project_path_found = None
             if not disable_mcp_tools_override:
-                processed_result = file_processing_utils.process_message_for_paths(user_message)
+                # Since we are processing a single message, we can pass a new empty set.
+                processed_content, project_path_found = file_processing_utils.process_message_for_paths(user_message, set())
 
-            if isinstance(processed_result, str):
+            if isinstance(processed_content, str):
                 # No paths were found, treat as a simple text message
-                if processed_result:
-                    user_parts.append({"text": processed_result})
-            elif isinstance(processed_result, tuple):
-                # Paths were found and processed into parts. (list[parts], project_root_path_or_None)
-                processed_content, project_path_found = processed_result
-
+                if processed_content:
+                    user_parts.append({"text": processed_content})
+            elif isinstance(processed_content, list):
+                # Paths were found and processed into parts.
                 if project_path_found:
                     project_context_root = project_path_found
                     project_context_tools_requested = True

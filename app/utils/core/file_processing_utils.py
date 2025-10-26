@@ -42,33 +42,39 @@ def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
 
     return command_end
 
-def process_message_for_paths(content: str) -> tuple[list, str | None] | str:
+def process_message_for_paths(content: str, processed_paths: set) -> tuple[list | str, str | None]:
     """
     Processes a message content string to find local file paths (e.g.,
-    image_path=..., code_path=..., project_path=...), and replaces them with 
+    image_path=..., code_path=..., project_path=...), and replaces them with
     appropriate content parts for multimodal input or project context.
 
     - image_path, pdf_path, audio_path: Embeds files as multimodal data
     - code_path: Recursively loads all code files as text context
     - project_path: Activates tools and provides project structure for agent
 
-    If paths are found, returns (list of parts, project_root_path_or_None).
-    Otherwise, returns the original string.
+    Args:
+        content: The message content string.
+        processed_paths: A set for tracking already processed file/project paths to avoid duplicates across multiple messages.
+
+    Returns:
+        A tuple containing:
+        - The processed content (either a list of parts for multimodal input or the original string if no paths are found).
+        - The project root path if `project_path=` was found, otherwise None.
     """
     if not isinstance(content, str):
-        return content
+        return content, None
 
     # Improved regex to handle quoted paths and avoid trailing punctuation
     path_pattern = re.compile(r'(image|pdf|audio|code|project)_path=("[^"]+"|\'[^\']+\'|[^\s,;)]+)')
     matches = list(path_pattern.finditer(content))
 
     if not matches:
-        return content
+        return content, None
 
     new_content_parts = []
     last_end = 0
     project_path_found = None
-    processed_paths = set()
+    # processed_paths = set() # Now an argument
 
     for i, match in enumerate(matches):
         start, end = match.span()
@@ -90,6 +96,7 @@ def process_message_for_paths(content: str) -> tuple[list, str | None] | str:
         expanded_path = os.path.realpath(os.path.expanduser(file_path_str))
 
         if expanded_path in processed_paths:
+            utils.log(f"Skipping duplicate path: {expanded_path}")
             last_end = command_end
             continue
         processed_paths.add(expanded_path)

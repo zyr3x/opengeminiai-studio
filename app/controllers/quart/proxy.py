@@ -70,6 +70,7 @@ async def async_chat_completions():
             # Process messages - file processing
             from app.utils.core import file_processing_utils
             processed_messages = []
+            processed_code_paths = set()  # Track processed paths across all messages
 
             for message in messages:
                 content = message.get('content')
@@ -82,18 +83,15 @@ async def async_chat_completions():
                                 content = content.replace(find, replace)
 
                     # Handle local file paths
-                    processed_result = None
                     if not disable_mcp_tools:
-                        processed_result = file_processing_utils.process_message_for_paths(content)
-
-                        if isinstance(processed_result, tuple):
-                            message['content'], project_path_found = processed_result
-                            if project_path_found:
-                                project_context_tools_requested = True
-                                if isinstance(project_path_found, str):
-                                    project_context_root = project_path_found
-                        else:
-                            message['content'] = processed_result
+                        processed_content, project_path_found = file_processing_utils.process_message_for_paths(
+                            content, processed_code_paths
+                        )
+                        message['content'] = processed_content
+                        if project_path_found:
+                            project_context_tools_requested = True
+                            if isinstance(project_path_found, str):
+                                project_context_root = project_path_found
 
                 processed_messages.append(message)
 

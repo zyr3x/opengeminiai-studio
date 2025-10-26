@@ -66,6 +66,7 @@ def chat_completions():
             project_context_tools_requested = False
             project_context_root = None  # Store the project root path for the entire request
             processed_messages = []
+            processed_code_paths = set()  # Track processed paths across all messages
 
             for message in messages:
                 content = message.get('content')
@@ -78,20 +79,16 @@ def chat_completions():
                                 content = content.replace(find, replace)
 
                     # --- Handle local file paths like image_path=... and pdf_path=... ---
-                    processed_result = None
                     if not disable_mcp_tools:
-                        processed_result = file_processing_utils.process_message_for_paths(content)
-
-                        if isinstance(processed_result, tuple):
-                            # (parts, project_path_found)
-                            message['content'], project_path_found = processed_result
-                            if project_path_found:
-                                project_context_tools_requested = True
-                                # If project_path_found is a string (path), save it for the entire request
-                                if isinstance(project_path_found, str):
-                                    project_context_root = project_path_found
-                        else:
-                            message['content'] = processed_result
+                        processed_content, project_path_found = file_processing_utils.process_message_for_paths(
+                            content, processed_code_paths
+                        )
+                        message['content'] = processed_content
+                        if project_path_found:
+                            project_context_tools_requested = True
+                            # If project_path_found is a string (path), save it for the entire request
+                            if isinstance(project_path_found, str):
+                                project_context_root = project_path_found
 
                 processed_messages.append(message)
 
