@@ -44,8 +44,8 @@ async def async_chat_completions():
             disable_mcp_tools = True
             profile_selected_mcp_tools = []
 
-        code_tools_requested = False
-        code_project_root = None
+        project_context_tools_requested = False
+        project_context_root = None
         full_prompt_text = ""
 
         if messages:
@@ -87,11 +87,11 @@ async def async_chat_completions():
                         processed_result = file_processing_utils.process_message_for_paths(content)
 
                         if isinstance(processed_result, tuple):
-                            message['content'], code_path_value = processed_result
-                            if code_path_value:
-                                code_tools_requested = True
-                                if isinstance(code_path_value, str):
-                                    code_project_root = code_path_value
+                            message['content'], project_path_found = processed_result
+                            if project_path_found:
+                                project_context_tools_requested = True
+                                if isinstance(project_path_found, str):
+                                    project_context_root = project_path_found
                         else:
                             message['content'] = processed_result
 
@@ -261,12 +261,12 @@ async def async_chat_completions():
 
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
-                if code_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
+                if project_context_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(
                         builtin_tool_names
                     )
                     utils.log(
-                        f"Code context requested. Forcing use of built-in tools: {builtin_tool_names}"
+                        f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tool_names}"
                     )
                 elif not disable_mcp_tools and profile_selected_mcp_tools:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(
@@ -461,7 +461,7 @@ async def async_chat_completions():
                 # within the executor thread before running built-in tools.
                 tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
                     tool_calls_list,
-                    project_root_override=code_project_root
+                    project_root_override=project_context_root
                 )
 
                 current_contents.append({

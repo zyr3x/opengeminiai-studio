@@ -276,8 +276,8 @@ async def chat_api():
         # --- End Prompt Engineering ---
 
         user_parts = []
-        code_project_root = None # Path for project context if 'project_path=' was used
-        code_tools_requested = False # Flag to force built-in tool enablement
+        project_context_root = None # Path for project context if 'project_path=' was used
+        project_context_tools_requested = False # Flag to force built-in tool enablement
 
         if user_message:
             # Process message for local file paths (e.g., code_path=, image_path=)
@@ -294,8 +294,8 @@ async def chat_api():
                 processed_content, project_path_found = processed_result
 
                 if project_path_found:
-                    code_project_root = project_path_found
-                    code_tools_requested = True
+                    project_context_root = project_path_found
+                    project_context_tools_requested = True
 
                 chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
                 os.makedirs(chat_upload_folder, exist_ok=True)
@@ -472,10 +472,10 @@ async def chat_api():
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
                 # Priority for MCP tools:
-                if code_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
-                    # 1. If code_path= was used, force-enable built-in tools only.
+                if project_context_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
+                    # 1. If project_path= was used, force-enable built-in tools only.
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
-                    tools.log(f"Code context requested via code_path=. Forcing use of built-in tools: {builtin_tool_names}")
+                    tools.log(f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tool_names}")
                 elif selected_mcp_tools:
                     # 2. User-selected tools from chat UI (highest priority)
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(selected_mcp_tools)
@@ -676,7 +676,7 @@ async def chat_api():
                 # Pass the project root override to ensure correct context for built-in tools in the executor thread.
                 tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
                     tool_calls_list,
-                    project_root_override=code_project_root
+                    project_root_override=project_context_root
                 )
 
 

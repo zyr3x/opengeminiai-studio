@@ -63,8 +63,8 @@ def chat_completions():
                 profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
 
             # Process all messages: apply overrides
-            code_tools_requested = False
-            code_project_root = None  # Store the project root path for the entire request
+            project_context_tools_requested = False
+            project_context_root = None  # Store the project root path for the entire request
             processed_messages = []
 
             for message in messages:
@@ -83,13 +83,13 @@ def chat_completions():
                         processed_result = file_processing_utils.process_message_for_paths(content)
 
                         if isinstance(processed_result, tuple):
-                            # (parts, code_path_or_bool)
-                            message['content'], code_path_value = processed_result
-                            if code_path_value:
-                                code_tools_requested = True
-                                # If code_path_value is a string (path), save it for the entire request
-                                if isinstance(code_path_value, str):
-                                    code_project_root = code_path_value
+                            # (parts, project_path_found)
+                            message['content'], project_path_found = processed_result
+                            if project_path_found:
+                                project_context_tools_requested = True
+                                # If project_path_found is a string (path), save it for the entire request
+                                if isinstance(project_path_found, str):
+                                    project_context_root = project_path_found
                         else:
                             message['content'] = processed_result
 
@@ -264,10 +264,10 @@ def chat_completions():
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
                 # Priority for MCP tools:
-                if code_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
-                    # 1. If code_path= was used, force-enable built-in tools only.
+                if project_context_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
+                    # 1. If project_path= was used, force-enable built-in tools only.
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
-                    utils.log(f"Code context requested via code_path=. Forcing use of built-in tools: {builtin_tool_names}")
+                    utils.log(f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tool_names}")
                 elif not disable_mcp_tools and profile_selected_mcp_tools:
                     # 2. If not disabled, check for profile-defined selected tools.
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
@@ -438,7 +438,7 @@ def chat_completions():
                         })
 
                     # Pass project root to the async handler, which will ensure it is set correctly
-                    results = optimization.execute_tools_parallel(parallel_calls, code_project_root)
+                    results = optimization.execute_tools_parallel(parallel_calls, project_context_root)
                     
                     # Обрабатываем результаты
                     for tool_call_data, output in results:
@@ -476,7 +476,7 @@ def chat_completions():
 
                         # The project root context is now managed inside execute_mcp_tool,
                         # but we still need to pass the explicit override path if one was detected.
-                        output = mcp_handler.execute_mcp_tool(function_name, tool_args, code_project_root)
+                        output = mcp_handler.execute_mcp_tool(function_name, tool_args, project_context_root)
 
                         response_payload = {}
                         if output is not None:

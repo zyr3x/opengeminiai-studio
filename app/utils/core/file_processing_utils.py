@@ -41,7 +41,7 @@ def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
 
     return command_end
 
-def process_message_for_paths(content: str) -> tuple[list, bool] | str:
+def process_message_for_paths(content: str) -> tuple[list, str | None] | str:
     """
     Processes a message content string to find local file paths (e.g.,
     image_path=..., code_path=..., project_path=...), and replaces them with 
