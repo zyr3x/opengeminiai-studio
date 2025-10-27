@@ -14,10 +14,10 @@
   "JetBrains / Google": {
     "enabled": true,
     "triggers": [
-      "You are an AI Coding Assistant integrated into JetBrains IDEs."
+      "JetBrains"
     ],
     "overrides": {
-      "Assistant": "Google Gemini Assistant"
+      "Assistant": "Gemini Assistant"
     },
     "disable_tools": false,
     "enable_native_tools": false,
