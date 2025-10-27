@@ -5,53 +5,38 @@ Instead of sending the entire dialogue history, only relevant messages are selec
 based on the current query, saving 40-60% of tokens in long dialogues.
 """
 import re
+import os
+import json
 from typing import List, Tuple
 from collections import Counter
 from app.utils.core.tools import log
 
-# --- Configuration Constants ---
-MIN_RELEVANCE_SCORE = 0.3  # Minimum score for message inclusion
-ALWAYS_KEEP_RECENT = 5  # Always keep the last N messages
-MIN_KEYWORD_LENGTH = 3  # Minimum keyword length
-MAX_KEYWORDS = 20  # Maximum keywords for analysis
+MIN_RELEVANCE_SCORE = 0.3
+ALWAYS_KEEP_RECENT = 5
+MIN_KEYWORD_LENGTH = 3
+MAX_KEYWORDS = 20
 
-# --- Stop words (extended list) ---
-STOP_WORDS = {
-    # English
-    'the', 'is', 'at', 'which', 'on', 'a', 'an', 'as', 'are', 'was', 'were',
-    'been', 'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
-    'should', 'could', 'may', 'might', 'must', 'can', 'to', 'of', 'in', 'for',
-    'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during', 'before',
-    'after', 'above', 'below', 'between', 'under', 'again', 'further', 'then',
-    'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'both',
-    'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not',
-    'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'but', 'and',
-    'or', 'if', 'because', 'until', 'while', 'this', 'that', 'these', 'those',
-    'what', 'who', 'whom', 'whose', 'which', 'it', 'its', 'itself', 'they',
-    'them', 'their', 'theirs', 'themselves', 'he', 'him', 'his', 'himself',
-    'she', 'her', 'hers', 'herself', 'we', 'us', 'our', 'ours', 'ourselves',
-    'you', 'your', 'yours', 'yourself', 'yourselves', 'i', 'me', 'my', 'mine',
-    'myself',
-    
-    # Russian
-    'и', 'в', 'во', 'не', 'что', 'он', 'на', 'я', 'с', 'со', 'как', 'а', 'то',
-    'все', 'она', 'так', 'его', 'но', 'да', 'ты', 'к', 'у', 'же', 'вы', 'за',
-    'бы', 'по', 'только', 'ее', 'мне', 'было', 'вот', 'от', 'меня', 'еще',
-    'нет', 'о', 'из', 'ему', 'теперь', 'когда', 'даже', 'ну', 'вдруг', 'ли',
-    'если', 'уже', 'или', 'ни', 'быть', 'был', 'него', 'до', 'вас', 'нибудь',
-    'опять', 'уж', 'вам', 'сказал', 'ведь', 'там', 'потом', 'себя', 'ничего',
-    'ей', 'может', 'они', 'тут', 'где', 'есть', 'надо', 'ней', 'для', 'мы',
-    'тебя', 'их', 'чем', 'была', 'сам', 'чтоб', 'без', 'будто', 'человек',
-    'чего', 'раз', 'тоже', 'себе', 'под', 'жизнь', 'будет', 'ж', 'тогда',
-    'кто', 'этот', 'того', 'потому', 'этого', 'какой', 'совсем', 'ним',
-    'здесь', 'этом', 'один', 'почти', 'мой', 'тем', 'чтобы', 'нее', 'кажется',
-    'сейчас', 'были', 'куда', 'зачем', 'сказать', 'всех', 'никогда', 'сегодня',
-    'можно', 'при', 'наконец', 'два', 'об', 'другой', 'хоть', 'после', 'над',
-    'больше', 'тот', 'через', 'эти', 'нас', 'про', 'всего', 'них', 'какая',
-    'много', 'разве', 'сказала', 'три', 'эту', 'моя', 'впрочем', 'хорошо',
-    'свою', 'этой', 'перед', 'иногда', 'лучше', 'чуть', 'том', 'нельзя',
-    'такой', 'им', 'более', 'всегда', 'конечно', 'всю', 'между'
-}
+CONTEXT_SELECTOR_STOPWORDS_PATH = 'etc/context/selector/stop_words.json'
+
+def load_stop_words() -> list:
+    try:
+        full_path = os.path.join(CONTEXT_SELECTOR_STOPWORDS_PATH)
+
+        if not os.path.exists(full_path):
+             full_path = os.path.join(os.getcwd(), CONTEXT_SELECTOR_STOPWORDS_PATH)
+
+        if not os.path.exists(full_path):
+            log(f"Warning: Context Selector Stop words file not found at {CONTEXT_SELECTOR_STOPWORDS_PATH}. Using empty list.")
+            return []
+
+        with open(full_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    except Exception as e:
+        log(f"Error loading context selector stop words from {CONTEXT_SELECTOR_STOPWORDS_PATH}: {e}")
+        return []
+
+STOP_WORDS = load_stop_words()
 
 def extract_keywords(text: str) -> List[str]:
     """

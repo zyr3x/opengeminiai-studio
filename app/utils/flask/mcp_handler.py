@@ -1333,11 +1333,8 @@ BUILTIN_DECLARATIONS_PATH = 'etc/mcp/declaration/default.json'
 def load_builtin_declarations() -> list:
     """Loads BUILTIN_DECLARATIONS from the external JSON file."""
     try:
-        # Resolve path relative to project root (or current working dir if root not set)
-        project_root = get_project_root()
-        full_path = os.path.join(project_root, BUILTIN_DECLARATIONS_PATH)
+        full_path = os.path.join(BUILTIN_DECLARATIONS_PATH)
 
-        # Check in CWD as a fallback if project_root is not reliably set in some contexts
         if not os.path.exists(full_path):
              full_path = os.path.join(os.getcwd(), BUILTIN_DECLARATIONS_PATH)
 
