@@ -104,7 +104,7 @@ def chat_completions():
         gemini_contents = []
         if messages:
             # Separate system instruction from other messages
-            if messages[0].get("role") == "system":
+            if messages[0].get("role") == "system" or 'JetBrains' in messages[0].get("content"):
                 system_instruction = {"parts": [{"text": messages[0].get("content", "")}]}
                 messages = messages[1:]  # Remove system message from list
 
