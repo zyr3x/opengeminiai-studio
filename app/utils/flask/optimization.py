@@ -1,7 +1,5 @@
 """
 Optimization module to reduce token usage and improve performance.
-PHASE 1: Caching, output optimization, smart truncation
-PHASE 2: Connection pooling, rate limiting, prompt caching, parallel execution
 """
 import hashlib
 import json
@@ -18,16 +16,14 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# --- Tool Result Cache ---
 _tool_output_cache = {}
-_cache_lock = threading.Lock() # Added lock for thread safety
-CACHE_TTL = 300  # 5 minutes
-CACHE_MAX_SIZE = 100  # Maximum entries in the cache
+_cache_lock = threading.Lock()
+CACHE_TTL = 300
+CACHE_MAX_SIZE = 100
 
-# --- Optimization Constants ---
-MAX_TOOL_OUTPUT_TOKENS = 1000  # Maximum size of tool output
-MAX_FILE_PREVIEW_LINES = 50    # Maximum lines for file preview
-MAX_DIFF_LINES = 100           # Maximum lines for diff
+MAX_TOOL_OUTPUT_TOKENS = 1000
+MAX_FILE_PREVIEW_LINES = 50
+MAX_DIFF_LINES = 100
 
 def clean_cache():
     """Cleans up expired entries from the cache"""
@@ -42,25 +38,22 @@ def clean_cache():
             if key in _tool_output_cache:
                 del _tool_output_cache[key]
 
-        # If the cache is too large, remove the oldest entries
         if len(_tool_output_cache) > CACHE_MAX_SIZE:
             sorted_items = sorted(
                 _tool_output_cache.items(),
-                key=lambda x: x[1][1]  # Sort by timestamp
+                key=lambda x: x[1][1]
             )
-            # Keep only the CACHE_MAX_SIZE newest entries
             _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
 
 def get_cache_key(function_name: str, tool_args: dict) -> str:
     """Generates a cache key for the tool"""
-    # Sort keys for hash stability
     args_str = json.dumps(tool_args, sort_keys=True, default=str)
     cache_string = f"{function_name}:{args_str}"
     return hashlib.md5(cache_string.encode()).hexdigest()
 
 def get_cached_tool_output(function_name: str, tool_args: dict) -> Optional[str]:
     """Gets result from cache if present and not expired"""
-    clean_cache()  # Periodically clean cache
+    clean_cache()
 
     cache_key = get_cache_key(function_name, tool_args)
     with _cache_lock:
@@ -79,10 +72,8 @@ def cache_tool_output(function_name: str, tool_args: dict, output: str):
 
 def should_cache_tool(function_name: str) -> bool:
     """Determines whether to cache the results of this tool"""
-    # Do not cache modifying operations
     non_cacheable = ['apply_patch', 'git_status']
 
-    # Cache read operations
     cacheable = [
         'list_files', 'get_file_content', 'list_symbols_in_file',
         'get_code_snippet', 'search_codebase', 'git_log', 'git_diff',
@@ -92,12 +83,8 @@ def should_cache_tool(function_name: str) -> bool:
 
     return function_name in cacheable
 
-# --- Tool Output Optimization ---
-
 def estimate_tokens(text: str) -> int:
     """Improved token estimation"""
-    # More accurate formula considering spaces and special characters
-    # Approximately 3.5 characters per token for mixed text
     return int(len(text) / 3.5)
 
 def optimize_code_output(code: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) -> str:
@@ -110,7 +97,6 @@ def optimize_code_output(code: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) ->
     lines = code.split('\n')
     total_lines = len(lines)
 
-    # Show file beginning and end
     keep_lines = int((max_tokens * 3.5) / (len(code) / total_lines))
     head_lines = keep_lines // 2
     tail_lines = keep_lines // 2
@@ -133,23 +119,20 @@ def optimize_diff_output(diff: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) ->
 
     lines = diff.split('\n')
 
-    # For diff, the priority is changed lines (+ and -)
     important_lines = []
     context_lines = []
 
     for i, line in enumerate(lines):
         if line.startswith(('+', '-', '@@', 'diff', 'index')):
             important_lines.append((i, line))
-        elif line.strip():  # Context lines
+        elif line.strip():
             context_lines.append((i, line))
 
-    # Take all important lines and a bit of context
     max_lines = int((max_tokens * 3.5) / (len(diff) / len(lines)))
 
     if len(important_lines) <= max_lines:
         return diff
 
-    # Limit the number of important lines
     result_lines = important_lines[:max_lines]
     total_lines = len(lines)
     shown_lines = len(result_lines)
@@ -169,7 +152,6 @@ def optimize_list_output(text: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) ->
     lines = text.split('\n')
     total_lines = len(lines)
 
-    # For lists - show the beginning
     max_lines = int((max_tokens * 3.5) / (len(text) / total_lines))
 
     if total_lines <= max_lines:
@@ -189,16 +171,13 @@ def optimize_tool_output(output: str, function_name: str) -> str:
 
     tokens = estimate_tokens(output)
 
-    # If the output is small, do not modify
     if tokens <= MAX_TOOL_OUTPUT_TOKENS:
         return output
 
-    # Determine the output type and apply the appropriate strategy
     if '```diff' in output or 'git diff' in output.lower():
         return optimize_diff_output(output)
 
-    elif '```' in output:  # Code block
-        # Extract code between ```
+    elif '```' in output:
         code_match = re.search(r'```[\w]*\n(.*?)\n```', output, re.DOTALL)
         if code_match:
             code = code_match.group(1)
@@ -210,21 +189,17 @@ def optimize_tool_output(output: str, function_name: str) -> str:
         return optimize_list_output(output)
 
     else:
-        # General truncation for other types
         max_chars = MAX_TOOL_OUTPUT_TOKENS * 4
         if len(output) > max_chars:
             return output[:max_chars] + f"\n\n... [Output truncated from {len(output)} to {max_chars} chars]"
 
     return output
 
-# --- Smart History Truncation ---
-
 def summarize_message(message: dict) -> str:
     """Creates a brief summary of the message"""
     role = message.get('role', 'unknown')
     parts = message.get('parts', [])
 
-    # Extract text
     text_parts = []
     for part in parts:
         if 'text' in part:
@@ -232,10 +207,8 @@ def summarize_message(message: dict) -> str:
 
     full_text = ' '.join(text_parts)
 
-    # Limit summary length
     max_summary_length = 100
     if len(full_text) > max_summary_length:
-        # Take the first words
         words = full_text.split()
         summary = ' '.join(words[:15]) + '...'
     else:
@@ -256,16 +229,12 @@ def smart_truncate_contents(contents: list, limit: int, keep_recent: int = 5) ->
         return contents
 
     if len(contents) <= keep_recent + 1:
-        # Too few messages, just truncate
         return contents[:1] + contents[-(keep_recent-1):]
 
-    # Always keep the system prompt (first message)
     result = [contents[0]]
 
-    # The last keep_recent messages are also kept
     recent_messages = contents[-keep_recent:]
 
-    # Middle messages are compressed into a brief summary
     middle_messages = contents[1:-keep_recent]
 
     if middle_messages:
@@ -277,25 +246,18 @@ def smart_truncate_contents(contents: list, limit: int, keep_recent: int = 5) ->
             "parts": [{"text": summary_text}]
         })
 
-    # Add recent messages
     result.extend(recent_messages)
 
-    # Check if we fit within the limit
     new_tokens = estimate_token_count(result)
 
     if new_tokens > limit:
-        # If still not fitting, decrease keep_recent
         if keep_recent > 2:
             return smart_truncate_contents(contents, limit, keep_recent - 1)
         else:
-            # Last resort - simple truncation
             return result[:1] + result[-2:]
 
     return result
 
-# --- Stats and Metrics ---
-
-# Lock for thread-safe DB operations on token stats
 _token_stats_lock = threading.Lock()
 
 
@@ -313,7 +275,6 @@ def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_
             conn = get_db_connection()
             cursor = conn.cursor()
 
-            # 1. Attempt UPDATE (if row exists)
             cursor.execute("""
                 UPDATE token_usage
                 SET input_tokens = input_tokens + ?,
@@ -321,7 +282,6 @@ def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_
                 WHERE date = ? AND key_hash = ? AND model_name = ?
             """, (input_tokens, output_tokens, today, key_hash, model_name))
 
-            # 2. If no row was updated, INSERT (first usage of the day)
             if cursor.rowcount == 0:
                 cursor.execute("""
                     INSERT INTO token_usage (date, key_hash, model_name, input_tokens, output_tokens)
@@ -330,7 +290,6 @@ def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_
 
             conn.commit()
         except Exception as e:
-            # In a real app, use a logger here
             print(f"Error recording token usage to DB: {e}")
         finally:
             if conn:
@@ -344,7 +303,6 @@ def get_key_token_stats() -> List[Dict]:
     with _token_stats_lock:
         try:
             conn = get_db_connection()
-            # Aggregate total usage across all models and days for each key
             results = conn.execute("""
                 SELECT
                     key_hash,
@@ -377,7 +335,6 @@ def get_key_token_stats() -> List[Dict]:
                 key_stats['total_tokens'] += input_t + output_t
 
         except Exception as e:
-            # In a real app, use a logger here
             print(f"Error retrieving token usage from DB: {e}")
         finally:
             if conn:
@@ -399,14 +356,14 @@ def reset_token_stats():
             if conn:
                 conn.close()
 
-_metrics_lock = threading.Lock() # Added lock for thread safety
+_metrics_lock = threading.Lock()
 _metrics = {
     'cache_hits': 0,
     'cache_misses': 0,
     'tokens_saved': 0,
     'requests_optimized': 0,
-    'tool_calls_total': 0,  # New metric for total tool execution count
-    'tool_calls_external': 0, # New metric for external (non-builtin) tool execution
+    'tool_calls_total': 0,
+    'tool_calls_external': 0,
 }
 
 def record_tool_call(is_builtin: bool = True):
@@ -467,19 +424,10 @@ def reset_metrics():
             'tool_calls_external': 0,
         }
 
-    # Also reset key-based token stats
     reset_token_stats()
 
-    # Placeholder for the actual tool cache implementation (e.g., LRUCache)
-    # Using a simple dictionary for demonstration/metrics calculation.
     with _cache_lock:
         _tool_output_cache.clear()
-
-# ============================================================================
-# PHASE 2: ADVANCED OPTIMIZATION
-# ============================================================================
-
-# --- Connection Pooling ---
 
 _http_session = None
 _session_lock = threading.Lock()
@@ -493,25 +441,22 @@ def get_http_session() -> requests.Session:
 
     if _http_session is None:
         with _session_lock:
-            # Double-check locking pattern
             if _http_session is None:
                 session = requests.Session()
 
-                # Configure retry strategy for rate limiting and server errors
                 retry_strategy = Retry(
-                    total=5,  # Increased retries
-                    status_forcelist=[429, 502, 503, 504], # Focus on retryable errors
-                    backoff_factor=10, # Significantly increased backoff (e.g., 10s, 20s, 40s...)
-                    allowed_methods=["GET", "POST"], # Only retry methods used by the proxy
-                    respect_retry_after_header=True # Honor Retry-After header from the API
+                    total=5,
+                    status_forcelist=[429, 502, 503, 504],
+                    backoff_factor=10,
+                    allowed_methods=["GET", "POST"],
+                    respect_retry_after_header=True
                 )
 
-                # Adapter with connection pooling
                 adapter = HTTPAdapter(
-                    pool_connections=10,    # Number of connection pools
-                    pool_maxsize=20,        # Maximum connections in the pool
+                    pool_connections=10,
+                    pool_maxsize=20,
                     max_retries=retry_strategy,
-                    pool_block=False        # Do not block when limit is reached
+                    pool_block=False
                 )
 
                 session.mount("http://", adapter)
@@ -527,8 +472,6 @@ def close_http_session():
     if _http_session is not None:
         _http_session.close()
         _http_session = None
-
-# --- Rate Limiting ---
 
 class RateLimiter:
     """
@@ -553,21 +496,17 @@ class RateLimiter:
             with self.lock:
                 now = time.time()
 
-                # Remove old calls (outside the window)
                 while self.calls and now - self.calls[0] >= self.period:
                     self.calls.popleft()
 
-                # If limit is reached, wait
                 if len(self.calls) >= self.max_calls:
                     sleep_time = self.period - (now - self.calls[0]) + 0.01
                     if sleep_time > 0:
                         time.sleep(sleep_time)
                         now = time.time()
-                        # Clear old ones after sleep
                         while self.calls and now - self.calls[0] >= self.period:
                             self.calls.popleft()
 
-                # Add current call
                 self.calls.append(time.time())
 
             return func(*args, **kwargs)
@@ -579,18 +518,14 @@ class RateLimiter:
         with self.lock:
             now = time.time()
 
-            # Remove old calls
             while self.calls and now - self.calls[0] >= self.period:
                 self.calls.popleft()
 
-            # If limit is reached, wait
             if len(self.calls) >= self.max_calls:
                 sleep_time = self.period - (now - self.calls[0]) + 0.01
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
-# Global rate limiter for Gemini API
-# Default: 60 requests per minute (can be configured via env)
 _gemini_rate_limiter = None
 
 def get_rate_limiter(max_calls: int = 60, period: int = 60) -> RateLimiter:
@@ -599,8 +534,6 @@ def get_rate_limiter(max_calls: int = 60, period: int = 60) -> RateLimiter:
     if _gemini_rate_limiter is None:
         _gemini_rate_limiter = RateLimiter(max_calls, period)
     return _gemini_rate_limiter
-
-# --- Parallel Tool Execution ---
 
 _tool_executor = None
 _executor_lock = threading.Lock()
@@ -642,28 +575,25 @@ def execute_tools_parallel(tool_calls: List[Dict], project_root_override: str | 
     if not tool_calls:
         return []
 
-    # Import here to avoid circular dependencies
     from app.utils.flask import mcp_handler
 
     executor = get_tool_executor()
     futures = {}
 
-    # Start all tool calls in parallel
     for tool_call in tool_calls:
         future = executor.submit(
             mcp_handler.execute_mcp_tool,
             tool_call.get('name'),
             tool_call.get('args', {}),
-            project_root_override # Pass the override to each submitted task
+            project_root_override
         )
         futures[future] = tool_call
 
-    # Collect results as they complete
     results = []
     for future in as_completed(futures):
         tool_call = futures[future]
         try:
-            result = future.result(timeout=120)  # 2 minutes per tool
+            result = future.result(timeout=120)
             results.append((tool_call, result))
         except Exception as e:
             error_msg = f"Error executing {tool_call.get('name')}: {e}"
@@ -676,18 +606,13 @@ def can_execute_parallel(tool_calls: List[Dict]) -> bool:
     Determines if tool calls can be executed in parallel.
     Some tools must be executed sequentially (e.g., apply_patch).
     """
-    # Tools that cannot be executed in parallel
     sequential_only = {'apply_patch'}
 
-    # If there is at least one sequential tool, execute all sequentially
     for tool_call in tool_calls:
         if tool_call.get('name') in sequential_only:
             return False
 
-    # Can execute in parallel if there is more than one tool
     return len(tool_calls) > 1
-
-# --- Prompt Caching (Gemini Context Caching API) ---
 
 _cached_contexts = {}
 _context_cache_lock = threading.Lock()
@@ -729,10 +654,8 @@ def create_cached_context(
         Cache ID or None on error
     """
     try:
-        # Calculate hash of the system instruction for identification
         cache_key = hashlib.md5(f"{model}:{system_instruction}".encode()).hexdigest()
 
-        # Check if cache already exists
         with _context_cache_lock:
             if cache_key in _cached_contexts:
                 cached = _cached_contexts[cache_key]
@@ -740,13 +663,10 @@ def create_cached_context(
                     cached.touch()
                     return cached.cache_id
                 else:
-                    # Remove expired cache
                     del _cached_contexts[cache_key]
 
-        # Create new cache via Gemini API
         session = get_http_session()
 
-        # TTL in seconds for API (minimum 60 seconds per documentation)
         ttl_seconds = max(60, ttl_minutes * 60)
 
         response = session.post(
@@ -768,7 +688,6 @@ def create_cached_context(
             cache_id = cache_data.get("name")
 
             if cache_id:
-                # Save to local cache
                 with _context_cache_lock:
                     _cached_contexts[cache_key] = CachedContext(
                         cache_id,
@@ -778,7 +697,6 @@ def create_cached_context(
 
                 return cache_id
         else:
-            # Log error, but do not crash
             print(f"Failed to create cached context: {response.status_code} {response.text}")
             return None
 
@@ -809,7 +727,6 @@ def get_cached_context_id(
             else:
                 del _cached_contexts[cache_key]
 
-    # Create new cache
     return create_cached_context(api_key, upstream_url, model, system_instruction)
 
 def clear_expired_contexts():
@@ -821,8 +738,6 @@ def clear_expired_contexts():
         ]
         for key in expired:
             del _cached_contexts[key]
-
-# --- Cleanup function ---
 
 def cleanup_resources():
     """Clears all optimization resources upon shutdown"""

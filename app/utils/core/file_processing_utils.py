@@ -1,6 +1,3 @@
-"""
-Utility functions for processing local file paths found in user messages.
-"""
 import base64
 import mimetypes
 import os
@@ -8,7 +5,6 @@ import re
 from app.config import config
 from app.utils.core import tools as utils
 
-# --- Constants ---
 MAX_MULTIMODAL_FILE_SIZE_MB = 12
 MAX_MULTIMODAL_FILE_SIZE = MAX_MULTIMODAL_FILE_SIZE_MB * 1024 * 1024
 
@@ -23,7 +19,6 @@ def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
     next_match_start = len(content) if (i + 1 >= len(all_matches)) else all_matches[i + 1].start()
     search_region = content[command_end:next_match_start]
 
-    # Pattern captures ignore_*=value parameters
     param_pattern = re.compile(r'\s+(ignore_type|ignore_file|ignore_dir)=([^\s]+)')
     last_param_end = 0
     remaining_search_region = search_region
@@ -32,7 +27,6 @@ def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
         if not param_match:
             break
 
-        # We don't need the patterns for agentic navigation, just the length of the match
         match_end_pos = param_match.end()
         last_param_end += match_end_pos
         remaining_search_region = remaining_search_region[match_end_pos:]
@@ -285,11 +279,10 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[list 
             except Exception as e:
                 utils.log(f"Error processing local file {expanded_path}: {e}")
                 new_content_parts.append(
-                    {"type": "text", "text": content[start:command_end]})  # Keep original text on error
+                    {"type": "text", "text": content[start:command_end]})
 
         last_end = command_end
 
-    # Add any remaining text after the last match
     if last_end < len(content):
         new_content_parts.append({"type": "text", "text": content[last_end:]})
 

@@ -13,15 +13,13 @@ import fnmatch
 import ast
 import re
 
-from app.utils.core.tools import log, load_code_ignore_patterns # Import new utility
+from app.utils.core.tools import log, load_code_ignore_patterns
 from contextlib import contextmanager
 from . import optimization
-from .optimization import record_tool_call # Explicitly import for clarity
+from .optimization import record_tool_call
 
-# --- BUILT-IN CODE NAVIGATION TOOL DEFINITIONS ---
 BUILTIN_TOOL_NAME = "__builtin_code_navigator"
 
-# Thread-local storage to hold the project root for the current request context
 _request_context = threading.local()
 
 def get_project_root() -> str:
@@ -42,7 +40,6 @@ def set_project_root(path: str | None):
         _request_context.project_root = None
         raise
 
-# Cache for ignore patterns, keyed by project root path
 _ignore_patterns_cache = {}
 
 def get_code_ignore_patterns() -> list[str]:
@@ -62,34 +59,30 @@ def _safe_path_resolve(path: str) -> str | None:
     from app.config import config
     
     project_root = get_project_root()
-    # We always join the relative path to the project_root first
     full_path = os.path.join(project_root, path)
     resolved_path = os.path.realpath(full_path)
 
-    # Crucial safety check: ensure the resolved path remains within the project root
     if not resolved_path.startswith(project_root):
         log(f"Security violation attempt: Path '{path}' resolves outside project root ({resolved_path} vs {project_root}).")
         return None
-    
-    # Additional check: if ALLOWED_CODE_PATHS is configured, ensure the path is within allowed directories
+
     if config.ALLOWED_CODE_PATHS:
         is_allowed = False
         for allowed_path in config.ALLOWED_CODE_PATHS:
             if resolved_path.startswith(allowed_path):
                 is_allowed = True
                 break
-        
+
         if not is_allowed:
             log(f"Access denied: Path '{path}' ({resolved_path}) is not within allowed directories: {config.ALLOWED_CODE_PATHS}")
             return None
-    
+
     return resolved_path
 
 def _generate_tree_local(file_paths, root_name):
     """Generates an ASCII directory tree from a list of relative file paths."""
     tree_dict = {}
     for path_str in file_paths:
-        # Use '/' as separator internally regardless of OS for consistent path parts splitting
         path_str = path_str.replace(os.sep, '/')
         parts = path_str.split('/')
         current_level = tree_dict
@@ -131,7 +124,6 @@ def list_files(path: str = ".", max_depth: int = -1) -> str:
     if os.path.isfile(resolved_path):
         return f"Path '{path}' is a file, not a directory. Use get_file_content."
 
-    # Progress feedback (if enabled)
     if config.STREAMING_PROGRESS_ENABLED:
         log(f"🔍 Scanning directory: {path}")
 
@@ -151,19 +143,17 @@ def list_files(path: str = ".", max_depth: int = -1) -> str:
             rel_root_abs = os.path.relpath(root, resolved_path)
             rel_root = '' if rel_root_abs == '.' else rel_root_abs
 
-            # Filter directories in place first
             dirs[:] = [d for d in dirs if not (
                     d.startswith('.') or
                     any(fnmatch.fnmatch(os.path.join(rel_root, d).replace(os.sep, '/'), p) or fnmatch.fnmatch(d, p) for p in IGNORE_PATTERNS)
             )]
 
-            # If max_depth is set, stop descending further once reached
             if max_depth != -1 and depth >= max_depth:
                 dirs[:] = []
 
             for filename in files:
                 if file_count >= MAX_FILES_LISTED:
-                    dirs[:] = []  # Stop traversing deeper
+                    dirs[:] = []
                     break
 
                 rel_filepath_fs = os.path.join(rel_root, filename)
@@ -176,8 +166,7 @@ def list_files(path: str = ".", max_depth: int = -1) -> str:
 
                 relative_paths.append(rel_filepath_fs)
                 file_count += 1
-                
-                # Progress feedback every 50 files
+
                 if config.STREAMING_PROGRESS_ENABLED and file_count - last_progress_report >= 50:
                     log(f"  📂 Found {file_count} files so far...")
                     last_progress_report = file_count
@@ -189,11 +178,9 @@ def list_files(path: str = ".", max_depth: int = -1) -> str:
         log(f"Error during file listing for path '{path}': {e}")
         return f"Error: Failed to list directory contents due to system error."
 
-    # Final progress
     if config.STREAMING_PROGRESS_ENABLED:
         log(f"✅ Scan complete: {file_count} files found")
 
-    # Determine the name to display as the root of the tree
     tree_root_name = path if path != "." else os.path.basename(get_project_root())
 
     if not relative_paths:
@@ -214,14 +201,13 @@ def get_file_content(path: str) -> str:
     if not os.path.isfile(resolved_path):
         return f"Error: Path '{path}' is a directory, not a file."
 
-    MAX_FILE_SIZE_BYTES = 256 * 1024 # 256 KB
+    MAX_FILE_SIZE_BYTES = 256 * 1024
 
     try:
         file_size = os.path.getsize(resolved_path)
         if file_size > MAX_FILE_SIZE_BYTES:
             return f"Error: File size ({file_size / 1024:.2f} KB) exceeds the maximum allowed limit of 256 KB."
 
-        # Basic binary check (quick heuristic)
         with open(resolved_path, 'rb') as f:
             chunk = f.read(1024)
             if b'\0' in chunk:
@@ -230,7 +216,6 @@ def get_file_content(path: str) -> str:
         _, extension = os.path.splitext(resolved_path)
         lang = extension.lstrip('.') if extension else ''
 
-        # Read the entire file content as a single string
         with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
             file_content = f.read()
 
@@ -242,7 +227,6 @@ def get_file_content(path: str) -> str:
         )
 
     except Exception as e:
-        # Return the error as a string, as no generator was started.
         return f"Error reading file '{path}': {e}"
 
 def get_code_snippet(path: str, symbol_name: str) -> str:
@@ -262,7 +246,6 @@ def get_code_snippet(path: str, symbol_name: str) -> str:
         tree = ast.parse(content)
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name == symbol_name:
-                # ast.get_source_segment is the most reliable way to get the exact source
                 snippet = ast.get_source_segment(content, node)
                 if snippet:
                     lang = "python"
@@ -290,35 +273,32 @@ def search_codebase(query: str) -> str:
         log(f"🔍 Searching codebase for: '{query}'")
     
     try:
-        # Check if ripgrep (rg) is installed. We prefer it for its speed and gitignore handling.
         subprocess.run(['rg', '--version'], check=True, capture_output=True)
-        # Use ripgrep with vimgrep format (file:line:col:text), which is structured and easy for an LLM to parse.
         command = ['rg', '--vimgrep', '--max-count', str(MAX_SEARCH_RESULTS), '--', query, '.']
         log(f"Using ripgrep for search with command: {' '.join(command)}")
-        
+
         if config.STREAMING_PROGRESS_ENABLED:
             log(f"  📍 Searching with ripgrep...")
-        
+
         result = subprocess.run(
             command, cwd=get_project_root(), capture_output=True, text=True, check=False
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
-        # Fallback to grep if ripgrep is not available.
         log("ripgrep not found, falling back to grep. For better performance, install ripgrep.")
         exclude_dirs = [f'--exclude-dir={pattern}' for pattern in [
             '.git', '__pycache__', 'node_modules', 'venv', '.venv', 'build', 'dist', 'target', '.idea', '.vscode'
         ]]
         command = ['grep', '-r', '-n', '-I'] + exclude_dirs + ['-e', query, '.']
         log(f"Using grep for search with command: {' '.join(command)}")
-        
+
         if config.STREAMING_PROGRESS_ENABLED:
             log(f"  📍 Searching with grep...")
-        
+
         result = subprocess.run(
             command, cwd=get_project_root(), capture_output=True, text=True, check=False
         )
 
-    if result.returncode not in [0, 1]:  # 0 = success with matches, 1 = success with no matches
+    if result.returncode not in [0, 1]:
         return f"Error executing search command. Return code: {result.returncode}\nStderr: {result.stderr}"
 
     output = result.stdout.strip()
@@ -348,29 +328,23 @@ def apply_patch(patch_content: str) -> str:
     if not patch_content or not isinstance(patch_content, str):
         return "Error: Patch content must be a non-empty string."
 
-    # Clean up potential markdown formatting from the LLM's output
     original_content = patch_content
     patch_content = patch_content.strip()
-    
-    # Remove markdown code blocks (various formats)
+
     if patch_content.startswith("```"):
         lines = patch_content.split('\n')
-        # Remove first line (```diff or ```patch or just ```)
         lines = lines[1:]
-        # Remove last line if it's ```
         if lines and lines[-1].strip() == "```":
             lines = lines[:-1]
         patch_content = '\n'.join(lines)
         log(f"Cleaned markdown formatting from patch")
-    
-    # Additional cleanup: remove any remaining stray ```
+
     patch_content = patch_content.replace('```', '')
-    
-    # Verify patch format (should start with --- or diff)
+
     patch_content = patch_content.strip()
     if not patch_content:
         return "Error: Patch content is empty after cleanup."
-    
+
     if not (patch_content.startswith('---') or patch_content.startswith('diff ')):
         log(f"Warning: Patch doesn't start with standard format. First line: {patch_content.split(chr(10))[0][:50]}")
 
@@ -390,13 +364,11 @@ def apply_patch(patch_content: str) -> str:
     log(f"Attempting to apply patch:\n---\n{patch_content}\n---")
 
     try:
-        # Use a secure temporary file to pass the patch to the command
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
             tmp.write(patch_content)
             temp_patch_file = tmp.name
 
         try:
-            # The `patch` command is standard on Linux/macOS. -p1 strips the 'a/' and 'b/' prefixes.
             command = ['patch', '-p1', f'--input={temp_patch_file}']
             result = subprocess.run(
                 command, cwd=get_project_root(), capture_output=True, text=True, check=False
@@ -413,10 +385,8 @@ def apply_patch(patch_content: str) -> str:
             log(success_message)
             return success_message
         else:
-            # Build detailed error message
             error_message = f"Error applying patch. Return code: {result.returncode}\n"
-            
-            # Check for common issues
+
             if "malformed patch" in result.stderr.lower():
                 error_message += "\n⚠️  MALFORMED PATCH: The patch format is incorrect.\n"
                 error_message += "Please ensure:\n"
@@ -424,13 +394,12 @@ def apply_patch(patch_content: str) -> str:
                 error_message += "  2. Use proper unified diff format (from 'git diff')\n"
                 error_message += "  3. Include file paths with 'a/' and 'b/' prefixes\n"
                 error_message += "  4. Each file change should start with '--- a/file' and '+++ b/file'\n\n"
-            
+
             if result.stderr:
                 error_message += f"Stderr:\n{result.stderr}\n"
             if result.stdout:
                 error_message += f"Stdout:\n{result.stdout}\n"
-            
-            # Add first few lines of the patch for debugging
+
             patch_preview = '\n'.join(patch_content.split('\n')[:10])
             error_message += f"\nFirst 10 lines of patch:\n{patch_preview}\n"
             
@@ -442,7 +411,6 @@ def apply_patch(patch_content: str) -> str:
         return f"Error: An unexpected exception occurred while trying to apply the patch: {e}"
 
 
-# --- GIT OPERATIONS ---
 def git_status() -> str:
     """
     Shows the working tree status including staged, unstaged, and untracked files.

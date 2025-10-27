@@ -1,9 +1,3 @@
-"""
-Module for intelligently selecting relevant context from the dialogue history.
-
-Instead of sending the entire dialogue history, only relevant messages are selected
-based on the current query, saving 40-60% of tokens in long dialogues.
-"""
 import re
 import os
 import json
@@ -42,12 +36,6 @@ def extract_keywords(text: str) -> List[str]:
     """
     Extracts keywords from the text.
 
-    Algorithm:
-    1. Text normalization (lowercase)
-    2. Tokenization (split by non-alphabetic characters)
-    3. Filtering of stop words and short words
-    4. Selection of top-N by frequency
-
     Args:
         text: Source text
 
@@ -57,22 +45,17 @@ def extract_keywords(text: str) -> List[str]:
     if not text:
         return []
 
-    # 1. Normalization
     text_lower = text.lower()
 
-    # 2. Tokenization - split by non-alphabetic characters
-    # Preserve underscores for variable names
     tokens = re.findall(r'\b[a-zа-яё_][a-zа-яё0-9_]*\b', text_lower)
 
-    # 3. Filtering
     filtered_tokens = [
         token for token in tokens
-        if len(token) >= MIN_KEYWORD_LENGTH  # Length >= 3
-        and token not in STOP_WORDS          # Not a stop word
-        and not token.isdigit()              # Not a number
+        if len(token) >= MIN_KEYWORD_LENGTH
+        and token not in STOP_WORDS
+        and not token.isdigit()
     ]
 
-    # 4. Frequency count and top-N selection
     if not filtered_tokens:
         return []
 
@@ -88,11 +71,6 @@ def calculate_relevance(message: dict, keywords: List[str]) -> float:
     """
     Calculates the relevance of a message relative to a list of keywords.
 
-    Algorithm:
-    - Extracts text from all parts of the message.
-    - Counts the number of keyword occurrences.
-    - Normalizes the score by text length and keyword count.
-
     Args:
         message: Message in Gemini API format.
         keywords: List of keywords.
@@ -103,7 +81,6 @@ def calculate_relevance(message: dict, keywords: List[str]) -> float:
     if not keywords:
         return 0.0
 
-    # Extract text from the message
     parts = message.get('parts', [])
     text_parts = []
 
@@ -127,12 +104,10 @@ def calculate_relevance(message: dict, keywords: List[str]) -> float:
     if not full_text:
         return 0.0
 
-    # Count keyword matches
     matches = 0
     total_keyword_occurrences = 0
 
     for keyword in keywords:
-        # Search for keyword occurrences as separate words
         pattern = r'\b' + re.escape(keyword) + r'\b'
         occurrences = len(re.findall(pattern, full_text))
         if occurrences > 0:
@@ -142,17 +117,12 @@ def calculate_relevance(message: dict, keywords: List[str]) -> float:
     if matches == 0:
         return 0.0
 
-    # Calculate score
-    # Factor 1: Percentage of keywords found (0-1)
     keyword_coverage = matches / len(keywords)
 
-    # Factor 2: Density of occurrences relative to text length (0-1)
-    # Normalize such that 5+ occurrences = 1.0
     density = min(total_keyword_occurrences / 5.0, 1.0)
 
-    # Combine factors (70% coverage, 30% density)
     relevance_score = (keyword_coverage * 0.7) + (density * 0.3)
-    
+
     return min(relevance_score, 1.0)
 
 
@@ -165,12 +135,6 @@ def select_relevant_messages(
 ) -> List[dict]:
     """
     Intelligent selection of relevant messages from history.
-
-    Algorithm:
-    1. Always include the system prompt (first message)
-    2. Always include the last `keep_recent` messages
-    3. Select remaining messages based on relevance score
-    4. Sort by time (preserve chronology)
 
     Args:
         messages: List of all messages
@@ -190,20 +154,16 @@ def select_relevant_messages(
 
     # Check if filtering is even necessary
     total_tokens = estimate_token_count(messages)
-    if total_tokens <= max_tokens * 0.8:  # If we occupy < 80% of the limit
+    if total_tokens <= max_tokens * 0.8:
         return messages
 
-    # 1. Extract keywords from the current query
     keywords = extract_keywords(current_query)
 
     if not keywords:
-        # If we couldn't extract keywords, use simple truncation
         return messages[:1] + messages[-keep_recent:]
 
-    # 2. Always keep the first message (system prompt)
     result = [messages[0]]
 
-    # 3. Always keep the last messages too
     recent_messages = messages[-keep_recent:]
 
     middle_messages = messages[1:-keep_recent]

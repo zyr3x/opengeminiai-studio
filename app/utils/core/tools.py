@@ -1,6 +1,3 @@
-"""
-Utility functions for Gemini-Proxy.
-"""
 import os
 import json
 import requests
@@ -10,23 +7,20 @@ import time
 import random
 from urllib3.util import url
 
-from app.db import get_db_connection, UPLOAD_FOLDER # Import added for new utility functions
+from app.db import get_db_connection, UPLOAD_FOLDER
 
-# --- Global Settings ---
 VERBOSE_LOGGING = True
 DEBUG_CLIENT_LOGGING = False
 
-# --- Prompt Engineering Config ---
 PROMPT_OVERRIDES_FILE = 'var/config/prompt.json'
 prompt_overrides = {}
 
 SYSTEM_PROMPTS_FILE = 'var/config/system_prompts.json'
 system_prompts = {}
 
-# --- Caches for model info ---
 cached_models_response = None
 model_info_cache = {}
-TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95  # Use 95% of the model's capacity
+TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95
 
 def set_verbose_logging(enabled: bool):
     """Sets the verbose logging status."""
@@ -68,7 +62,7 @@ def load_prompt_config():
                     'overrides': profile.get('overrides', {}),
                     'disable_tools': profile.get('disable_tools', False),
                     'enable_native_tools': profile.get('enable_native_tools', False),
-                    'selected_mcp_tools': profile.get('selected_mcp_tools', []) # New field
+                    'selected_mcp_tools': profile.get('selected_mcp_tools', [])
                 }
                 for name, profile in all_profiles.items()
                 if profile.get('enabled', True)
@@ -98,7 +92,7 @@ def load_system_prompt_config():
                     'prompt': profile.get('prompt', ''),
                     'disable_tools': profile.get('disable_tools', False),
                     'enable_native_tools': profile.get('enable_native_tools', False),
-                    'selected_mcp_tools': profile.get('selected_mcp_tools', []) # New field
+                    'selected_mcp_tools': profile.get('selected_mcp_tools', [])
                 }
                 for name, profile in all_profiles.items()
                 if profile.get('enabled', True) and profile.get('prompt')
@@ -122,7 +116,6 @@ def _process_image_url(image_url: dict) -> dict | None:
 
     try:
         if url.startswith("data:"):
-            # Handle Base64 data URI
             match = re.match(r"data:(image/.+);base64,(.+)", url)
             if not match:
                 log(f"Warning: Could not parse data URI.")
@@ -130,7 +123,6 @@ def _process_image_url(image_url: dict) -> dict | None:
             mime_type, base64_data = match.groups()
             return {"inline_data": {"mime_type": mime_type, "data": base64_data}}
         else:
-            # Handle web URL with size check
             log(f"Downloading image from URL: {url}")
             MAX_IMAGE_SIZE_MB = 15
             MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
@@ -138,15 +130,13 @@ def _process_image_url(image_url: dict) -> dict | None:
             response = requests.get(url, timeout=20, stream=True)
             response.raise_for_status()
 
-            # Check Content-Length header first if available
             content_length = response.headers.get('Content-Length')
             if content_length and int(content_length) > MAX_IMAGE_SIZE_BYTES:
                 log(f"Skipping image from URL {url}: size from header ({int(content_length) / (1024*1024):.2f} MB) exceeds limit of {MAX_IMAGE_SIZE_MB} MB.")
                 return None
 
-            # Read content in chunks to prevent loading a huge file into memory
             content = b''
-            for chunk in response.iter_content(chunk_size=1024 * 1024): # Read in 1MB chunks
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
                 content += chunk
                 if len(content) > MAX_IMAGE_SIZE_BYTES:
                     log(f"Skipping image from URL {url}: size exceeded {MAX_IMAGE_SIZE_MB} MB during download.")
@@ -164,7 +154,7 @@ def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> i
     Fetches the input token limit for a given model from the Gemini API and caches it.
     """
     if model_name in model_info_cache:
-        return model_info_cache[model_name].get("inputTokenLimit", 8192)  # Default to 8k if not found
+        return model_info_cache[model_name].get("inputTokenLimit", 8192)
 
     try:
         log(f"Cache miss for {model_name}. Fetching model details from API...")
@@ -177,7 +167,7 @@ def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> i
         return model_info.get("inputTokenLimit", 8192)
     except requests.exceptions.RequestException as e:
         log(f"Error fetching model details for {model_name}: {e}. Using default limit of 8192.")
-        return 8192  # Return a safe default on error
+        return 8192
 
 def estimate_token_count(contents: list) -> int:
     """
@@ -209,7 +199,6 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
 
     log(f"Estimated token count ({estimated_tokens}) exceeds limit ({limit}). Truncating...")
 
-    # PHASE 3: Try Selective Context first if enabled and query is provided
     from app import config as app_config
     if current_query and app_config.config.SELECTIVE_CONTEXT_ENABLED:
         try:
@@ -231,7 +220,6 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
         except Exception as e:
             log(f"Selective Context failed, falling back: {e}")
 
-    # Try smart truncation (with summarization) as fallback
     try:
         from app.utils.flask import optimization
         truncated = optimization.smart_truncate_contents(contents, limit, keep_recent=5)
@@ -241,12 +229,8 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
     except Exception as e:
         log(f"Smart truncation failed, falling back to simple truncation: {e}")
 
-    # Fallback to simple truncation
-    # Keep the first message (often a system prompt) and the most recent ones.
-    # We will remove messages from the second position (index 1).
     truncated_contents = contents.copy()
     while estimate_token_count(truncated_contents) > limit and len(truncated_contents) > 1:
-        # Remove the oldest message after the initial system/user prompt
         truncated_contents.pop(1)
 
     final_tokens = estimate_token_count(truncated_contents)
@@ -268,7 +252,6 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
     #     session = optimization.get_http_session()
     #     rate_limiter = optimization.get_rate_limiter()
     #
-    #     # Apply rate limiting
     #     rate_limiter.wait_if_needed()
     #
     #     response = session.post(
@@ -282,12 +265,10 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
     #     return response
     #
     # except ImportError:
-    #     # Fallback if optimization module is not available
     #     pass
 
-    # Original logic with retry (fallback)
     retries = 1
-    backoff_factor = 1.0  # seconds
+    backoff_factor = 1.0
 
     for i in range(retries):
         try:
@@ -304,19 +285,17 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
             status_code = e.response.status_code
             if (status_code == 429 or status_code in [502, 503, 504]) and i < retries - 1:
                 wait_time = 0
-                # Check for Retry-After header from the API
                 if e.response and 'Retry-After' in e.response.headers:
                     try:
                         wait_time = int(e.response.headers.get('Retry-After'))
                     except (ValueError, TypeError):
-                        pass # Could be a date, ignore and use backoff
+                        pass
 
                 if wait_time > 0:
-                    wait_time += random.uniform(0, 1) # Add jitter
+                    wait_time += random.uniform(0, 1)
                 elif status_code == 429:
-                    # Exponential backoff for rate limiting, starting higher
                     wait_time = (backoff_factor * 10) * (2 ** i) + random.uniform(0, 3.0)
-                else: # Server errors
+                else:
                     wait_time = backoff_factor * (2 ** i) + random.uniform(0, 1.0)
 
                 log(f"Received status {status_code}. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
@@ -324,7 +303,7 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
                 continue
             else:
                 log(f"HTTP Error: {e}")
-                raise  # Re-raise the exception to be handled by the caller
+                raise
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
             if i < retries - 1:
                 wait_time = backoff_factor * (2 ** i) + random.uniform(0, 0.5)
@@ -333,12 +312,11 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
                 continue
             else:
                 log(f"Connection/Timeout Error after final retry: {e}")
-                raise  # Re-raise
+                raise
         except requests.exceptions.RequestException as e:
             log(f"An unexpected request exception occurred: {e}")
-            raise  # Re-raise
+            raise
 
-    # This part should not be reached if logic is correct, but as a fallback
     raise requests.exceptions.RequestException(f"All {retries} retries failed.")
 
 
@@ -346,20 +324,16 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
 def save_config_to_file(config_str: str, file_path: str, config_name: str):
     """Saves a configuration string to a file, validating JSON first."""
     if not config_str.strip():
-        # Handle case where user clears config in editor
         if os.path.exists(file_path):
             os.remove(file_path)
             log(f"{config_name} config cleared.")
         return
 
-    # 1. Validate JSON
     try:
         json.loads(config_str.strip())
     except json.JSONDecodeError as e:
-        # Raise as ValueError so Flask controllers can catch it and redirect
         raise ValueError(f"Invalid JSON in {config_name}: {e}")
 
-    # 2. Save file
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'w') as f:
         f.write(config_str.strip())
@@ -371,9 +345,7 @@ DEFAULT_IGNORE_PATTERNS_PATH = 'etc/code_ignore_patterns.txt'
 def _load_default_ignore_patterns(path: str) -> list[str]:
     """Helper to load default ignore patterns from a file."""
     try:
-        # We assume the path is relative to the project root when the application is run.
         with open(path, 'r') as f:
-            # Read lines, strip whitespace, ignore empty lines and lines starting with '#' (for comments)
             patterns = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         return patterns
     except FileNotFoundError:
@@ -396,7 +368,6 @@ def load_code_ignore_patterns(project_root: str, filename: str = '.aiignore') ->
                     for line in f:
                         line = line.strip()
                         if line and not line.startswith('#'):
-                            # Normalize path separators for consistency
                             normalized_line = line.replace('\\', '/')
                             ignore_patterns.append(normalized_line)
                 log(f"Loaded {len(ignore_patterns) - len(DEFAULT_CODE_IGNORE_PATTERNS)} custom patterns from {filename}.")
@@ -405,7 +376,6 @@ def load_code_ignore_patterns(project_root: str, filename: str = '.aiignore') ->
         else:
             log(f"No custom ignore file '{filename}' found. Using default patterns.")
 
-        # Remove duplicates while preserving order as much as possible, prioritizing defaults
         unique_patterns = []
         seen = set()
         for p in ignore_patterns:
@@ -438,10 +408,8 @@ def get_code_language_from_filename(filename: str) -> str:
     if not filename:
         return 'text'
 
-    # Simple extraction of extension
     _, ext = os.path.splitext(filename.lower())
 
-    # Look up in map, default to 'text' for unknown extensions
     return EXTENSION_TO_LANGUAGE_MAP.get(ext, 'text')
 
 
@@ -461,10 +429,8 @@ def format_tool_output_for_display(tool_parts: list, use_html_tags: bool = True)
         if 'text' in resp_data:
             resp_text = resp_data['text']
         elif 'content' in resp_data:
-            # Use content field if text is missing (e.g., if output was mapped to 'content')
-            resp_text = str(resp_data['content'])  # Ensure it's a string
+            resp_text = str(resp_data['content'])
         else:
-            # If neither text nor content, dump the entire response payload dictionary
             resp_text = pretty_json(resp_data)
 
         if not resp_text:
@@ -472,15 +438,12 @@ def format_tool_output_for_display(tool_parts: list, use_html_tags: bool = True)
 
         lang_specifier = 'json'
         try:
-            # Try to parse and pretty-print if it's a JSON string
             parsed_json = json.loads(resp_text)
             pretty_text = json.dumps(parsed_json, indent=3, default=str)
             pretty_text = pretty_text.replace('\\n', '\n')
         except (json.JSONDecodeError, TypeError):
-            # If it fails, use the response text as is
             pretty_text = resp_text
 
-            # Check for a filename hint to determine code language
             filename_hint = resp_data.get('path') or resp_data.get('file_path') or resp_data.get('filename')
             if filename_hint:
                 lang_specifier = get_code_language_from_filename(filename_hint)
@@ -523,7 +486,6 @@ def format_message_parts_for_ui(db_parts_json: str, use_html_tags: bool = True) 
             elif 'file_data' in part:
                 file_path = part['file_data']['path']
                 if os.path.exists(file_path):
-                    # Create a relative path for the URL
                     relative_path = os.path.relpath(file_path, UPLOAD_FOLDER)
                     file_url = f"/uploads/{relative_path.replace(os.sep, '/')}"
                     message_data['files'].append({
@@ -534,7 +496,6 @@ def format_message_parts_for_ui(db_parts_json: str, use_html_tags: bool = True) 
                 else:
                     text_parts.append(f"[File not found: {os.path.basename(file_path)}]")
             elif 'functionResponse' in part:
-                # Format tool output for UI display
                 formatted_output = format_tool_output_for_display([part], use_html_tags=use_html_tags)
                 if formatted_output:
                     text_parts.append(formatted_output)

@@ -15,7 +15,6 @@ class APIKeyManager:
                 with open(self.config_path, 'r') as f:
                     self.keys_data = json.load(f)
             else:
-                # Handle legacy API_KEY from .env or environment
                 legacy_api_key = os.getenv('API_KEY')
                 if legacy_api_key:
                     self.keys_data['keys']['legacy_default'] = legacy_api_key
@@ -38,7 +37,6 @@ class APIKeyManager:
             if key_id in self.keys_data['keys']:
                 del self.keys_data['keys'][key_id]
                 if self.keys_data['active_key_id'] == key_id:
-                    # If the active key is deleted, set active to None or a default
                     self.keys_data['active_key_id'] = None
                 self.save_keys()
                 return True
@@ -57,12 +55,10 @@ class APIKeyManager:
             active_id = self.keys_data.get('active_key_id')
             if active_id and active_id in self.keys_data['keys']:
                 return self.keys_data['keys'][active_id]
-            return os.getenv('API_KEY') # Fallback to environment variable
+            return os.getenv('API_KEY')
 
     def get_all_keys_data(self):
         with self.lock:
-            # Return a copy to prevent modification outside the manager
             return self.keys_data.copy()
 
-# Instantiate a single manager for the application
 api_key_manager = APIKeyManager()

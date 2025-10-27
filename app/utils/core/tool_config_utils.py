@@ -1,6 +1,3 @@
-"""
-Utility functions for processing prompt overrides and determining Gemini tool configuration.
-"""
 from app.utils.core import tools as utils
 
 def get_prompt_override_config(full_prompt_text: str) -> dict:
@@ -27,13 +24,11 @@ def get_prompt_override_config(full_prompt_text: str) -> dict:
                     if trigger in full_prompt_text:
                         active_overrides = profile_data.get('overrides', {})
 
-                        # 'disable_tools' is the master switch.
                         if profile_data.get('disable_tools', False):
                             utils.log(f"MCP Tools Disabled by prompt override profile '{profile_name}'.")
                             disable_mcp_tools_by_profile = True
                         else:
                             disable_mcp_tools_by_profile = False
-                            # Only if tools are not disabled can we select specific ones.
                             if profile_data.get('selected_mcp_tools'):
                                 utils.log(f"MCP Tools explicitly selected by prompt override profile '{profile_name}': {profile_data['selected_mcp_tools']}")
                                 profile_selected_mcp_tools = profile_data['selected_mcp_tools']

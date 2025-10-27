@@ -1,7 +1,3 @@
-"""
-Async utility functions for Gemini-Proxy.
-Provides async versions of key utilities for improved performance.
-"""
 import os
 import json
 import aiohttp
@@ -12,16 +8,13 @@ import random
 import asyncio
 from typing import Optional
 
-# --- Global Settings ---
 VERBOSE_LOGGING = True
 DEBUG_CLIENT_LOGGING = False
 
-# --- Caches for model info ---
 cached_models_response = None
 model_info_cache = {}
 TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95
 
-# --- Async HTTP Session (connection pooling) ---
 _async_session: Optional[aiohttp.ClientSession] = None
 _session_lock = asyncio.Lock()
 
@@ -78,7 +71,6 @@ async def process_image_url_async(image_url: dict) -> Optional[dict]:
 
     try:
         if url.startswith("data:"):
-            # Handle Base64 data URI (no async needed)
             match = re.match(r"data:(image/.+);base64,(.+)", url)
             if not match:
                 log(f"Warning: Could not parse data URI.")
@@ -86,7 +78,6 @@ async def process_image_url_async(image_url: dict) -> Optional[dict]:
             mime_type, base64_data = match.groups()
             return {"inline_data": {"mime_type": mime_type, "data": base64_data}}
         else:
-            # Handle web URL with size check (async download)
             log(f"Downloading image from URL: {url}")
             MAX_IMAGE_SIZE_MB = 15
             MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
@@ -94,16 +85,14 @@ async def process_image_url_async(image_url: dict) -> Optional[dict]:
             session = await get_async_session()
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=20)) as response:
                 response.raise_for_status()
-                
-                # Check Content-Length header first if available
+
                 content_length = response.headers.get('Content-Length')
                 if content_length and int(content_length) > MAX_IMAGE_SIZE_BYTES:
                     log(f"Skipping image from URL {url}: size from header ({int(content_length) / (1024*1024):.2f} MB) exceeds limit of {MAX_IMAGE_SIZE_MB} MB.")
                     return None
 
-                # Read content in chunks
                 content = b''
-                async for chunk in response.content.iter_chunked(1024 * 1024):  # 1MB chunks
+                async for chunk in response.content.iter_chunked(1024 * 1024):
                     content += chunk
                     if len(content) > MAX_IMAGE_SIZE_BYTES:
                         log(f"Skipping image from URL {url}: size exceeded {MAX_IMAGE_SIZE_MB} MB during download.")
@@ -150,10 +139,10 @@ async def make_request_with_retry_async(
     Uses connection pooling for better performance.
     """
     retries = 2
-    backoff_factor = 1.0  # seconds
-    
+    backoff_factor = 1.0
+
     session = await get_async_session()
-    
+
     for i in range(retries):
         try:
             response = await session.post(
@@ -162,27 +151,24 @@ async def make_request_with_retry_async(
                 json=json_data,
                 timeout=aiohttp.ClientTimeout(total=timeout)
             )
-            
+
             if response.status < 400:
                 return response
-            
-            # Handle error status codes
+
             status_code = response.status
             if (status_code == 429 or status_code in [502, 503, 504]) and i < retries - 1:
                 wait_time = 0
-                # Check for Retry-After header from the API
                 if 'Retry-After' in response.headers:
                     try:
                         wait_time = int(response.headers.get('Retry-After'))
                     except (ValueError, TypeError):
-                        pass # Could be a date, ignore for now and use backoff
+                        pass
 
                 if wait_time > 0:
-                    wait_time += random.uniform(0, 1) # Add jitter
+                    wait_time += random.uniform(0, 1)
                 elif status_code == 429:
-                    # Exponential backoff for rate limiting, starting higher
                     wait_time = (backoff_factor * 10) * (2 ** i) + random.uniform(0, 3.0)
-                else: # Server errors (502, 503, 504)
+                else:
                     wait_time = backoff_factor * (2 ** i) + random.uniform(0, 1.0)
 
                 log(f"Received status {status_code}. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
@@ -229,20 +215,18 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
 
     log(f"Estimated token count ({estimated_tokens}) exceeds limit ({limit}). Truncating...")
 
-    # Try selective context first if enabled
     from app.config import config as app_config
     if current_query and app_config.SELECTIVE_CONTEXT_ENABLED:
         try:
             from app.utils.core.tools import context_selector
 
-            # Note: context_selector might need async version too
             selected = context_selector.smart_context_window(
                 messages=contents,
                 current_query=current_query,
                 max_tokens=limit,
                 enabled=True
             )
-            
+
             final_tokens = estimate_token_count(selected)
             if final_tokens <= limit:
                 log(f"✓ Selective Context applied. Final estimated token count: {final_tokens}")
@@ -252,7 +236,6 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
         except Exception as e:
             log(f"Selective Context failed, falling back: {e}")
 
-    # Try smart truncation with summarization
     try:
         from app.utils.quart import optimization
         truncated = await optimization.smart_truncate_contents_async(contents, limit, keep_recent=5)
@@ -262,7 +245,6 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
     except Exception as e:
         log(f"Smart truncation failed, falling back to simple truncation: {e}")
 
-    # Fallback to simple truncation
     truncated_contents = contents.copy()
     while estimate_token_count(truncated_contents) > limit and len(truncated_contents) > 1:
         truncated_contents.pop(1)

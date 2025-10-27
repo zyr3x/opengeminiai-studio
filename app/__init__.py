@@ -9,11 +9,9 @@ from hypercorn.config import Config as HypercornConfig
 
 def create_flask_app(app: Flask):
     """Application factory function to set up and configure the Flask app."""
-    # Local imports for encapsulated setup
     import app.utils.flask.mcp_handler as mcp_handler
     import app.utils.core.tools as utils
 
-    # Import Blueprints
     from app.controllers.flask.proxy import proxy_bp
     from app.controllers.flask.settings import settings_bp
     from app.controllers.flask.mcp_settings import mcp_settings_bp
@@ -24,12 +22,10 @@ def create_flask_app(app: Flask):
     from app.db import init_db
 
     init_db()
-    # Load configurations from external modules (MCP/Prompts)
     mcp_handler.load_mcp_config()
     utils.load_prompt_config()
     utils.load_system_prompt_config()
 
-    # Register blueprints
     app.register_blueprint(proxy_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(mcp_settings_bp)

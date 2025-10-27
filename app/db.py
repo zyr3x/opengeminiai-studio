@@ -2,7 +2,6 @@ import sqlite3
 import os
 
 UPLOAD_FOLDER = "var/uploads"
-# --- Database setup ---
 DATABASE_FILE = "var/data/chats.db"
 
 def get_db_connection():
