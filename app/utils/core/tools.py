@@ -365,23 +365,23 @@ def save_config_to_file(config_str: str, file_path: str, config_name: str):
         f.write(config_str.strip())
     log(f"{config_name} updated and saved to {file_path}.")
 
-DEFAULT_CODE_IGNORE_PATTERNS = [
-        '.git', '__pycache__', 'node_modules', 'venv', '.venv',
-        'build','.data', 'var', 'dist', 'target', 'out', 'coverage', '.nyc_output', '*.egg-info', 'bin', 'obj', 'pkg',
-        '.idea', '.vscode', '.cache', '.pytest_cache',
-        '.DS_Store', 'Thumbs.db',
-        '*.log', '*.swp', '*.pyc', '*~', '*.bak', '*.tmp',
-        '*.zip', '*.tar.gz', '*.rar', '*.7z',
-        '*.o', '*.so', '*.dll', '*.exe', '*.a', '*.lib', '*.dylib',
-        '*.class', '*.jar', '*.war',
-        '*.pdb', '*.nupkg', '*.deps.json', '*.runtimeconfig.json',
-        '*.db', '*.sqlite', '*.sqlite3', 'data.mdb', 'lock.mdb',
-        '*.png', '*.jpg', '*.jpeg', '*.gif', '*.svg',
-        '*.woff', '*.woff2', '*.ttf', '.otf', '.eot', '.ico',
-        '*.mp3', '*.wav', '*.mp4', '*.mov', '*.m4v', '*.avi', '*.flv', '*.webm','*.m4a'
-        '*.min.js', '*.min.css', '*.map',
-        'package-lock-v1.json', 'package-lock.json', 'yarn.lock', 'poetry.lock', 'Pipfile.lock',
-    ]
+
+DEFAULT_IGNORE_PATTERNS_PATH = 'etc/code_ignore_patterns.txt'
+
+def _load_default_ignore_patterns(path: str) -> list[str]:
+    """Helper to load default ignore patterns from a file."""
+    try:
+        # We assume the path is relative to the project root when the application is run.
+        with open(path, 'r') as f:
+            # Read lines, strip whitespace, ignore empty lines and lines starting with '#' (for comments)
+            patterns = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        return patterns
+    except FileNotFoundError:
+        print(f"Warning: Default ignore patterns file not found at {path}")
+        return []
+
+
+DEFAULT_CODE_IGNORE_PATTERNS: list[str] = _load_default_ignore_patterns(DEFAULT_IGNORE_PATTERNS_PATH)
 
 def load_code_ignore_patterns(project_root: str, filename: str = '.aiignore') -> list[str]:
         """
@@ -415,16 +415,21 @@ def load_code_ignore_patterns(project_root: str, filename: str = '.aiignore') ->
 
         return unique_patterns
 
+EXTENSION_MAP_PATH = 'etc/extension_map.json'
 
-EXTENSION_TO_LANGUAGE_MAP = {
-    '.py': 'python', '.js': 'javascript', '.ts': 'typescript',
-    '.html': 'html', '.css': 'css', '.scss': 'scss', '.less': 'less',
-    '.java': 'java', '.c': 'c', '.cpp': 'cpp', '.h': 'c', '.hpp': 'cpp',
-    '.go': 'go', '.rb': 'ruby', '.php': 'php', '.swift': 'swift',
-    '.kt': 'kotlin', '.rs': 'rust', '.sh': 'bash', '.yaml': 'yaml',
-    '.yml': 'yaml', '.json': 'json', '.xml': 'xml', '.md': 'markdown',
-    '.diff': 'diff', '.patch': 'diff', '.sql': 'sql', '.txt': 'text',
-}
+def _load_extension_map(path: str) -> dict[str, str]:
+    """Helper to load the language extension map from a JSON file."""
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"Warning: Extension map file not found at {path}")
+        return {}
+    except json.JSONDecodeError as e:
+        print(f"Error decoding extension map file at {path}: {e}")
+        return {}
+
+EXTENSION_TO_LANGUAGE_MAP: dict[str, str] = _load_extension_map(EXTENSION_MAP_PATH)
 
 def get_code_language_from_filename(filename: str) -> str:
     """
