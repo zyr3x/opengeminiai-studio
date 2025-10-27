@@ -108,16 +108,14 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[list 
             # Insert detailed context message for the model
             context_text = (
                 f"🚀 **PROJECT MODE ACTIVATED** for project root: '{file_path_str}'\n\n"
-                f"The current project context has been set to this directory for all built-in tools.\n"
-                f"**Action Required:** You must first call the `list_files(path='.', max_depth=3)` tool "
-                f"to see the project structure before proceeding with any other file operations. "
-                f"Use `list_files` with specific paths and larger `max_depth` for deeper exploration.\n\n"
+                f"The project context is set. Start by using `list_files(path='.')` to explore.\n\n"
                 f"**Available Tools:**\n"
-                f"• Navigation: list_files, get_file_content, get_code_snippet, search_codebase\n"
-                f"• Analysis: analyze_file_structure, analyze_project_structure, get_file_stats, find_symbol, get_dependencies\n"
-                f"• Modification: apply_patch, create_file, write_file\n"
-                f"• Execution: execute_command (run tests, builds, awk/sed, etc.)\n"
-                f"• Git: git_status, git_log, git_diff, git_show, git_blame, list_recent_changes\n\n"
+                f"• Navigation: `list_files`, `get_file_content`, `get_code_snippet`, `search_codebase`\n"
+                f"• Analysis: `analyze_file_structure`, `analyze_project_structure`, `get_file_stats`, `find_symbol`, `get_dependencies`\n"
+                f"• Modification: `apply_patch`, `create_file`, `write_file`\n"
+                f"• Execution: `execute_command`\n"
+                f"• Git: `git_status`, `git_log`, `git_diff`, `git_show`, `git_blame`, `list_recent_changes`\n\n"
+                f"Your confirmation is required before using any tools.\n"
             )
 
             # Check if path is valid for proactive feedback

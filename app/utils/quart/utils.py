@@ -149,7 +149,7 @@ async def make_request_with_retry_async(
     Async version: Makes a POST request with retry logic for 429 and connection errors.
     Uses connection pooling for better performance.
     """
-    retries = 5
+    retries = 2
     backoff_factor = 1.0  # seconds
     
     session = await get_async_session()

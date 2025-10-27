@@ -262,32 +262,31 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
     Makes a POST request with retry logic for 429 and connection errors.
     OPTIMIZED: Uses connection pooling for better performance.
     """
-    # Используем оптимизированную сессию с connection pooling
-    try:
-        from app.utils.flask import optimization
-        session = optimization.get_http_session()
-        rate_limiter = optimization.get_rate_limiter()
-
-        # Применяем rate limiting
-        rate_limiter.wait_if_needed()
-
-        # Выполняем запрос с переиспользованием соединений
-        response = session.post(
-            url,
-            headers=headers,
-            json=json_data,
-            stream=stream,
-            timeout=timeout
-        )
-        response.raise_for_status()
-        return response
-
-    except ImportError:
-        # Fallback если optimization модуль недоступен
-        pass
+    # connection pooling
+    # try:
+    #     from app.utils.flask import optimization
+    #     session = optimization.get_http_session()
+    #     rate_limiter = optimization.get_rate_limiter()
+    #
+    #     # Применяем rate limiting
+    #     rate_limiter.wait_if_needed()
+    #
+    #     response = session.post(
+    #         url,
+    #         headers=headers,
+    #         json=json_data,
+    #         stream=stream,
+    #         timeout=timeout
+    #     )
+    #     response.raise_for_status()
+    #     return response
+    #
+    # except ImportError:
+    #     # Fallback если optimization модуль недоступен
+    #     pass
 
     # Original logic with retry (fallback)
-    retries = 5
+    retries = 1
     backoff_factor = 1.0  # seconds
 
     for i in range(retries):

@@ -38,9 +38,9 @@ def set_project_root(path: str | None):
         _request_context.project_root = os.path.realpath(os.getcwd())
     try:
         yield
-    finally:
-        _request_context.project_root = original_path
-
+    except Exception:
+        _request_context.project_root = None
+        raise
 
 # Cache for ignore patterns, keyed by project root path
 _ignore_patterns_cache = {}
