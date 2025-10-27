@@ -29,7 +29,7 @@ class AppConfig:
         self.MIN_CONTEXT_CACHING_TOKENS = int(os.getenv("MIN_CONTEXT_CACHING_TOKENS", "2048"))
 
         # Max size for code injection via code_path= in KB. Prevents exceeding token limits.
-        self.MAX_CODE_INJECTION_SIZE_KB = int(os.getenv("MAX_CODE_INJECTION_SIZE_KB", "512")) # Default to 512 KB
+        self.MAX_CODE_INJECTION_SIZE_KB = int(os.getenv("MAX_CODE_INJECTION_SIZE_KB", "256")) # Default to 256 KB
 
         # Allowed root directories for builtin tools (comma-separated paths)
         allowed_paths_str = os.getenv("ALLOWED_CODE_PATHS", "")
