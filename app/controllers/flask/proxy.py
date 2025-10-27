@@ -422,11 +422,11 @@ def chat_completions():
                 tool_response_parts = []
                 
                 # --- OPTIMIZATION: Parallel tool execution ---
-                # Проверяем, можно ли выполнить инструменты параллельно
+                # Check if tools can be executed in parallel
                 if optimization.can_execute_parallel(tool_calls):
                     utils.log(f"✓ Executing {len(tool_calls)} tools in parallel")
-                    
-                    # Подготавливаем tool calls для параллельного выполнения
+
+                    # Prepare tool calls for parallel execution
                     parallel_calls = []
                     for tool_call in tool_calls:
                         parallel_calls.append({
@@ -436,8 +436,8 @@ def chat_completions():
 
                     # Pass project root to the async handler, which will ensure it is set correctly
                     results = optimization.execute_tools_parallel(parallel_calls, project_context_root)
-                    
-                    # Обрабатываем результаты
+
+                    # Process results
                     for tool_call_data, output in results:
                         function_name = tool_call_data['name']
                         
@@ -458,7 +458,7 @@ def chat_completions():
                         })
                 
                 else:
-                    # Последовательное выполнение (оригинальная логика)
+                    # Sequential execution (original logic)
                     utils.log(f"✓ Executing {len(tool_calls)} tools sequentially")
                     
                     for tool_call in tool_calls:

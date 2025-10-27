@@ -149,7 +149,7 @@ def optimize_diff_output(diff: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) ->
     if len(important_lines) <= max_lines:
         return diff
 
-    # Ограничиваем важные строки
+    # Limit the number of important lines
     result_lines = important_lines[:max_lines]
     total_lines = len(lines)
     shown_lines = len(result_lines)

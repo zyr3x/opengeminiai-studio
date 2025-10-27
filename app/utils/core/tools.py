@@ -268,7 +268,7 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
     #     session = optimization.get_http_session()
     #     rate_limiter = optimization.get_rate_limiter()
     #
-    #     # Применяем rate limiting
+    #     # Apply rate limiting
     #     rate_limiter.wait_if_needed()
     #
     #     response = session.post(
@@ -282,7 +282,7 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
     #     return response
     #
     # except ImportError:
-    #     # Fallback если optimization модуль недоступен
+    #     # Fallback if optimization module is not available
     #     pass
 
     # Original logic with retry (fallback)
