@@ -27,6 +27,7 @@ class AppConfig:
         self.MIN_CONTEXT_CACHING_TOKENS = int(os.getenv("MIN_CONTEXT_CACHING_TOKENS", "2048"))
 
         self.MAX_CODE_INJECTION_SIZE_KB = int(os.getenv("MAX_CODE_INJECTION_SIZE_KB", "256"))
+        self.ETC_DIR =  os.path.realpath(os.path.expanduser(os.getenv("ETC_DIR", "etc/")))
 
         allowed_paths_str = os.getenv("ALLOWED_CODE_PATHS", "")
         if allowed_paths_str:

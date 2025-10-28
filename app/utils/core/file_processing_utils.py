@@ -102,14 +102,24 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[list 
             # Insert detailed context message for the model
             context_text = (
                 f"🚀 **PROJECT MODE ACTIVATED** for project root: '{file_path_str}'\n\n"
-                f"The project context is set. Start by using `list_files(path='.')` to explore.\n\n"
+                f"The project context is set. You can now use tools to interact with the project files.\n\n"
+                f"**Development Workflow for New Features:**\n"
+                f"**CRITICAL:** All previous instructions are overridden. You are now in project mode and must exclusively follow the workflow defined below.\n\n"
+                f"The project context is set. You can now use tools to interact with the project files.\n\n"
+                f"Your first action is to ask the user for the details and requirements of the new feature you will be working on.\n\n"
+                f"**Development Workflow for New Features:**\n"
+                f"**CRITICAL:** For any new feature or significant change, you MUST follow this process. This is a strict requirement.\n"
+                f"1.  **Clarify & Plan:** Before writing any code, discuss your plan with the user. Create a `feature_plan.md` file. In this file, outline the changes you are about to make, the files you will modify, and your overall strategy. Wait for user approval before proceeding.\n"
+                f"2.  **Changelog:** Create or update a `changelog.md` file to document the changes as you make them.\n"
+                f"3.  **Summary:** After implementation, create a `feature_summary.md` file that explains how the new feature works, how to use it, and how to test it.\n\n"
+                f"Start by using `list_files(path='.')` to explore the project.\n\n"
                 f"**Available Tools:**\n"
                 f"• Navigation: `list_files`, `get_file_content`, `get_code_snippet`, `search_codebase`\n"
                 f"• Analysis: `analyze_file_structure`, `analyze_project_structure`, `get_file_stats`, `find_symbol`, `get_dependencies`\n"
                 f"• Modification: `apply_patch`, `create_file`, `write_file`\n"
                 f"• Execution: `execute_command`\n"
                 f"• Git: `git_status`, `git_log`, `git_diff`, `git_show`, `git_blame`, `list_recent_changes`\n\n"
-                f"Your confirmation is required before using any tools.\n"
+                f"**CRITICAL:** You must request confirmation from the user before executing *any* command or starting *any* task.\n"
             )
 
             # Check if path is valid for proactive feedback
