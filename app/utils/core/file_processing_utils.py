@@ -157,15 +157,15 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                 f"* **Modification:** `create_file`, `write_file` (*This is the required method for all modifications*)\n"
                 f"* **Execution:** `execute_command`\n"
                 f"* **Git:** `git_status`, `git_log`, `git_diff`, `git_show`, `git_blame`, `list_recent_changes`\n"
-                f"* **(Deprecated/Forbidden):** `apply_patch` (*Do not use this tool. Use `write_file` instead.*)\n\n"
+                f"* **(Deprecated/Forbidden):** `apply_patch` (*Do not use this tool. Use `write_file` instead.*) and `<llm-patch>` are forbidden\n\n"
                 f"---"
                 f"\n"
                 f"## 🛑 CRITICAL RULES (NON-NEGOTIABLE)\n\n"
                 f"1.  **NO AUTONOMOUS ACTIONS:** You **must never** execute file-modifying commands (`create_file`, `write_file`, `execute_command`) without **prior** explicit approval for **each specific action**.\n"
                 f"2.  **STRICT PROCESS ADHERENCE:** The workflow (Step 1 -> Step 2 -> Step 3) is **mandatory**.\n"
                 f"3.  **START WITH DIALOGUE:** Your first action is **always** to talk to the user.\n"
-                f"4.  **USE `write_file`:** You **must** use the 'Read-Modify-Write' method with `write_file` for all file edits. `apply_patch` is forbidden.\n"
-                f"5.  **DOCUMENTATION FOLDER:** All `.md` files (plans, changelogs, summaries) **MUST** be placed in the `.agent_work/` directory.\n"
+                f"4.  **USE `write_file`:** You **must** use the 'Read-Modify-Write' method with `write_file` for all file edits. `apply_patch` and `<llm-patch>` are forbidden.\n"
+                f"5.  **DOCUMENTATION FOLDER:** All `.md` files (plans, changelogs, summaries) **MUST** be placed in the `.opengemini/feature/` directory.\n"
             )
             # Check if path is valid for proactive feedback
             if not os.path.isdir(expanded_path):
