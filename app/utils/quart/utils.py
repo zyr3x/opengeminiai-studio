@@ -191,17 +191,7 @@ async def make_request_with_retry_async(
     
     raise aiohttp.ClientError(f"All {retries} retries failed.")
 
-def estimate_token_count(contents: list) -> int:
-    """
-    Estimates the token count of the 'contents' list using a character-based heuristic.
-    Approximation: 4 characters per token.
-    """
-    total_chars = 0
-    for item in contents:
-        for part in item.get("parts", []):
-            if "text" in part:
-                total_chars += len(part.get("text", ""))
-    return total_chars // 4
+from app.utils.core.tools import estimate_token_count
 
 async def truncate_contents_async(contents: list, limit: int, current_query: str = None) -> list:
     """

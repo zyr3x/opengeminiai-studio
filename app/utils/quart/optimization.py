@@ -11,14 +11,12 @@ from datetime import date
 
 # --- Tool Result Cache (thread-safe) ---
 _tool_output_cache = {}
+from app.utils.core.optimization_utils import MAX_TOOL_OUTPUT_TOKENS, should_cache_tool, estimate_tokens, \
+    can_execute_parallel
+
 _cache_lock = asyncio.Lock()
 CACHE_TTL = 300  # 5 minutes
 CACHE_MAX_SIZE = 100
-
-# --- Optimization Constants ---
-MAX_TOOL_OUTPUT_TOKENS = 1000
-MAX_FILE_PREVIEW_LINES = 50
-MAX_DIFF_LINES = 100
 
 # --- Rate Limiter ---
 class AsyncRateLimiter:
@@ -97,20 +95,6 @@ async def cache_tool_output(function_name: str, tool_args: dict, output: str):
     async with _cache_lock:
         _tool_output_cache[cache_key] = (output, time.time())
 
-def should_cache_tool(function_name: str) -> bool:
-    """Determines whether to cache the results of this tool."""
-    cacheable = [
-        'list_files', 'get_file_content', 'list_symbols_in_file',
-        'get_code_snippet', 'search_codebase', 'git_log', 'git_diff',
-        'git_show', 'git_blame', 'list_recent_changes',
-        'analyze_file_structure', 'get_file_stats'
-    ]
-    return function_name in cacheable
-
-def estimate_tokens(text: str) -> int:
-    """Improved token estimation."""
-    return int(len(text) / 3.5)
-
 async def optimize_code_output_async(code: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) -> str:
     """Async: Optimizes code output to fit within token limit."""
     current_tokens = estimate_tokens(code)
@@ -163,24 +147,6 @@ async def execute_tools_parallel_async(
             output.append((tool_call, result))
     
     return output
-
-def can_execute_parallel(tool_calls: List[Dict]) -> bool:
-    """
-    Determines if tool calls can be executed in parallel.
-    Returns False if there are dependencies between calls.
-    """
-    if len(tool_calls) <= 1:
-        return False
-    
-    # Tools that modify state should not run in parallel with others
-    modifying_tools = ['apply_patch', 'git_commit', 'write_file']
-    
-    # Check if any tool is modifying
-    has_modifying = any(tc.get('name') in modifying_tools for tc in tool_calls)
-    if has_modifying:
-        return False
-    
-    return True
 
 async def smart_truncate_contents_async(
     contents: list,

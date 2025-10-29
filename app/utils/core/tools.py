@@ -169,17 +169,18 @@ def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> i
         log(f"Error fetching model details for {model_name}: {e}. Using default limit of 8192.")
         return 8192
 
+from app.utils.core.optimization_utils import estimate_tokens
+
 def estimate_token_count(contents: list) -> int:
     """
-    Estimates the token count of the 'contents' list using a character-based heuristic.
-    Approximation: 4 characters per token.
+    Estimates the token count of the 'contents' list by summing up text parts.
     """
-    total_chars = 0
+    total_text = ""
     for item in contents:
         for part in item.get("parts", []):
             if "text" in part:
-                total_chars += len(part.get("text", ""))
-    return total_chars // 4
+                total_text += part.get("text", "")
+    return estimate_tokens(total_text)
 
 def truncate_contents(contents: list, limit: int, current_query: str = None) -> list:
     """
@@ -248,26 +249,26 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
     """
     # connection pooling
     # try:
-    #     from app.utils.flask import optimization
-    #     session = optimization.get_http_session()
-    #     rate_limiter = optimization.get_rate_limiter()
+    #      from app.utils.flask import optimization
+    #      session = optimization.get_http_session()
+    #      rate_limiter = optimization.get_rate_limiter()
     #
-    #     rate_limiter.wait_if_needed()
+    #      rate_limiter.wait_if_needed()
     #
-    #     response = session.post(
-    #         url,
+    #      response = session.post(
+    #          url,
     #         headers=headers,
-    #         json=json_data,
-    #         stream=stream,
-    #         timeout=timeout
-    #     )
-    #     response.raise_for_status()
-    #     return response
+    #          json=json_data,
+    #          stream=stream,
+    #          timeout=timeout
+    #      )
+    #      response.raise_for_status()
+    #      return response
     #
     # except ImportError:
-    #     pass
+    #      pass
 
-    retries = 1
+    retries = 2
     backoff_factor = 1.0
 
     for i in range(retries):

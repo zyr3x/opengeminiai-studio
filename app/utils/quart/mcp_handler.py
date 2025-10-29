@@ -161,7 +161,7 @@ async def execute_multiple_tools_async(
     Returns:
         List of function response parts
     """
-    from .optimization import can_execute_parallel
+    from app.utils.core.optimization_utils import can_execute_parallel
 
     if can_execute_parallel(tool_calls):
         log(f"✓ Executing {len(tool_calls)} tools in parallel")

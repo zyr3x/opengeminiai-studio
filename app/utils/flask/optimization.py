@@ -18,12 +18,11 @@ from urllib3.util.retry import Retry
 
 _tool_output_cache = {}
 _cache_lock = threading.Lock()
+from app.utils.core.optimization_utils import MAX_TOOL_OUTPUT_TOKENS, estimate_tokens, should_cache_tool, \
+    can_execute_parallel
+
 CACHE_TTL = 300
 CACHE_MAX_SIZE = 100
-
-MAX_TOOL_OUTPUT_TOKENS = 1000
-MAX_FILE_PREVIEW_LINES = 50
-MAX_DIFF_LINES = 100
 
 def clean_cache():
     """Cleans up expired entries from the cache"""
@@ -69,23 +68,6 @@ def cache_tool_output(function_name: str, tool_args: dict, output: str):
     with _cache_lock:
         cache_key = get_cache_key(function_name, tool_args)
         _tool_output_cache[cache_key] = (output, time.time())
-
-def should_cache_tool(function_name: str) -> bool:
-    """Determines whether to cache the results of this tool"""
-    non_cacheable = ['apply_patch', 'git_status']
-
-    cacheable = [
-        'list_files', 'get_file_content', 'list_symbols_in_file',
-        'get_code_snippet', 'search_codebase', 'git_log', 'git_diff',
-        'git_show', 'git_blame', 'list_recent_changes',
-        'analyze_file_structure', 'get_file_stats'
-    ]
-
-    return function_name in cacheable
-
-def estimate_tokens(text: str) -> int:
-    """Improved token estimation"""
-    return int(len(text) / 3.5)
 
 def optimize_code_output(code: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) -> str:
     """Optimizes code output"""
@@ -600,19 +582,6 @@ def execute_tools_parallel(tool_calls: List[Dict], project_root_override: str | 
             results.append((tool_call, error_msg))
 
     return results
-
-def can_execute_parallel(tool_calls: List[Dict]) -> bool:
-    """
-    Determines if tool calls can be executed in parallel.
-    Some tools must be executed sequentially (e.g., apply_patch).
-    """
-    sequential_only = {'apply_patch'}
-
-    for tool_call in tool_calls:
-        if tool_call.get('name') in sequential_only:
-            return False
-
-    return len(tool_calls) > 1
 
 _cached_contexts = {}
 _context_cache_lock = threading.Lock()
