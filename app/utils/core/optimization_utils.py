@@ -1,9 +1,17 @@
+import hashlib
+import json
 from typing import List, Dict
 
 # --- Optimization Constants ---
 MAX_TOOL_OUTPUT_TOKENS = 1000
 MAX_FILE_PREVIEW_LINES = 50
 MAX_DIFF_LINES = 100
+
+def get_cache_key(function_name: str, tool_args: dict) -> str:
+    """Generates a cache key for the tool"""
+    args_str = json.dumps(tool_args, sort_keys=True, default=str)
+    cache_string = f"{function_name}:{args_str}"
+    return hashlib.md5(cache_string.encode()).hexdigest()
 
 def should_cache_tool(function_name: str) -> bool:
     """Determines whether to cache the results of this tool."""

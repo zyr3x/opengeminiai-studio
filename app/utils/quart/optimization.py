@@ -12,7 +12,7 @@ from datetime import date
 # --- Tool Result Cache (thread-safe) ---
 _tool_output_cache = {}
 from app.utils.core.optimization_utils import MAX_TOOL_OUTPUT_TOKENS, should_cache_tool, estimate_tokens, \
-    can_execute_parallel
+    can_execute_parallel, get_cache_key
 
 _cache_lock = asyncio.Lock()
 CACHE_TTL = 300  # 5 minutes
@@ -67,12 +67,6 @@ async def clean_cache():
                 key=lambda x: x[1][1]
             )
             _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
-
-def get_cache_key(function_name: str, tool_args: dict) -> str:
-    """Generates a cache key for the tool."""
-    args_str = json.dumps(tool_args, sort_keys=True, default=str)
-    cache_string = f"{function_name}:{args_str}"
-    return hashlib.md5(cache_string.encode()).hexdigest()
 
 async def get_cached_tool_output(function_name: str, tool_args: dict) -> Optional[str]:
     """Async: Gets result from cache if present and not expired."""

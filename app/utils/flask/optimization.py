@@ -19,7 +19,7 @@ from urllib3.util.retry import Retry
 _tool_output_cache = {}
 _cache_lock = threading.Lock()
 from app.utils.core.optimization_utils import MAX_TOOL_OUTPUT_TOKENS, estimate_tokens, should_cache_tool, \
-    can_execute_parallel
+    can_execute_parallel, get_cache_key
 
 CACHE_TTL = 300
 CACHE_MAX_SIZE = 100
@@ -43,12 +43,6 @@ def clean_cache():
                 key=lambda x: x[1][1]
             )
             _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
-
-def get_cache_key(function_name: str, tool_args: dict) -> str:
-    """Generates a cache key for the tool"""
-    args_str = json.dumps(tool_args, sort_keys=True, default=str)
-    cache_string = f"{function_name}:{args_str}"
-    return hashlib.md5(cache_string.encode()).hexdigest()
 
 def get_cached_tool_output(function_name: str, tool_args: dict) -> Optional[str]:
     """Gets result from cache if present and not expired"""

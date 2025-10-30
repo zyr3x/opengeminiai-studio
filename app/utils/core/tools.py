@@ -241,79 +241,25 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
     Makes a POST request with retry logic for 429 and connection errors.
     OPTIMIZED: Uses connection pooling for better performance.
     """
-    # connection pooling
-    # try:
-    #      from app.utils.flask import optimization
-    #      session = optimization.get_http_session()
-    #      rate_limiter = optimization.get_rate_limiter()
-    #
-    #      rate_limiter.wait_if_needed()
-    #
-    #      response = session.post(
-    #          url,
-    #         headers=headers,
-    #          json=json_data,
-    #          stream=stream,
-    #          timeout=timeout
-    #      )
-    #      response.raise_for_status()
-    #      return response
-    #
-    # except ImportError:
-    #      pass
+    from app.utils.flask import optimization
+    session = optimization.get_http_session()
+    rate_limiter = optimization.get_rate_limiter()
 
-    retries = 2
-    backoff_factor = 1.0
+    rate_limiter.wait_if_needed()
 
-    for i in range(retries):
-        try:
-            response = requests.post(
-                url,
-                headers=headers,
-                json=json_data,
-                stream=stream,
-                timeout=timeout
-            )
-            response.raise_for_status()
-            return response
-        except requests.exceptions.HTTPError as e:
-            status_code = e.response.status_code
-            if (status_code == 429 or status_code in [502, 503, 504]) and i < retries - 1:
-                wait_time = 0
-                if e.response and 'Retry-After' in e.response.headers:
-                    try:
-                        wait_time = int(e.response.headers.get('Retry-After'))
-                    except (ValueError, TypeError):
-                        pass
-
-                if wait_time > 0:
-                    wait_time += random.uniform(0, 1)
-                elif status_code == 429:
-                    wait_time = (backoff_factor * 10) * (2 ** i) + random.uniform(0, 3.0)
-                else:
-                    wait_time = backoff_factor * (2 ** i) + random.uniform(0, 1.0)
-
-                log(f"Received status {status_code}. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
-                time.sleep(wait_time)
-                continue
-            else:
-                log(f"HTTP Error: {e}")
-                raise
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-            if i < retries - 1:
-                wait_time = backoff_factor * (2 ** i) + random.uniform(0, 0.5)
-                log(f"Connection/Timeout error. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
-                time.sleep(wait_time)
-                continue
-            else:
-                log(f"Connection/Timeout Error after final retry: {e}")
-                raise
-        except requests.exceptions.RequestException as e:
-            log(f"An unexpected request exception occurred: {e}")
-            raise
-
-    raise requests.exceptions.RequestException(f"All {retries} retries failed.")
-
+    try:
+        response = session.post(
+            url,
+            headers=headers,
+            json=json_data,
+            stream=stream,
+            timeout=timeout
+        )
+        response.raise_for_status()
+        return response
+    except requests.exceptions.RequestException as e:
+        log(f"Request failed after retries: {e}")
+        raise
 
 
 def save_config_to_file(config_str: str, file_path: str, config_name: str):

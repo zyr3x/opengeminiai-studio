@@ -7,10 +7,23 @@ from hypercorn.asyncio import serve
 from pathlib import Path
 from hypercorn.config import Config as HypercornConfig
 
-def create_flask_app(app: Flask):
-    """Application factory function to set up and configure the Flask app."""
+
+def _init_common():
+    """Common initialization for both Flask and Quart apps."""
+    # Import inside to avoid circular dependencies and keep things tidy
     import app.utils.flask.mcp_handler as mcp_handler
     import app.utils.core.tools as utils
+    from app.db import init_db
+
+    init_db()
+    mcp_handler.load_mcp_config()
+    utils.load_prompt_config()
+    utils.load_system_prompt_config()
+
+
+def create_flask_app(app: Flask):
+    """Application factory function to set up and configure the Flask app."""
+    _init_common()
 
     from app.controllers.flask.proxy import proxy_bp
     from app.controllers.flask.settings import settings_bp
@@ -19,12 +32,6 @@ def create_flask_app(app: Flask):
     from app.controllers.flask.web_ui import web_ui_bp
     from app.controllers.flask.web_ui_chat import web_ui_chat_bp
     from app.controllers.flask.metrics import metrics_bp
-    from app.db import init_db
-
-    init_db()
-    mcp_handler.load_mcp_config()
-    utils.load_prompt_config()
-    utils.load_system_prompt_config()
 
     app.register_blueprint(proxy_bp)
     app.register_blueprint(settings_bp)
@@ -53,8 +60,8 @@ async def create_quart_app(app: Quart):
 
     # Import async utilities
     import app.utils.quart.utils as async_utils
-    import app.utils.flask.mcp_handler as mcp_handler
-    import app.utils.core.tools as utils
+
+    _init_common()
 
     # Import Blueprints - mix of async and sync
     from app.controllers.quart.proxy import async_proxy_bp
@@ -64,15 +71,6 @@ async def create_quart_app(app: Quart):
     from app.controllers.quart.web_ui import web_ui_bp
     from app.controllers.quart.web_ui_chat import web_ui_chat_bp
     from app.controllers.flask.metrics import metrics_bp
-    from app.db import init_db
-
-    # Initialize database
-    init_db()
-
-    # Load configurations
-    mcp_handler.load_mcp_config()
-    utils.load_prompt_config()
-    utils.load_system_prompt_config()
 
     # Register blueprints
     app.register_blueprint(async_proxy_bp)  # Async proxy
