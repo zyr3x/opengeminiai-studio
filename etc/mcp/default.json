@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "bash": {
+      "command": "npx",
+      "args": [
+        "bash-mcp"
+      ],
+      "env": {},
+      "enabled": false,
+      "priority": 0
+    },
+    "pollinations": {
+      "command": "npx",
+      "args": [
+        "@pollinations/model-context-protocol"
+      ],
+      "env": {},
+      "enabled": false,
+      "priority": 0
+    }
+  },
+  "maxFunctionDeclarations": 64
+}
