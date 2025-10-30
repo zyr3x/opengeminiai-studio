@@ -412,35 +412,44 @@ def apply_patch(patch_content: str) -> str:
         log(f"Failed to execute patch command: {e}")
         return f"Error: An unexpected exception occurred while trying to apply the patch: {e}"
 
+def _run_git_command(cmd: list, timeout: int) -> tuple[subprocess.CompletedProcess | None, str | None]:
+    """Runs a git command and handles common errors."""
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout
+        )
+        return result, None
+    except subprocess.TimeoutExpired:
+        return None, f"Error: git command timed out after {timeout}s."
+    except FileNotFoundError:
+        return None, "Error: git command not found. Please ensure git is installed."
+    except Exception as e:
+        return None, f"Error running git command: {e}"
+
+
 
 def git_status() -> str:
     """
     Shows the working tree status including staged, unstaged, and untracked files.
     This is useful for understanding what changes exist before committing.
     """
-    try:
-        result = subprocess.run(
-            ['git', 'status', '--short', '--branch'],
-            cwd=get_project_root(),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10
-        )
+    cmd = ['git', 'status', '--short', '--branch']
+    result, error = _run_git_command(cmd, 10)
+    if error:
+        return error
 
-        if result.returncode != 0:
-            return f"Error: Not a git repository or git command failed.\n{result.stderr}"
+    if result.returncode != 0:
+        return f"Error: Not a git repository or git command failed.\n{result.stderr}"
 
-        if not result.stdout.strip():
-            return "Working tree is clean (no changes)."
+    if not result.stdout.strip():
+        return "Working tree is clean (no changes)."
 
-        return f"Git Status:\n```\n{result.stdout.strip()}\n```"
-    except subprocess.TimeoutExpired:
-        return "Error: git status command timed out."
-    except FileNotFoundError:
-        return "Error: git command not found. Please ensure git is installed."
-    except Exception as e:
-        return f"Error running git status: {e}"
+    return f"Git Status:\n```\n{result.stdout.strip()}\n```"
 
 
 def git_log(max_count: int = 10, path: str = None) -> str:
@@ -459,14 +468,9 @@ def git_log(max_count: int = 10, path: str = None) -> str:
                 return f"Error: Invalid or unsafe path '{path}'."
             cmd.extend(['--', resolved_path])
 
-        result = subprocess.run(
-            cmd,
-            cwd=get_project_root(),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=15
-        )
+        result, error = _run_git_command(cmd, 15)
+        if error:
+            return error
 
         if result.returncode != 0:
             return f"Error: git log failed.\n{result.stderr}"
@@ -496,14 +500,9 @@ def git_diff(staged: bool = False, path: str = None) -> str:
                 return f"Error: Invalid or unsafe path '{path}'."
             cmd.extend(['--', resolved_path])
 
-        result = subprocess.run(
-            cmd,
-            cwd=get_project_root(),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=30
-        )
+        result, error = _run_git_command(cmd, 30)
+        if error:
+            return error
 
         if result.returncode != 0:
             return f"Error: git diff failed.\n{result.stderr}"
@@ -554,14 +553,9 @@ def git_show(commit: str = "HEAD", path: str = None) -> str:
             except Exception:
                 return f"Error: Could not determine git root for path '{path}'."
 
-        result = subprocess.run(
-            cmd,
-            cwd=get_project_root(),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=15
-        )
+        result, error = _run_git_command(cmd, 15)
+        if error:
+            return error
 
         if result.returncode != 0:
             return f"Error: git show failed. Commit '{commit}' may not exist.\n{result.stderr}"
@@ -607,14 +601,9 @@ def git_blame(path: str, start_line: int = None, end_line: int = None) -> str:
         rel_path = os.path.relpath(resolved_path, git_root)
         cmd.append(rel_path)
 
-        result = subprocess.run(
-            cmd,
-            cwd=get_project_root(),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=15
-        )
+        result, error = _run_git_command(cmd, 15)
+        if error:
+            return error
 
         if result.returncode != 0:
             if "not a git repository" in result.stderr.lower():
@@ -643,14 +632,10 @@ def list_recent_changes(days: int = 7, max_files: int = 20) -> str:
         max_files = int(max_files) if max_files else 20
         max_files = min(max(1, max_files), 100)
 
-        result = subprocess.run(
-            ['git', 'log', f'--since={days} days ago', '--name-only', '--pretty=format:', '--'],
-            cwd=get_project_root(),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=15
-        )
+        cmd = ['git', 'log', f'--since={days} days ago', '--name-only', '--pretty=format:', '--']
+        result, error = _run_git_command(cmd, 15)
+        if error:
+            return error
 
         if result.returncode != 0:
             return f"Error: git log failed.\n{result.stderr}"
