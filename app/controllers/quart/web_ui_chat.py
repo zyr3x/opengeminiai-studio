@@ -12,8 +12,8 @@ from quart import Blueprint, request, jsonify, Response, send_from_directory
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from werkzeug.utils import secure_filename
 from app.config import config
-from app.utils.flask import mcp_handler
-from app.utils.core import tools
+from app.utils.quart import mcp_handler
+from app.utils.core import tools, chat_db_utils
 from app.utils.core import tool_config_utils
 from app.utils.core import file_processing_utils
 from app.db import get_db_connection, UPLOAD_FOLDER
@@ -28,20 +28,12 @@ web_ui_chat_bp = Blueprint('web_ui_chat', __name__)
 # --- Chat Management API Routes ---
 @web_ui_chat_bp.route('/api/chats', methods=['GET'])
 def get_chats():
-    conn = get_db_connection()
-    chats = conn.execute('SELECT id, title FROM chats ORDER BY created_at DESC').fetchall()
-    conn.close()
-    return jsonify([dict(c) for c in chats])
+    chats = chat_db_utils.get_all_chats()
+    return jsonify(chats)
 
 @web_ui_chat_bp.route('/api/chats', methods=['POST'])
 def create_chat():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO chats (title) VALUES ('New Chat')")
-    new_chat_id = cursor.lastrowid
-    conn.commit()
-    new_chat = {'id': new_chat_id, 'title': 'New Chat'}
-    conn.close()
+    new_chat = chat_db_utils.create_new_chat()
     return jsonify(new_chat), 201
 
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>/title', methods=['PUT'])
@@ -52,10 +44,7 @@ async def update_chat_title(chat_id):
         return jsonify({'error': 'Title is required'}), 400
 
     try:
-        conn = get_db_connection()
-        conn.execute('UPDATE chats SET title = ? WHERE id = ?', (new_title, chat_id))
-        conn.commit()
-        conn.close()
+        chat_db_utils.update_chat_title_in_db(chat_id, new_title)
         return jsonify({'success': True, 'new_title': new_title})
     except Exception as e:
         tools.log(f"Error updating title for chat {chat_id}: {e}")
@@ -66,37 +55,12 @@ def delete_chat(chat_id):
     """
     Deletes a chat and its associated messages and files.
     """
-    # 1. Delete associated files
-    try:
-        chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
-        if os.path.exists(chat_upload_folder):
-            shutil.rmtree(chat_upload_folder)
-    except OSError as e:
-        tools.log(f"Error deleting files for chat {chat_id}: {e}")
-
-    # 2. Delete chat from the database (messages are deleted via CASCADE)
-    conn = get_db_connection()
-    conn.execute('DELETE FROM chats WHERE id = ?', (chat_id,))
-    conn.commit()
-    conn.close()
+    chat_db_utils.delete_chat_and_files(chat_id)
     return jsonify({'success': True}), 200
 
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>/messages', methods=['GET'])
 def get_chat_messages(chat_id):
-    conn = get_db_connection()
-    messages = conn.execute(
-        'SELECT id, role, parts FROM messages WHERE chat_id = ? ORDER BY id ASC',
-        (chat_id,)
-    ).fetchall()
-    conn.close()
-
-    formatted_messages = []
-    for db_message in messages:
-        role = 'assistant' if db_message['role'] == 'model' else db_message['role']
-        message_data = tools.format_message_parts_for_ui(db_message['parts'])
-
-        if message_data['content'] or message_data['files']:
-            formatted_messages.append({'id': db_message['id'], 'role': role, **message_data})
+    formatted_messages = chat_db_utils.get_messages_for_chat(chat_id)
     return jsonify(formatted_messages)
 
 
@@ -104,10 +68,7 @@ def get_chat_messages(chat_id):
 def delete_message(message_id):
     """Deletes a single message from the database."""
     try:
-        conn = get_db_connection()
-        conn.execute('DELETE FROM messages WHERE id = ?', (message_id,))
-        conn.commit()
-        conn.close()
+        chat_db_utils.delete_message_from_db(message_id)
         return jsonify({'success': True}), 200
     except Exception as e:
         tools.log(f"Error deleting message {message_id}: {e}")
