@@ -10,7 +10,7 @@ from app.config import config
 from app.utils.core import tools as utils
 from app.utils.core import tool_config_utils
 from app.utils.quart import optimization, utils, mcp_handler as async_mcp_handler
-from app.utils.flask import mcp_handler
+from app.utils.core import mcp_handler
 import traceback
 
 async_proxy_bp = Blueprint('proxy', __name__)

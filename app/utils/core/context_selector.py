@@ -5,6 +5,7 @@ from typing import List, Tuple
 from collections import Counter
 from app.utils.core.logging import log
 from app.utils.core.config_loader import load_json_file
+from app.utils.core.optimization_utils import estimate_token_count
 
 MIN_RELEVANCE_SCORE = 0.3
 ALWAYS_KEEP_RECENT = 5
@@ -134,8 +135,6 @@ def select_relevant_messages(
     Returns:
         The filtered list of messages
     """
-    from app.utils.core.tools import estimate_token_count
-    
     # If there are few messages, return all
     if len(messages) <= keep_recent + 1:
         return messages
@@ -216,8 +215,6 @@ def smart_context_window(
     selected_count = len(selected)
 
     if selected_count < original_count:
-        from app.utils.core.tools import log, estimate_token_count
-
         original_tokens = estimate_token_count(messages)
         selected_tokens = estimate_token_count(selected)
         saved_tokens = original_tokens - selected_tokens
