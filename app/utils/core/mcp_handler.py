@@ -1341,173 +1341,14 @@ def set_disable_all_mcp_tools(status: bool):
         print(f"Error saving MCP config: {e}")
 
 
-def get_declarations_from_tool(tool_name, tool_info):
-    """Fetches function declaration schema(s) from an MCP tool using MCP protocol."""
-    global mcp_function_input_schema_map
-    command = [tool_info["command"]] + tool_info.get("args", [])
-    env = os.environ.copy()
-    if "env" in tool_info:
-        env.update(tool_info["env"])
-
-    try:
-        log(f"Fetching schema for tool '{tool_name}'...")
-
-        # Send MCP initialization and tools/list request
-        mcp_init_request = {
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "gemini-proxy", "version": "2.2.0"}
-            }
-        }
-
-        tools_list_request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/list",
-            "params": {}
-        }
-
-        # Send initialize -> notifications/initialized -> tools/list in a single stdio session
-        initialized_notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
-        input_data = (
-            json.dumps(mcp_init_request) + "\n" +
-            json.dumps(initialized_notification) + "\n" +
-            json.dumps(tools_list_request) + "\n"
-        )
-
-        process = subprocess.run(
-            command,
-            input=input_data,
-            text=True,
-            capture_output=True,
-            check=False,
-            env=env,
-            timeout=30
-        )
-
-        if process.returncode != 0:
-            print(f"MCP tool '{tool_name}' failed with exit code {process.returncode}")
-            if process.stderr:
-                print(f"Stderr: {process.stderr}")
-            return []
-
-        # Parse MCP response - look for tools/list response (id == 1)
-        lines = process.stdout.strip().split('\n')
-        tools = []
-
-        for line in lines:
-            if not line.strip():
-                continue
-            try:
-                if line.startswith('\ufeff'):
-                    line = line.lstrip('\ufeff')
-                response = json.loads(line)
-                if (response.get("id") == 1 and
-                    "result" in response and
-                    "tools" in response["result"]):
-                    mcp_tools = response["result"]["tools"]
-
-                    # Convert MCP tool format to Gemini function declarations
-                    for tool in mcp_tools:
-                        declaration = {
-                            "name": tool["name"],
-                            "description": tool.get("description", f"Execute {tool['name']} tool")
-                        }
-                        # Cache original inputSchema for later argument coercion
-                        mcp_function_input_schema_map[tool["name"]] = tool.get("inputSchema")
-
-                        # Convert MCP input schema to Gemini parameters format
-                        if "inputSchema" in tool:
-                            schema = tool["inputSchema"]
-                            if schema.get("type") == "object":
-                                # Use Gemini function schema types (uppercase)
-                                declaration["parameters"] = {
-                                    "type": "OBJECT",
-                                    "properties": {}
-                                }
-
-                                def convert_property_to_gemini(prop_def):
-                                    """Convert a JSON Schema property to Gemini function parameter format."""
-                                    t = str(prop_def.get("type", "string")).lower()
-
-                                    if t == "string":
-                                        return {
-                                            "type": "STRING",
-                                            "description": prop_def.get("description", "String parameter")
-                                        }
-                                    elif t in ("number", "integer"):
-                                        return {
-                                            "type": "NUMBER",
-                                            "description": prop_def.get("description", "Number parameter")
-                                        }
-                                    elif t == "boolean":
-                                        return {
-                                            "type": "BOOLEAN",
-                                            "description": prop_def.get("description", "Boolean parameter")
-                                        }
-                                    elif t == "array":
-                                        param = {
-                                            "type": "ARRAY",
-                                            "description": prop_def.get("description", "Array parameter")
-                                        }
-                                        # Handle array items - required for Gemini API
-                                        items = prop_def.get("items", {})
-                                        if items:
-                                            param["items"] = convert_property_to_gemini(items)
-                                        else:
-                                            # Default to string items if not specified
-                                            param["items"] = {"type": "STRING"}
-                                        return param
-                                    elif t == "object":
-                                        param = {
-                                            "type": "OBJECT",
-                                            "description": prop_def.get("description", "Object parameter")
-                                        }
-                                        # Handle nested object properties
-                                        if "properties" in prop_def:
-                                            param["properties"] = {}
-                                            for nested_name, nested_def in prop_def["properties"].items():
-                                                param["properties"][nested_name] = convert_property_to_gemini(nested_def)
-                                        return param
-                                    else:
-                                        return {
-                                            "type": "STRING",
-                                            "description": prop_def.get("description", "String parameter")
-                                        }
-
-                                for prop_name, prop_def in schema.get("properties", {}).items():
-                                    declaration["parameters"]["properties"][prop_name] = convert_property_to_gemini(prop_def)
-
-                                if "required" in schema:
-                                    declaration["parameters"]["required"] = schema["required"]
-
-                        tools.append(declaration)
-                    break
-            except json.JSONDecodeError:
-                continue
-
-        if process.stderr:
-            print(f"Stderr: {process.stderr}")
-
-        log(f"Successfully fetched {len(tools)} function declaration(s) for tool '{tool_name}'.")
-        return tools
-
-    except subprocess.TimeoutExpired:
-        print(f"Error: Timeout while fetching schema for tool '{tool_name}'.")
-    except Exception as e:
-        print(f"An unexpected error occurred while fetching schema for tool '{tool_name}': {e}")
-
-    return []
-
-def fetch_mcp_tool_list(tool_info):
-    """Fetches the raw list of tools from an MCP server based on its config."""
+def _fetch_raw_mcp_tools(tool_name: str, tool_info: dict) -> tuple[list | None, str | None]:
+    """
+    Executes an MCP tool's tools/list command and returns the raw tool list.
+    Returns (tools, None) on success, or (None, error_message) on failure.
+    """
     command_str = tool_info.get("command")
     if not command_str:
-        return {"error": "Command not provided."}
+        return None, "Command not provided for tool."
 
     command = [command_str] + tool_info.get("args", [])
     env = os.environ.copy()
@@ -1515,11 +1356,11 @@ def fetch_mcp_tool_list(tool_info):
         env.update(tool_info["env"])
 
     try:
-        log(f"Fetching tool list for command: '{command_str}'")
+        log(f"Fetching schema/tool list for tool '{tool_name}'...")
 
         mcp_init_request = {
             "jsonrpc": "2.0", "id": 0, "method": "initialize",
-            "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "gemini-proxy", "version": "1.0.0"}}
+            "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "gemini-proxy", "version": "2.2.0"}}
         }
         tools_list_request = {
             "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}
@@ -1537,7 +1378,10 @@ def fetch_mcp_tool_list(tool_info):
         )
 
         if process.returncode != 0:
-            return {"error": f"Tool failed with exit code {process.returncode}", "stderr": process.stderr.strip()}
+            error_details = f"MCP tool '{tool_name}' failed with exit code {process.returncode}."
+            if process.stderr:
+                error_details += f"\nStderr: {process.stderr.strip()}"
+            return None, error_details
 
         lines = process.stdout.strip().split('\n')
         for line in lines:
@@ -1547,19 +1391,130 @@ def fetch_mcp_tool_list(tool_info):
                 if line.startswith('\ufeff'):
                     line = line.lstrip('\ufeff')
                 response = json.loads(line)
-                if response.get("id") == 1 and "result" in response and "tools" in response["result"]:
-                    return {"tools": response["result"]["tools"]}
+                if (response.get("id") == 1 and
+                    "result" in response and
+                    "tools" in response["result"]):
+                    return response["result"]["tools"], None
             except json.JSONDecodeError:
                 continue
 
-        return {"error": "Did not receive a valid tools/list response.", "stdout": process.stdout.strip(), "stderr": process.stderr.strip()}
+        error_details = f"Did not receive a valid tools/list response for tool '{tool_name}'."
+        if process.stdout.strip():
+            error_details += f"\nStdout: {process.stdout.strip()}"
+        if process.stderr.strip():
+            error_details += f"\nStderr: {process.stderr.strip()}"
+        return None, error_details
 
     except subprocess.TimeoutExpired:
-        return {"error": "Timeout while fetching tool list."}
+        return None, f"Timeout while fetching schema for tool '{tool_name}'."
     except FileNotFoundError:
-        return {"error": f"Command not found: '{command_str}'."}
+        return None, f"Command not found: '{command_str}'."
     except Exception as e:
-        return {"error": f"An unexpected error occurred: {e}"}
+        return None, f"An unexpected error occurred while fetching schema for tool '{tool_name}': {e}"
+
+
+def get_declarations_from_tool(tool_name, tool_info):
+    """Fetches function declaration schema(s) from an MCP tool using MCP protocol."""
+    global mcp_function_input_schema_map
+
+    mcp_tools, error = _fetch_raw_mcp_tools(tool_name, tool_info)
+
+    if error:
+        print(f"Error fetching declarations from '{tool_name}': {error}")
+        return []
+
+    tools = []
+    # Convert MCP tool format to Gemini function declarations
+    for tool in mcp_tools:
+        declaration = {
+            "name": tool["name"],
+            "description": tool.get("description", f"Execute {tool['name']} tool")
+        }
+        # Cache original inputSchema for later argument coercion
+        mcp_function_input_schema_map[tool["name"]] = tool.get("inputSchema")
+
+        # Convert MCP input schema to Gemini parameters format
+        if "inputSchema" in tool:
+            schema = tool["inputSchema"]
+            if schema.get("type") == "object":
+                # Use Gemini function schema types (uppercase)
+                declaration["parameters"] = {
+                    "type": "OBJECT",
+                    "properties": {}
+                }
+
+                def convert_property_to_gemini(prop_def):
+                    """Convert a JSON Schema property to Gemini function parameter format."""
+                    t = str(prop_def.get("type", "string")).lower()
+
+                    if t == "string":
+                        return {
+                            "type": "STRING",
+                            "description": prop_def.get("description", "String parameter")
+                        }
+                    elif t in ("number", "integer"):
+                        return {
+                            "type": "NUMBER",
+                            "description": prop_def.get("description", "Number parameter")
+                        }
+                    elif t == "boolean":
+                        return {
+                            "type": "BOOLEAN",
+                            "description": prop_def.get("description", "Boolean parameter")
+                        }
+                    elif t == "array":
+                        param = {
+                            "type": "ARRAY",
+                            "description": prop_def.get("description", "Array parameter")
+                        }
+                        # Handle array items - required for Gemini API
+                        items = prop_def.get("items", {})
+                        if items:
+                            param["items"] = convert_property_to_gemini(items)
+                        else:
+                            # Default to string items if not specified
+                            param["items"] = {"type": "STRING"}
+                        return param
+                    elif t == "object":
+                        param = {
+                            "type": "OBJECT",
+                            "description": prop_def.get("description", "Object parameter")
+                        }
+                        # Handle nested object properties
+                        if "properties" in prop_def:
+                            param["properties"] = {}
+                            for nested_name, nested_def in prop_def["properties"].items():
+                                param["properties"][nested_name] = convert_property_to_gemini(nested_def)
+                        return param
+                    else:
+                        return {
+                            "type": "STRING",
+                            "description": prop_def.get("description", "String parameter")
+                        }
+
+                for prop_name, prop_def in schema.get("properties", {}).items():
+                    declaration["parameters"]["properties"][prop_name] = convert_property_to_gemini(prop_def)
+
+                if "required" in schema:
+                    declaration["parameters"]["required"] = schema["required"]
+
+        tools.append(declaration)
+
+    log(f"Successfully fetched {len(tools)} function declaration(s) for tool '{tool_name}'.")
+    return tools
+
+
+def fetch_mcp_tool_list(tool_info):
+    """Fetches the raw list of tools from an MCP server based on its config."""
+    # Tool name for error reporting is derived from the command
+    tool_name = tool_info.get("command", "unnamed_tool")
+    mcp_tools, error = _fetch_raw_mcp_tools(tool_name, tool_info)
+
+    if error:
+        return {"error": error}
+
+    return {"tools": mcp_tools}
+
 
 def load_mcp_config():
     """Loads MCP tool configuration from file and fetches schemas for all configured tools."""
