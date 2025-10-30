@@ -4,6 +4,7 @@ Compatible with both Flask and Quart.
 """
 from flask import Blueprint, Response, render_template
 from app.utils.core.ui_utils import get_index_context
+from app.config import config
 
 web_ui_bp = Blueprint('web_ui', __name__)
 
@@ -19,5 +20,4 @@ def index():
 @web_ui_bp.route('/favicon.ico')
 def favicon():
     """Serves the favicon for the web interface."""
-    favicon_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚙️</text></svg>'
-    return Response(favicon_svg, mimetype='image/svg+xml')
+    return Response(config.FAVICON, mimetype='image/svg+xml')

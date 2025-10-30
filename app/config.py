@@ -42,6 +42,11 @@ class AppConfig:
         else:
             self.ALLOWED_CODE_PATHS = []
 
+        self.FAVICON = ''
+        with open(os.path.realpath(os.path.expanduser("static/img/logo.svg")), 'r', encoding='utf-8', errors='ignore') as f:
+            self.FAVICON = f.read()
+
+
     def set_param(self, name: str, value: str):
         setattr(self, name, value)
         set_key('.env', name, str(value))
