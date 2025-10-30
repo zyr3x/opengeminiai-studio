@@ -13,7 +13,7 @@ from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestExce
 from werkzeug.utils import secure_filename
 from app.config import config
 from app.utils.flask import mcp_handler
-from app.utils.core import tools as utils
+from app.utils.core import tools as utils, logging
 from app.utils.core import tool_config_utils
 from app.utils.core import file_processing_utils
 from app.db import get_db_connection, UPLOAD_FOLDER
@@ -56,7 +56,7 @@ def update_chat_title(chat_id):
         conn.close()
         return jsonify({'success': True, 'new_title': new_title})
     except Exception as e:
-        utils.log(f"Error updating title for chat {chat_id}: {e}")
+        logging.log(f"Error updating title for chat {chat_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>', methods=['DELETE'])
@@ -70,7 +70,7 @@ def delete_chat(chat_id):
         if os.path.exists(chat_upload_folder):
             shutil.rmtree(chat_upload_folder)
     except OSError as e:
-        utils.log(f"Error deleting files for chat {chat_id}: {e}")
+        logging.log(f"Error deleting files for chat {chat_id}: {e}")
 
     # 2. Delete chat from the database (messages are deleted via CASCADE)
     conn = get_db_connection()
@@ -108,7 +108,7 @@ def delete_message(message_id):
         conn.close()
         return jsonify({'success': True}), 200
     except Exception as e:
-        utils.log(f"Error deleting message {message_id}: {e}")
+        logging.log(f"Error deleting message {message_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -170,7 +170,7 @@ def generate_image_api():
                     image_response.raise_for_status()
                     image_data = image_response.content
                 except (RequestException, HTTPError) as e:
-                    utils.log(f"Failed to download image from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
+                    logging.log(f"Failed to download image from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
                     image_data = None  # Ensure image_data is None on failure
 
         if not image_data or not mime_type:
@@ -208,11 +208,11 @@ def generate_image_api():
 
     except (HTTPError, ConnectionError, Timeout, RequestException) as e:
         error_message = f"Error from upstream API: {e}"
-        utils.log(error_message)
+        logging.log(error_message)
         return jsonify({"error": error_message}), 500
     except Exception as e:
         error_message = f"An error occurred in generate image API: {str(e)}"
-        utils.log(error_message)
+        logging.log(error_message)
         return jsonify({"error": error_message}), 500
 
 
@@ -238,10 +238,10 @@ def chat_api():
         system_prompt_name = form.get('system_prompt_name')
         selected_mcp_tools = form.getlist('mcp_tools')
 
-        utils.log(f"Incoming Web UI Chat Request (Chat ID: {chat_id}): "
-                  f"Model='{model}', User='{user_message[:50]}...', "
-                  f"Files={len(attached_files)}, SystemPrompt='{system_prompt_name}', "
-                  f"Tools='{selected_mcp_tools}'")
+        logging.log(f"Incoming Web UI Chat Request (Chat ID: {chat_id}): "
+                    f"Model='{model}', User='{user_message[:50]}...', "
+                    f"Files={len(attached_files)}, SystemPrompt='{system_prompt_name}', "
+                    f"Tools='{selected_mcp_tools}'")
 
         # --- Prompt Engineering & Tool Control ---
         # Fetch history to build full context for prompt engineering
@@ -326,9 +326,9 @@ def chat_api():
                                 user_parts.append({
                                     "file_data": {"mime_type": mime_type, "path": filepath}
                                 })
-                                utils.log(f"Saved path-imported file to {filepath}")
+                                logging.log(f"Saved path-imported file to {filepath}")
                         except Exception as e:
-                            utils.log(f"Error processing path-imported file part: {e}")
+                            logging.log(f"Error processing path-imported file part: {e}")
                             user_parts.append({"text": f"[Error processing file part: {str(e)}]"})
 
         if attached_files:
@@ -393,27 +393,27 @@ def chat_api():
                     'role': 'user',
                     'parts': [{'text': system_prompt_text}]
                 })
-                utils.log(f"Injected system prompt profile: {system_prompt_name}")
+                logging.log(f"Injected system prompt profile: {system_prompt_name}")
 
             # Check if tools are disabled by the system prompt. This takes precedence.
             if sp_config.get('disable_tools', False):
-                utils.log(f"MCP Tools disabled by system prompt '{system_prompt_name}'.")
+                logging.log(f"MCP Tools disabled by system prompt '{system_prompt_name}'.")
                 disable_mcp_tools = True
                 profile_selected_mcp_tools = [] # Clear any tools selected by prompt override
             # Only if tools are NOT disabled by this profile, check for specific tool selection.
             elif sp_config.get('selected_mcp_tools'):
-                utils.log(f"MCP Tools explicitly selected by system prompt '{system_prompt_name}': {sp_config['selected_mcp_tools']}")
+                logging.log(f"MCP Tools explicitly selected by system prompt '{system_prompt_name}': {sp_config['selected_mcp_tools']}")
                 profile_selected_mcp_tools = sp_config['selected_mcp_tools']
                 disable_mcp_tools = False # Make sure tools are enabled
 
             # For native tools, either a system prompt or prompt override can enable them.
             if sp_config.get('enable_native_tools', False):
                 enable_native_tools = True
-                utils.log(f"Native Google tools enabled by system prompt: {system_prompt_name}")
+                logging.log(f"Native Google tools enabled by system prompt: {system_prompt_name}")
 
         # Global setting to disable all MCP tools takes highest precedence
         if mcp_handler.disable_all_mcp_tools:
-            utils.log("All MCP tools globally disabled via general settings.")
+            logging.log("All MCP tools globally disabled via general settings.")
             disable_mcp_tools = True
             profile_selected_mcp_tools = [] # Clear any profile-selected tools
 
@@ -455,7 +455,7 @@ def chat_api():
                 
                 current_contents = utils.truncate_contents(current_contents, safe_limit, current_query=current_query)
                 if len(current_contents) < original_message_count:
-                    utils.log(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages.")
+                    logging.log(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages.")
 
                 request_data = {
                     "contents": current_contents,
@@ -473,24 +473,24 @@ def chat_api():
                 if project_context_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
                     # 1. If project_path= was used, force-enable built-in tools only.
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
-                    utils.log(f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tool_names}")
+                    logging.log(f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tool_names}")
                 elif selected_mcp_tools:
                     # 2. User-selected tools from chat UI (highest priority)
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(selected_mcp_tools)
-                    utils.log(f"Using explicitly selected tools from UI (overriding profiles): {selected_mcp_tools}")
+                    logging.log(f"Using explicitly selected tools from UI (overriding profiles): {selected_mcp_tools}")
                 elif profile_selected_mcp_tools:
                     # 3. Profile-defined selected tools (system prompt or prompt override)
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
-                    utils.log(f"Using MCP tools defined by profile: {profile_selected_mcp_tools}")
+                    logging.log(f"Using MCP tools defined by profile: {profile_selected_mcp_tools}")
                 elif not disable_mcp_tools:  # Only use context-aware if not explicitly disabled and no specific tools selected
                     # 4. Context-aware tools (default)
                     prompt_text_for_tools = " ".join(
                         [p.get("text", "") for m in current_contents for p in m.get("parts", []) if "text" in p]
                     )
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations(prompt_text_for_tools)
-                    utils.log(f"Using context-aware tool selection based on prompt.")
+                    logging.log(f"Using context-aware tool selection based on prompt.")
                 else:
-                    utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
+                    logging.log(f"MCP Tools explicitly disabled by profile or global setting.")
 
                 if mcp_declarations_to_use:
                     final_tools.extend(mcp_declarations_to_use)
@@ -509,7 +509,7 @@ def chat_api():
                             }
                         }
 
-                utils.debug(f"Outgoing Gemini Request (Model: {model}, Tools: {bool(final_tools)}): {utils.pretty_json(request_data)}")
+                logging.debug(f"Outgoing Gemini Request (Model: {model}, Tools: {bool(final_tools)}): {utils.pretty_json(request_data)}")
 
                 tool_calls, model_response_parts = [], []
 
@@ -526,7 +526,7 @@ def chat_api():
                         )
                         response_data = response.json()
 
-                        utils.debug(f"Incoming Gemini Non-Streaming Response: {utils.pretty_json(response_data)}")
+                        logging.debug(f"Incoming Gemini Non-Streaming Response: {utils.pretty_json(response_data)}")
 
                         final_tool_call_response = response_data
 
@@ -560,7 +560,7 @@ def chat_api():
                                     new_parts.insert(0, {'text': full_text})
                                     model_response_parts = new_parts
                                 except Exception as e:
-                                    utils.log(f"Error processing citations: {e}")
+                                    logging.log(f"Error processing citations: {e}")
                             if full_text:
                                 yield full_text
                     except (HTTPError, ConnectionError, Timeout, RequestException) as e:
@@ -599,7 +599,7 @@ def chat_api():
 
                                 if 'error' in json_data:
                                     error_message = "ERROR: Error from upstream Gemini API: " + json.dumps(json_data['error'])
-                                    utils.log(error_message)
+                                    logging.log(error_message)
                                     yield error_message
                                     return
 
@@ -648,7 +648,7 @@ def chat_api():
 
                 if model_response_parts:
                     bot_message_id = utils.add_message_to_db(chat_id, 'model', model_response_parts)
-                    utils.debug(f"Model response saved to DB (Chat ID: {chat_id}). Parts: {utils.pretty_json(model_response_parts)}")
+                    logging.debug(f"Model response saved to DB (Chat ID: {chat_id}). Parts: {utils.pretty_json(model_response_parts)}")
                     # Yield a special event with the message ID so the frontend can add a delete button
                     yield f'__LLM_EVENT__{json.dumps({"type": "message_id", "id": bot_message_id})}'
 
@@ -663,16 +663,16 @@ def chat_api():
 
                 if not tool_calls: break
 
-                utils.debug(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
+                logging.debug(f"Detected tool calls: {utils.pretty_json(tool_calls)}")
                 current_contents.append({"role": "model", "parts": model_response_parts})
 
                 tool_response_parts = []
                 for tool_call in tool_calls:
                     function_name = tool_call.get("name")
-                    utils.debug(f"Executing tool '{function_name}' with args: {utils.pretty_json(tool_call.get('args'))}")
+                    logging.debug(f"Executing tool '{function_name}' with args: {utils.pretty_json(tool_call.get('args'))}")
                     # Pass the project root for built-in tools executed in this sync thread.
                     output = mcp_handler.execute_mcp_tool(function_name, tool_call.get("args"), project_context_root)
-                    utils.log(f"Tool '{function_name}' execution completed. Output length: {len(str(output))}")
+                    logging.log(f"Tool '{function_name}' execution completed. Output length: {len(str(output))}")
 
                     response_payload = {}
                     if output is not None:
@@ -694,14 +694,14 @@ def chat_api():
 
                 if tool_response_parts:
                     utils.add_message_to_db(chat_id, 'tool', tool_response_parts)
-                    utils.debug(f"Tool response saved to DB (Chat ID: {chat_id}). Response Parts: {utils.pretty_json(tool_response_parts)}")
+                    logging.debug(f"Tool response saved to DB (Chat ID: {chat_id}). Response Parts: {utils.pretty_json(tool_response_parts)}")
 
                 current_contents.append({"role": "tool", "parts": tool_response_parts})
 
         return Response(generate(), mimetype='text/event-stream'
                         )
     except Exception as e:
-        utils.log(f"An error occurred in chat API: {str(e)}")
+        logging.log(f"An error occurred in chat API: {str(e)}")
         return jsonify({"error": f"An error occurred in chat API: {str(e)}"}), 500
 
 @web_ui_chat_bp.route('/uploads/<path:filepath>')

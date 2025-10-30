@@ -3,7 +3,8 @@ import os
 import json
 from typing import List, Tuple
 from collections import Counter
-from app.utils.core.tools import log
+from app.utils.core.logging import log
+from app.utils.core.config_loader import load_json_file
 
 MIN_RELEVANCE_SCORE = 0.3
 ALWAYS_KEEP_RECENT = 5
@@ -13,24 +14,11 @@ MAX_KEYWORDS = 20
 CONTEXT_SELECTOR_STOPWORDS_PATH = 'etc/context/selector/stop_words.json'
 
 def load_stop_words() -> list:
-    try:
-        full_path = os.path.join(CONTEXT_SELECTOR_STOPWORDS_PATH)
+    return load_json_file(CONTEXT_SELECTOR_STOPWORDS_PATH, default=[])
 
-        if not os.path.exists(full_path):
-             full_path = os.path.join(os.getcwd(), CONTEXT_SELECTOR_STOPWORDS_PATH)
-
-        if not os.path.exists(full_path):
-            log(f"Warning: Context Selector Stop words file not found at {CONTEXT_SELECTOR_STOPWORDS_PATH}. Using empty list.")
-            return []
-
-        with open(full_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-
-    except Exception as e:
-        log(f"Error loading context selector stop words from {CONTEXT_SELECTOR_STOPWORDS_PATH}: {e}")
-        return []
 
 STOP_WORDS = load_stop_words()
+
 
 def extract_keywords(text: str) -> List[str]:
     """

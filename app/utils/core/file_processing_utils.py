@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 from app.config import config
-from app.utils.core import tools as utils
+from app.utils.core import tools as utils, logging
 
 MAX_MULTIMODAL_FILE_SIZE_MB = 12
 MAX_MULTIMODAL_FILE_SIZE = MAX_MULTIMODAL_FILE_SIZE_MB * 1024 * 1024
@@ -94,7 +94,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
         expanded_path = os.path.realpath(os.path.expanduser(file_path_str))
 
         if expanded_path in processed_paths:
-            utils.log(f"Skipping duplicate path: {expanded_path}")
+            logging.log(f"Skipping duplicate path: {expanded_path}")
             last_end = command_end
             continue
         processed_paths.add(expanded_path)
@@ -179,7 +179,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
         if file_type == 'code':
             # code_path: Recursively load all code files as text
             if not os.path.exists(expanded_path):
-                utils.log(f"Code path not found: {expanded_path}")
+                logging.log(f"Code path not found: {expanded_path}")
                 new_content_parts.append({
                     "type": "text",
                     "text": f"[Error: Path '{file_path_str}' not found]"
@@ -218,7 +218,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                         code_files.append((os.path.basename(expanded_path), content_data))
                         total_size = size
                 except Exception as e:
-                    utils.log(f"Error reading code file {expanded_path}: {e}")
+                    logging.log(f"Error reading code file {expanded_path}: {e}")
 
             elif os.path.isdir(expanded_path):
                 # Directory - recursively collect files
@@ -245,7 +245,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                         try:
                             size = os.path.getsize(filepath)
                             if total_size + size > MAX_CODE_SIZE:
-                                utils.log(f"Code injection size limit ({config.MAX_CODE_INJECTION_SIZE_KB} KB) reached. Stopping file collection.")
+                                logging.log(f"Code injection size limit ({config.MAX_CODE_INJECTION_SIZE_KB} KB) reached. Stopping file collection.")
                                 break
 
                             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
@@ -255,7 +255,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                             total_size += size
 
                         except Exception as e:
-                            utils.log(f"Error reading {filepath}: {e}")
+                            logging.log(f"Error reading {filepath}: {e}")
                             continue
 
                     if total_size > MAX_CODE_SIZE:
@@ -280,7 +280,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                     "type": "text",
                     "text": "".join(code_parts)
                 })
-                utils.log(f"Injected {len(code_files)} code files ({total_size / 1024:.2f} KB)")
+                logging.log(f"Injected {len(code_files)} code files ({total_size / 1024:.2f} KB)")
             else:
                 new_content_parts.append({
                     "type": "text",
@@ -292,13 +292,13 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
 
         # Multimodal file handling (image, pdf, audio)
         if not os.path.exists(expanded_path):
-            utils.log(f"Local file not found: {expanded_path}")
+            logging.log(f"Local file not found: {expanded_path}")
             new_content_parts.append({"type": "text", "text": content[start:command_end]})
         else:
             try:
                 file_size = os.path.getsize(expanded_path)
                 if file_size > MAX_MULTIMODAL_FILE_SIZE:
-                    utils.log(
+                    logging.log(
                         f"Skipping local file {expanded_path}: size ({file_size / (1024 * 1024):.2f} MB) exceeds limit of {MAX_MULTIMODAL_FILE_SIZE_MB} MB.")
                     new_content_parts.append(
                         {"type": "text",
@@ -329,9 +329,9 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                                 "data": encoded_data
                             }
                         })
-                    utils.log(f"Embedded local file: {expanded_path} as {mime_type}")
+                    logging.log(f"Embedded local file: {expanded_path} as {mime_type}")
             except Exception as e:
-                utils.log(f"Error processing local file {expanded_path}: {e}")
+                logging.log(f"Error processing local file {expanded_path}: {e}")
                 new_content_parts.append(
                     {"type": "text", "text": content[start:command_end]})
 

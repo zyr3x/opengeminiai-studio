@@ -14,7 +14,7 @@ from app.utils.flask.mcp_handler import (
     execute_mcp_tool as sync_execute_mcp_tool
 )
 
-from app.utils.core.tools import log
+from app.utils.core.logging import log
 from .optimization import (
     get_cached_tool_output,
     cache_tool_output,

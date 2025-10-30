@@ -13,7 +13,8 @@ import fnmatch
 import ast
 import re
 
-from app.utils.core.tools import log, load_code_ignore_patterns
+from app.utils.core.logging import log
+from app.utils.core.tools import load_code_ignore_patterns
 from contextlib import contextmanager
 from . import optimization
 from .optimization import record_tool_call
@@ -1300,22 +1301,9 @@ BUILTIN_DECLARATIONS_PATH = 'etc/mcp/declaration/default.json'
 
 def load_builtin_declarations() -> list:
     """Loads BUILTIN_DECLARATIONS from the external JSON file."""
-    try:
-        full_path = os.path.join(BUILTIN_DECLARATIONS_PATH)
+    from app.utils.core.config_loader import load_json_file
+    return load_json_file(BUILTIN_DECLARATIONS_PATH, default=[])
 
-        if not os.path.exists(full_path):
-             full_path = os.path.join(os.getcwd(), BUILTIN_DECLARATIONS_PATH)
-
-        if not os.path.exists(full_path):
-            log(f"Warning: Built-in declarations file not found at {BUILTIN_DECLARATIONS_PATH}. Using empty list.")
-            return []
-
-        with open(full_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-
-    except Exception as e:
-        log(f"Error loading built-in declarations from {BUILTIN_DECLARATIONS_PATH}: {e}")
-        return []
 
 BUILTIN_DECLARATIONS = load_builtin_declarations()
 # --- END BUILT-IN CODE NAVIGATION TOOL DEFINITIONS ---

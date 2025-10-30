@@ -8,9 +8,9 @@ import random
 from urllib3.util import url
 
 from app.db import get_db_connection, UPLOAD_FOLDER
+from app.utils.core.logging import log, debug, set_verbose_logging, set_debug_client_logging
+from app.utils.core.config_loader import load_json_file, load_text_file_lines
 
-VERBOSE_LOGGING = True
-DEBUG_CLIENT_LOGGING = False
 
 PROMPT_OVERRIDES_FILE = 'var/config/prompt.json'
 prompt_overrides = {}
@@ -22,27 +22,6 @@ cached_models_response = None
 model_info_cache = {}
 TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95
 
-def set_verbose_logging(enabled: bool):
-    """Sets the verbose logging status."""
-    global VERBOSE_LOGGING
-    VERBOSE_LOGGING = enabled
-    log(f"Verbose logging has been {'enabled' if enabled else 'disabled'}.")
-
-def set_debug_client_logging(enabled: bool):
-    """Sets the debug client logging status."""
-    global DEBUG_CLIENT_LOGGING
-    DEBUG_CLIENT_LOGGING = enabled
-    log(f"Debug client logging has been {'enabled' if enabled else 'disabled'}.")
-
-def log(message: str):
-    """Prints a message to the console if verbose logging is enabled."""
-    if VERBOSE_LOGGING:
-        print(message)
-
-def debug(message: str):
-    """Prints a message to the console if verbose logging is enabled."""
-    if DEBUG_CLIENT_LOGGING:
-        print(message)
 
 def load_prompt_config():
     """
@@ -285,13 +264,7 @@ DEFAULT_IGNORE_PATTERNS_PATH = 'etc/code_ignore_patterns.txt'
 
 def _load_default_ignore_patterns(path: str) -> list[str]:
     """Helper to load default ignore patterns from a file."""
-    try:
-        with open(path, 'r') as f:
-            patterns = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-        return patterns
-    except FileNotFoundError:
-        print(f"Warning: Default ignore patterns file not found at {path}")
-        return []
+    return load_text_file_lines(path, default=[])
 
 
 DEFAULT_CODE_IGNORE_PATTERNS: list[str] = _load_default_ignore_patterns(DEFAULT_IGNORE_PATTERNS_PATH)
@@ -330,17 +303,11 @@ EXTENSION_MAP_PATH = 'etc/extension_map.json'
 
 def _load_extension_map(path: str) -> dict[str, str]:
     """Helper to load the language extension map from a JSON file."""
-    try:
-        with open(path, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        print(f"Warning: Extension map file not found at {path}")
-        return {}
-    except json.JSONDecodeError as e:
-        print(f"Error decoding extension map file at {path}: {e}")
-        return {}
+    return load_json_file(path, default={})
+
 
 EXTENSION_TO_LANGUAGE_MAP: dict[str, str] = _load_extension_map(EXTENSION_MAP_PATH)
+
 
 def get_code_language_from_filename(filename: str) -> str:
     """
@@ -442,7 +409,7 @@ def format_message_parts_for_ui(db_parts_json: str, use_html_tags: bool = True) 
                     text_parts.append(formatted_output)
         message_data['content'] = " ".join(text_parts).strip()
     except (json.JSONDecodeError, TypeError) as e:
-        log(f"Error parsing message parts for UI: {e}. Raw parts: {db_parts_json}")
+        logging.log(f"Error parsing message parts for UI: {e}. Raw parts: {db_parts_json}")
         message_data['content'] = f"Error displaying message: {e}"
     return message_data
 
@@ -465,11 +432,11 @@ def prepare_message_parts_for_gemini(db_parts_json: str) -> list:
                         "inline_data": {"mime_type": part['file_data']['mime_type'], "data": file_base64}
                     })
                 else:
-                    log(f"File not found when preparing for Gemini API: {file_path}")
+                    logging.log(f"File not found when preparing for Gemini API: {file_path}")
                     reconstructed_parts.append({"text": f"[File not found: {os.path.basename(file_path)}]"})
             else:
                 reconstructed_parts.append(part)
     except (json.JSONDecodeError, TypeError) as e:
-        log(f"Error preparing message parts for Gemini API: {e}. Raw parts: {db_parts_json}")
+        logging.log(f"Error preparing message parts for Gemini API: {e}. Raw parts: {db_parts_json}")
         reconstructed_parts.append({"text": f"Error preparing message: {e}"})
     return reconstructed_parts

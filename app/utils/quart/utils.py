@@ -8,7 +8,8 @@ import random
 import asyncio
 from typing import Optional
 
-from app.utils.core.tools import log, model_info_cache
+from app.utils.core.logging import log
+from app.utils.core.tools import model_info_cache
 from app.utils.core.optimization_utils import estimate_token_count
 
 _async_session: Optional[aiohttp.ClientSession] = None
