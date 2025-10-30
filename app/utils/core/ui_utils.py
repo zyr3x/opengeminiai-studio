@@ -5,7 +5,7 @@ from app.config import config
 from app.utils.core import mcp_handler, tools as utils, logging
 from app.utils.core.prompt_loader import load_default_system_prompts, load_default_override_prompts
 from app.utils.core.metrics_utils import get_view_metrics
-
+from app.utils.core.config_loader import load_json_file
 
 def get_index_context():
     """
@@ -44,14 +44,7 @@ def get_index_context():
         except json.JSONDecodeError:
             pass
 
-    default_mcp_config = {
-        "mcpServers": {"youtrack": {
-            "command": "docker", "args": ["run", "--rm", "-i", "-e", "YOUTRACK_API_TOKEN", "-e", "YOUTRACK_URL",
-                                         "tonyzorin/youtrack-mcp:latest"],
-            "env": {"YOUTRACK_API_TOKEN": "perm-your-token-here", "YOUTRACK_URL": "https://youtrack.example.com/"}}},
-        "maxFunctionDeclarations": mcp_handler.MAX_FUNCTION_DECLARATIONS_DEFAULT,
-        "disableAllTools": mcp_handler.DISABLE_ALL_MCP_TOOLS_DEFAULT  # Include default global disable setting
-    }
+    default_mcp_config = load_json_file('etc/mcp/default.json')
     mcp_config_data = default_mcp_config
     if current_mcp_config_str.strip():
         try:
