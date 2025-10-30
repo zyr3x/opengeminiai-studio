@@ -17,7 +17,6 @@ from app.utils.core.logging import log
 from app.utils.core.tools import load_code_ignore_patterns
 from contextlib import contextmanager
 from app.utils.core import optimization
-from app.utils.core import optimization_utils
 from app.utils.core.optimization import record_tool_call
 from app.utils.core import optimization_utils
 
