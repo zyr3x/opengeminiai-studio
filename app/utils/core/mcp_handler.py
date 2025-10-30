@@ -19,6 +19,7 @@ from contextlib import contextmanager
 from app.utils.core import optimization
 from app.utils.core import optimization_utils
 from app.utils.core.optimization import record_tool_call
+from app.utils.core import optimization_utils
 
 BUILTIN_TOOL_NAME = "__builtin_code_navigator"
 
@@ -1821,7 +1822,7 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
         return f"Error: Function '{function_name}' not found in any configured MCP tool."
 
     # --- OPTIMIZATION: Check cache first ---
-    if optimization.should_cache_tool(function_name):
+    if optimization_utils.should_cache_tool(function_name):
         cached_output = optimization.get_cached_tool_output(function_name, tool_args)
         if cached_output is not None:
             log(f"✓ Cache HIT for {function_name}")
@@ -1998,7 +1999,7 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                 log(f"✓ Optimized output: saved ~{tokens_saved} tokens")
 
             # Cache the result if appropriate
-            if optimization.should_cache_tool(function_name):
+            if optimization_utils.should_cache_tool(function_name):
                 optimization.cache_tool_output(function_name, tool_args, optimized_result)
 
             optimization.record_optimization()

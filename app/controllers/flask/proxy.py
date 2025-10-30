@@ -13,6 +13,8 @@ from app.utils.flask import optimization
 from app.utils.core import mcp_handler, tools as utils
 from app.utils.core import tool_config_utils
 from app.utils.flask.optimization import record_token_usage # Import token usage tracking
+from app.utils.core.optimization_utils import can_execute_parallel
+
 import traceback
 from app.utils.core import file_processing_utils
 
@@ -429,7 +431,7 @@ def chat_completions():
                 
                 # --- OPTIMIZATION: Parallel tool execution ---
                 # Check if tools can be executed in parallel
-                if optimization.can_execute_parallel(tool_calls):
+                if can_execute_parallel(tool_calls):
                     utils.log(f"✓ Executing {len(tool_calls)} tools in parallel")
 
                     # Prepare tool calls for parallel execution

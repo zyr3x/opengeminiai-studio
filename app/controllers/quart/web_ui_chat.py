@@ -171,15 +171,19 @@ async def chat_api():
                             try:
                                 json_data, end_index = decoder.raw_decode(buffer)
                                 buffer = buffer[end_index:]
-                                if 'error' in json_data:
-                                    yield "ERROR: " + json.dumps(json_data['error'])
-                                    return
-                                parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-                                model_response_parts.extend(parts)
-                                if 'usageMetadata' in json_data: final_tool_call_response = json_data
-                                for part in parts:
-                                    if 'text' in part: yield part['text']
-                                    if 'functionCall' in part: tool_calls.append(part['functionCall'])
+
+                                responses = json_data if isinstance(json_data, list) else [json_data]
+
+                                for response_item in responses:
+                                    if 'error' in response_item:
+                                        yield "ERROR: " + json.dumps(response_item['error'])
+                                        return
+                                    parts = response_item.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+                                    model_response_parts.extend(parts)
+                                    if 'usageMetadata' in response_item: final_tool_call_response = response_item
+                                    for part in parts:
+                                        if 'text' in part: yield part['text']
+                                        if 'functionCall' in part: tool_calls.append(part['functionCall'])
                             except json.JSONDecodeError:
                                 break
 
