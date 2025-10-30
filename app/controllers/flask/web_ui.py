@@ -8,7 +8,7 @@ import os
 
 from flask import Blueprint, Response, render_template
 from app.config import config
-from app.utils.flask import mcp_handler
+from app.utils.core import mcp_handler
 from app.utils.core import tools as utils
 from app.utils.core.prompt_loader import load_default_system_prompts, load_default_override_prompts
 from .metrics import get_metrics

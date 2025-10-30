@@ -9,8 +9,8 @@ from flask import Blueprint, request, jsonify, Response
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 
 from app.config import config
-from app.utils.flask import mcp_handler, optimization
-from app.utils.core import tools as utils
+from app.utils.flask import optimization
+from app.utils.core import mcp_handler, tools as utils
 from app.utils.core import tool_config_utils
 from app.utils.flask.optimization import record_token_usage # Import token usage tracking
 import traceback
