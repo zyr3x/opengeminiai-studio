@@ -29,6 +29,9 @@ class AppConfig:
         self.MAX_CODE_INJECTION_SIZE_KB = int(os.getenv("MAX_CODE_INJECTION_SIZE_KB", "256"))
         self.ETC_DIR =  os.path.realpath(os.path.expanduser(os.getenv("ETC_DIR", "etc/")))
 
+        self.VERBOSE_LOGGING = os.getenv("VERBOSE_LOGGING", "true").lower() == "true"
+        self.DEBUG_CLIENT_LOGGING = os.getenv("DEBUG_CLIENT_LOGGING", "true").lower() == "true"
+
         allowed_paths_str = os.getenv("ALLOWED_CODE_PATHS", "")
         if allowed_paths_str:
             self.ALLOWED_CODE_PATHS = [
@@ -38,6 +41,13 @@ class AppConfig:
             ]
         else:
             self.ALLOWED_CODE_PATHS = []
+
+    def set_param(self, name: str, value: str):
+        setattr(self, name, value)
+        set_key('.env', name, str(value))
+
+    def get_param(self, name: str):
+        return getattr(self, name, None)
 
     def reload_api_key(self):
         """Reloads the API key from the key manager."""
