@@ -9,35 +9,36 @@ import asyncio
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import date
 
-# --- Tool Result Cache (thread-safe) ---
-_tool_output_cache = {}
 from app.utils.core.optimization_utils import MAX_TOOL_OUTPUT_TOKENS, should_cache_tool, estimate_tokens, \
-    can_execute_parallel, get_cache_key
+    get_cache_key
+from app.utils.core.optimization import (
+    clean_cache as sync_clean_cache,
+    get_cached_tool_output as sync_get_cached_tool_output,
+    cache_tool_output as sync_cache_tool_output,
+    record_token_usage as sync_record_token_usage
+)
 
-_cache_lock = asyncio.Lock()
-CACHE_TTL = 300  # 5 minutes
-CACHE_MAX_SIZE = 100
 
 # --- Rate Limiter ---
 class AsyncRateLimiter:
     """Async rate limiter to prevent API throttling."""
-    
+
     def __init__(self, requests_per_second: float = 5.0):
         self.requests_per_second = requests_per_second
         self.min_interval = 1.0 / requests_per_second
         self.last_request_time = 0
         self.lock = asyncio.Lock()
-    
+
     async def wait_if_needed(self):
         """Wait if necessary to maintain rate limit."""
         async with self.lock:
             current_time = time.time()
             time_since_last = current_time - self.last_request_time
-            
+
             if time_since_last < self.min_interval:
                 wait_time = self.min_interval - time_since_last
                 await asyncio.sleep(wait_time)
-            
+
             self.last_request_time = time.time()
 
 # Global rate limiter instance
@@ -48,63 +49,49 @@ async def get_rate_limiter() -> AsyncRateLimiter:
     return _rate_limiter
 
 async def clean_cache():
-    """Async: Cleans up expired entries from the cache."""
-    global _tool_output_cache
-    
-    async with _cache_lock:
-        now = time.time()
-        expired_keys = [
-            key for key, (_, timestamp) in _tool_output_cache.items()
-            if now - timestamp > CACHE_TTL
-        ]
-        for key in expired_keys:
-            del _tool_output_cache[key]
+    """Async: Cleans up expired entries from the cache by running sync version in an executor."""
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, sync_clean_cache)
 
-        # If cache is too large, remove oldest entries
-        if len(_tool_output_cache) > CACHE_MAX_SIZE:
-            sorted_items = sorted(
-                _tool_output_cache.items(),
-                key=lambda x: x[1][1]
-            )
-            _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
 
 async def get_cached_tool_output(function_name: str, tool_args: dict) -> Optional[str]:
-    """Async: Gets result from cache if present and not expired."""
+    """Async: Gets result from cache if present and not expired by running sync version in an executor."""
     await clean_cache()
-    
-    cache_key = get_cache_key(function_name, tool_args)
-    
-    async with _cache_lock:
-        if cache_key in _tool_output_cache:
-            output, timestamp = _tool_output_cache[cache_key]
-            if time.time() - timestamp < CACHE_TTL:
-                return output
-    
-    return None
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None,
+        sync_get_cached_tool_output,
+        function_name,
+        tool_args
+    )
 
 async def cache_tool_output(function_name: str, tool_args: dict, output: str):
-    """Async: Saves tool result to cache."""
-    cache_key = get_cache_key(function_name, tool_args)
-    
-    async with _cache_lock:
-        _tool_output_cache[cache_key] = (output, time.time())
+    """Async: Saves tool result to cache by running sync version in an executor."""
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(
+        None,
+        sync_cache_tool_output,
+        function_name,
+        tool_args,
+        output
+    )
 
 async def optimize_code_output_async(code: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) -> str:
     """Async: Optimizes code output to fit within token limit."""
     current_tokens = estimate_tokens(code)
-    
+
     if current_tokens <= max_tokens:
         return code
-    
+
     # Calculate how many lines we can keep
     lines = code.split('\n')
     target_lines = int(len(lines) * (max_tokens / current_tokens))
-    
+
     if target_lines < 10:
         # If too small, return first and last few lines
         preview = '\n'.join(lines[:5] + ['...', f'[{len(lines) - 10} lines omitted]', '...'] + lines[-5:])
         return preview
-    
+
     # Return first portion with indicator
     truncated = '\n'.join(lines[:target_lines])
     return f"{truncated}\n...\n[Output truncated: {len(lines) - target_lines} lines omitted]"
@@ -115,11 +102,11 @@ async def execute_tools_parallel_async(
 ) -> List[Tuple[Dict[str, Any], Any]]:
     """
     Async: Executes multiple tool calls in parallel using asyncio.gather.
-    
+
     Args:
         tool_calls: List of dicts with 'name' and 'args' keys
         executor_func: Async function that executes a single tool call
-    
+
     Returns:
         List of tuples (tool_call_data, output)
     """
@@ -127,10 +114,10 @@ async def execute_tools_parallel_async(
     for tool_call in tool_calls:
         task = executor_func(tool_call['name'], tool_call['args'])
         tasks.append((tool_call, task))
-    
+
     # Execute all tasks concurrently
     results = await asyncio.gather(*[task for _, task in tasks], return_exceptions=True)
-    
+
     # Pair results with their corresponding tool calls
     output = []
     for (tool_call, _), result in zip(tasks, results):
@@ -139,7 +126,7 @@ async def execute_tools_parallel_async(
             output.append((tool_call, error_output))
         else:
             output.append((tool_call, result))
-    
+
     return output
 
 # --- Prompt Caching ---
@@ -158,25 +145,25 @@ async def get_cached_context_id_async(
     Uses Gemini's prompt caching feature to reduce costs.
     """
     cache_key = hashlib.sha256(f"{model}:{system_text}".encode()).hexdigest()
-    
+
     # Check local cache first
     async with _prompt_cache_lock:
         if cache_key in _prompt_cache:
             cached_id, timestamp = _prompt_cache[cache_key]
             if time.time() - timestamp < PROMPT_CACHE_TTL:
                 return cached_id
-    
+
     # Create new cached context via Gemini API
     try:
         from app.utils.quart.utils import get_async_session
         from app.utils.core.tools import log
-        
+
         cache_url = f"{upstream_url}/v1beta/cachedContents"
         headers = {
             'Content-Type': 'application/json',
             'X-goog-api-key': api_key
         }
-        
+
         payload = {
             "model": f"models/{model}",
             "contents": [],
@@ -185,13 +172,13 @@ async def get_cached_context_id_async(
             },
             "ttl": "3600s"  # Cache for 1 hour
         }
-        
+
         session = await get_async_session()
         async with session.post(cache_url, headers=headers, json=payload) as response:
             if response.status == 200:
                 data = await response.json()
                 cache_name = data.get('name')
-                
+
                 if cache_name:
                     async with _prompt_cache_lock:
                         _prompt_cache[cache_key] = (cache_name, time.time())
@@ -200,10 +187,10 @@ async def get_cached_context_id_async(
             else:
                 error_text = await response.text()
                 log(f"Failed to create cached context: {response.status} - {error_text}")
-                
+
     except Exception as e:
         log(f"Error creating cached context: {e}")
-    
+
     return None
 
 # --- Token Usage Tracking (async-compatible) ---
@@ -212,44 +199,12 @@ async def record_token_usage_async(api_key: str, model_name: str, input_tokens: 
     Async: Records token usage to the database.
     Runs the database operation in a thread pool to avoid blocking.
     """
-    from app.utils.flask.optimization import _token_stats_lock
-    def _record():
-        try:
-            import sqlite3
-            from app.db import DATABASE_FILE
-
-            with _token_stats_lock:
-                conn = sqlite3.connect(DATABASE_FILE)
-                key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
-                today = date.today().isoformat()
-            
-            cursor = conn.execute('''
-                SELECT input_tokens, output_tokens 
-                FROM token_usage 
-                WHERE date = ? AND key_hash = ? AND model_name = ?
-            ''', (today, key_hash, model_name))
-            
-            row = cursor.fetchone()
-            
-            if row:
-                new_input = row[0] + input_tokens
-                new_output = row[1] + output_tokens
-                conn.execute('''
-                    UPDATE token_usage 
-                    SET input_tokens = ?, output_tokens = ? 
-                    WHERE date = ? AND key_hash = ? AND model_name = ?
-                ''', (new_input, new_output, today, key_hash, model_name))
-            else:
-                conn.execute('''
-                    INSERT INTO token_usage (date, key_hash, model_name, input_tokens, output_tokens)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (today, key_hash, model_name, input_tokens, output_tokens))
-            
-                conn.commit()
-                conn.close()
-        except Exception as e:
-            print(f"Error recording token usage: {e}")
-    
-    # Run in thread pool to avoid blocking the event loop
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, _record)
+    await loop.run_in_executor(
+        None,
+        sync_record_token_usage,
+        api_key,
+        model_name,
+        input_tokens,
+        output_tokens
+    )

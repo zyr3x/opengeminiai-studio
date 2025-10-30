@@ -16,8 +16,9 @@ import re
 from app.utils.core.logging import log
 from app.utils.core.tools import load_code_ignore_patterns
 from contextlib import contextmanager
-from . import optimization
-from .optimization import record_tool_call
+from app.utils.flask import optimization
+from app.utils.core import optimization_utils
+from app.utils.flask.optimization import record_tool_call
 
 BUILTIN_TOOL_NAME = "__builtin_code_navigator"
 
@@ -2048,11 +2049,11 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                 return result
 
             # --- OPTIMIZATION: Optimize output and cache it (only for non-streaming results) ---
-            optimized_result = optimization.optimize_tool_output(result, function_name)
-            
+            optimized_result = optimization_utils.optimize_tool_output(result, function_name)
+
             # Record tokens saved
             if len(optimized_result) < len(result):
-                tokens_saved = optimization.estimate_tokens(result) - optimization.estimate_tokens(optimized_result)
+                tokens_saved = optimization_utils.estimate_tokens(result) - optimization_utils.estimate_tokens(optimized_result)
                 optimization.record_tokens_saved(tokens_saved)
                 log(f"✓ Optimized output: saved ~{tokens_saved} tokens")
             
