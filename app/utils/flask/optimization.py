@@ -16,7 +16,7 @@ def execute_tools_parallel(tool_calls: List[Dict], project_root_override: str | 
     if not tool_calls:
         return []
 
-    from app.utils.flask import mcp_handler
+    from app.utils.core import mcp_handler
 
     executor = get_tool_executor()
     futures = {}

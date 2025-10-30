@@ -12,7 +12,7 @@ from flask import Blueprint, request, jsonify, Response, send_from_directory
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from werkzeug.utils import secure_filename
 from app.config import config
-from app.utils.flask import mcp_handler
+from app.utils.core import mcp_handler
 from app.utils.core import tools as utils, logging
 from app.utils.core import tool_config_utils
 from app.utils.core import file_processing_utils

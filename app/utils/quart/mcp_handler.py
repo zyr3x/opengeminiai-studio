@@ -9,7 +9,7 @@ from typing import Dict, Any, List
 import threading
 
 # Import sync versions as fallback
-from app.utils.flask.mcp_handler import (
+from app.utils.core.mcp_handler import (
     BUILTIN_FUNCTIONS,
     execute_mcp_tool as sync_execute_mcp_tool
 )
@@ -54,98 +54,17 @@ async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_ro
             tool_args,
             project_root_override
         )
-        
+
         # Cache the result if applicable
         if should_cache_tool(function_name):
             await cache_tool_output(function_name, tool_args, output)
-        
+
         return output
-        
+
     except Exception as e:
         error_msg = f"Error executing tool {function_name}: {str(e)}"
         log(error_msg)
         return json.dumps({"error": error_msg})
-
-async def execute_external_mcp_tool_async(function_name: str, tool_args: dict) -> str:
-    """
-    Async version: Executes an external MCP tool via subprocess.
-    """
-    from app.utils.flask.mcp_handler import mcp_function_to_tool_map, mcp_config
-
-    tool_name = mcp_function_to_tool_map.get(function_name)
-    if not tool_name:
-        return json.dumps({"error": f"Tool '{function_name}' is not registered to any MCP server."})
-
-    # Find the MCP server configuration
-    server_config = mcp_config.get("mcpServers", {}).get(tool_name)
-    
-    if not server_config:
-        return json.dumps({"error": f"No MCP server found for tool: {function_name}"})
-    
-    command = server_config.get('command')
-    args = server_config.get('args', [])
-    env = server_config.get('env', {})
-    
-    if not command:
-        return json.dumps({"error": "MCP server command not configured"})
-    
-    # Prepare the tool call request
-    request = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/call",
-        "params": {
-            "name": function_name,
-            "arguments": tool_args
-        }
-    }
-    
-    try:
-        # Run subprocess asynchronously
-        process = await asyncio.create_subprocess_exec(
-            command,
-            *args,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, **env}
-        )
-        
-        # Send request and get response
-        input_data = json.dumps(request).encode() + b'\n'
-        stdout, stderr = await asyncio.wait_for(
-            process.communicate(input=input_data),
-            timeout=30.0
-        )
-        
-        if stderr:
-            log(f"MCP stderr: {stderr.decode()}")
-        
-        # Parse response
-        if stdout:
-            lines = stdout.decode().strip().split('\n')
-            for line in lines:
-                if line.strip():
-                    try:
-                        response = json.loads(line)
-                        if 'result' in response:
-                            result = response['result']
-                            if isinstance(result, dict) and 'content' in result:
-                                content = result['content']
-                                if isinstance(content, list) and len(content) > 0:
-                                    return content[0].get('text', json.dumps(result))
-                            return json.dumps(result)
-                        elif 'error' in response:
-                            return json.dumps({"error": response['error']})
-                    except json.JSONDecodeError:
-                        continue
-        
-        return json.dumps({"error": "No valid response from MCP server"})
-        
-    except asyncio.TimeoutError:
-        return json.dumps({"error": f"Tool execution timed out after 30s"})
-    except Exception as e:
-        return json.dumps({"error": f"Failed to execute tool: {str(e)}"})
 
 async def execute_multiple_tools_async(
     tool_calls: List[Dict[str, Any]],

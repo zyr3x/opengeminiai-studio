@@ -11,7 +11,7 @@ from hypercorn.config import Config as HypercornConfig
 def _init_common():
     """Common initialization for both Flask and Quart apps."""
     # Import inside to avoid circular dependencies and keep things tidy
-    import app.utils.flask.mcp_handler as mcp_handler
+    import app.utils.core.mcp_handler as mcp_handler
     import app.utils.core.tools as utils
     from app.db import init_db
 

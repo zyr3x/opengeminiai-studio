@@ -16,9 +16,9 @@ import re
 from app.utils.core.logging import log
 from app.utils.core.tools import load_code_ignore_patterns
 from contextlib import contextmanager
-from app.utils.flask import optimization
+from app.utils.core import optimization
 from app.utils.core import optimization_utils
-from app.utils.flask.optimization import record_tool_call
+from app.utils.core.optimization import record_tool_call
 
 BUILTIN_TOOL_NAME = "__builtin_code_navigator"
 
@@ -59,7 +59,7 @@ def get_code_ignore_patterns() -> list[str]:
 def _safe_path_resolve(path: str) -> str | None:
     """Resolves a path relative to the current request's project root and checks if it stays within bounds."""
     from app.config import config
-    
+
     project_root = get_project_root()
     full_path = os.path.join(project_root, path)
     resolved_path = os.path.realpath(full_path)
@@ -118,7 +118,7 @@ def list_files(path: str = ".", max_depth: int = -1) -> str:
     PHASE 3 - STAGE 2: Now with progress feedback for better UX.
     """
     from app.config import config
-    
+
     resolved_path = _safe_path_resolve(path)
     if not resolved_path or not os.path.exists(resolved_path):
         return f"Error: Path '{path}' not found or inaccessible."
@@ -264,16 +264,16 @@ def search_codebase(query: str) -> str:
     Searches the entire project codebase for a specific query string.
     Uses 'ripgrep' (rg) if available for speed and .gitignore support, otherwise falls back to 'grep'.
     Returns a formatted list of matches, including file paths and line numbers.
-    
+
     PHASE 3 - STAGE 2: Now with progress feedback for better UX.
     """
     from app.config import config
-    
+
     MAX_SEARCH_RESULTS = 100
-    
+
     if config.STREAMING_PROGRESS_ENABLED:
         log(f"🔍 Searching codebase for: '{query}'")
-    
+
     try:
         subprocess.run(['rg', '--version'], check=True, capture_output=True)
         command = ['rg', '--vimgrep', '--max-count', str(MAX_SEARCH_RESULTS), '--', query, '.']
@@ -311,10 +311,10 @@ def search_codebase(query: str) -> str:
 
     lines = output.split('\n')
     match_count = len(lines)
-    
+
     if config.STREAMING_PROGRESS_ENABLED:
         log(f"  ✅ Found {match_count} matches")
-    
+
     if len(lines) > MAX_SEARCH_RESULTS:
         output = "\n".join(lines[:MAX_SEARCH_RESULTS])
         output += f"\n... (truncated to {MAX_SEARCH_RESULTS} results)"
@@ -404,7 +404,7 @@ def apply_patch(patch_content: str) -> str:
 
             patch_preview = '\n'.join(patch_content.split('\n')[:10])
             error_message += f"\nFirst 10 lines of patch:\n{patch_preview}\n"
-            
+
             log(error_message)
             return error_message
 
@@ -884,29 +884,29 @@ def create_file(path: str, content: str, mode: str = "644") -> str:
         resolved_path = _safe_path_resolve(path)
         if not resolved_path:
             return f"Error: Access denied to path '{path}' (outside project root)"
-        
+
         # Check if file already exists
         if os.path.exists(resolved_path):
             return f"Error: File '{path}' already exists. Use write_file to overwrite or choose different name."
-        
+
         # Create parent directories if needed
         os.makedirs(os.path.dirname(resolved_path), exist_ok=True)
-        
+
         # Write content
         with open(resolved_path, 'w', encoding='utf-8') as f:
             f.write(content)
-        
+
         # Set permissions
         try:
             os.chmod(resolved_path, int(mode, 8))
         except:
             pass  # Ignore permission errors on Windows
-        
+
         file_size = len(content.encode('utf-8'))
         lines = content.count('\n') + 1
-        
+
         return f"✅ File created successfully: {path}\nSize: {file_size} bytes, Lines: {lines}\nPermissions: {mode}"
-    
+
     except Exception as e:
         return f"Error creating file: {e}"
 
@@ -923,22 +923,22 @@ def write_file(path: str, content: str) -> str:
         resolved_path = _safe_path_resolve(path)
         if not resolved_path:
             return f"Error: Access denied to path '{path}' (outside project root)"
-        
+
         if not os.path.exists(resolved_path):
             return f"Error: File '{path}' does not exist. Use create_file to create new files."
-        
+
         # Backup old content size for reporting
         old_size = os.path.getsize(resolved_path)
-        
+
         # Write new content
         with open(resolved_path, 'w', encoding='utf-8') as f:
             f.write(content)
-        
+
         new_size = len(content.encode('utf-8'))
         lines = content.count('\n') + 1
-        
+
         return f"✅ File updated successfully: {path}\nOld size: {old_size} bytes → New size: {new_size} bytes\nLines: {lines}"
-    
+
     except Exception as e:
         return f"Error writing file: {e}"
 
@@ -954,9 +954,9 @@ def execute_command(command: str, timeout: int = 30) -> str:
     try:
         # Security: limit timeout
         timeout = min(max(1, timeout), 300)
-        
+
         log(f"Executing command: {command[:100]}...")
-        
+
         # Execute command
         result = subprocess.run(
             command,
@@ -966,19 +966,19 @@ def execute_command(command: str, timeout: int = 30) -> str:
             timeout=timeout,
             cwd=get_project_root()
         )
-        
+
         output_parts = []
         if result.stdout:
             output_parts.append(f"STDOUT:\n{result.stdout}")
         if result.stderr:
             output_parts.append(f"STDERR:\n{result.stderr}")
-        
+
         output = "\n\n".join(output_parts) if output_parts else "(no output)"
-        
+
         status = "✅ Success" if result.returncode == 0 else f"❌ Failed (exit code: {result.returncode})"
-        
+
         return f"{status}\nCommand: {command}\n\n{output}"
-    
+
     except subprocess.TimeoutExpired:
         return f"❌ Command timed out after {timeout} seconds: {command}"
     except Exception as e:
@@ -992,43 +992,43 @@ def analyze_project_structure() -> str:
     """
     try:
         project_root = get_project_root()
-        
+
         analysis = []
         analysis.append(f"📊 Project Analysis: {os.path.basename(project_root)}")
         analysis.append(f"Root: {project_root}\n")
-        
+
         # Collect file statistics
         file_types = {}
         total_files = 0
         total_size = 0
         language_files = {}
-        
+
         ignore_patterns = get_code_ignore_patterns()
-        
+
         for root, dirs, files in os.walk(project_root):
             # Filter directories
             dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, p) for p in ignore_patterns)]
-            
+
             rel_root = os.path.relpath(root, project_root)
             if rel_root != '.' and any(fnmatch.fnmatch(rel_root, p) or fnmatch.fnmatch(os.path.join(rel_root, ''), p) for p in ignore_patterns):
                 continue
-            
+
             for file in files:
                 filepath = os.path.join(root, file)
                 rel_path = os.path.relpath(filepath, project_root)
-                
+
                 # Check if file matches ignore patterns
                 if any(fnmatch.fnmatch(rel_path, p) or fnmatch.fnmatch(file, p) for p in ignore_patterns):
                     continue
-                
+
                 try:
                     size = os.path.getsize(filepath)
                     ext = os.path.splitext(file)[1].lower() or '(no extension)'
-                    
+
                     file_types[ext] = file_types.get(ext, 0) + 1
                     total_files += 1
                     total_size += size
-                    
+
                     # Language detection
                     lang_map = {
                         '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
@@ -1042,27 +1042,27 @@ def analyze_project_structure() -> str:
                     if ext in lang_map:
                         lang = lang_map[ext]
                         language_files[lang] = language_files.get(lang, 0) + 1
-                
+
                 except:
                     pass
-        
+
         # File types summary
         analysis.append("📁 File Types:")
         sorted_types = sorted(file_types.items(), key=lambda x: x[1], reverse=True)[:15]
         for ext, count in sorted_types:
             analysis.append(f"  {ext}: {count} files")
-        
+
         # Language summary
         if language_files:
             analysis.append("\n💻 Programming Languages:")
             sorted_langs = sorted(language_files.items(), key=lambda x: x[1], reverse=True)
             for lang, count in sorted_langs:
                 analysis.append(f"  {lang}: {count} files")
-        
+
         # Size summary
         size_mb = total_size / (1024 * 1024)
         analysis.append(f"\n📦 Total: {total_files} files, {size_mb:.2f} MB")
-        
+
         # Check for common project files
         analysis.append("\n📋 Project Configuration:")
         config_files = [
@@ -1075,12 +1075,12 @@ def analyze_project_structure() -> str:
         for cf in config_files:
             if os.path.exists(os.path.join(project_root, cf)):
                 found_configs.append(f"  ✓ {cf}")
-        
+
         if found_configs:
             analysis.extend(found_configs)
         else:
             analysis.append("  (no standard config files found)")
-        
+
         # Git status if available
         git_dir = os.path.join(project_root, '.git')
         if os.path.isdir(git_dir):
@@ -1094,9 +1094,9 @@ def analyze_project_structure() -> str:
                     analysis.append(f"\n🔀 Git: On branch '{branch}'")
             except:
                 pass
-        
+
         return "\n".join(analysis)
-    
+
     except Exception as e:
         return f"Error analyzing project: {e}"
 
@@ -1111,10 +1111,10 @@ def find_symbol(symbol_name: str) -> str:
     try:
         project_root = get_project_root()
         ignore_patterns = get_code_ignore_patterns()
-        
+
         results = []
         results.append(f"🔍 Searching for symbol: '{symbol_name}'\n")
-        
+
         # Patterns to search for
         patterns = [
             f"def {symbol_name}",      # Python function
@@ -1126,27 +1126,27 @@ def find_symbol(symbol_name: str) -> str:
             f"{symbol_name} =",        # Assignment
             f"{symbol_name}(",         # Function call
         ]
-        
+
         found_items = []
-        
+
         for root, dirs, files in os.walk(project_root):
             dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, p) for p in ignore_patterns)]
-            
+
             rel_root = os.path.relpath(root, project_root)
             if rel_root != '.' and any(fnmatch.fnmatch(rel_root, p) for p in ignore_patterns):
                 continue
-            
+
             for file in files:
                 # Only search in code files
                 if not any(file.endswith(ext) for ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.rb', '.php', '.kt', '.swift']):
                     continue
-                
+
                 filepath = os.path.join(root, file)
                 rel_path = os.path.relpath(filepath, project_root)
-                
+
                 if any(fnmatch.fnmatch(rel_path, p) for p in ignore_patterns):
                     continue
-                
+
                 try:
                     with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
@@ -1162,18 +1162,18 @@ def find_symbol(symbol_name: str) -> str:
                                     break  # One match per line
                 except:
                     pass
-        
+
         if not found_items:
             return f"❌ Symbol '{symbol_name}' not found in the project."
-        
+
         # Group by file
         from collections import defaultdict
         by_file = defaultdict(list)
         for item in found_items:
             by_file[item['file']].append(item)
-        
+
         results.append(f"✅ Found {len(found_items)} occurrences in {len(by_file)} files:\n")
-        
+
         for file, items in sorted(by_file.items()):
             results.append(f"📄 {file}:")
             for item in items[:5]:  # Limit to first 5 per file
@@ -1181,9 +1181,9 @@ def find_symbol(symbol_name: str) -> str:
             if len(items) > 5:
                 results.append(f"  ... and {len(items) - 5} more occurrences")
             results.append("")
-        
+
         return "\n".join(results)
-    
+
     except Exception as e:
         return f"Error finding symbol: {e}"
 
@@ -1195,10 +1195,10 @@ def get_dependencies() -> str:
     """
     try:
         project_root = get_project_root()
-        
+
         results = []
         results.append("📦 Project Dependencies\n")
-        
+
         # Python - requirements.txt
         req_file = os.path.join(project_root, 'requirements.txt')
         if os.path.exists(req_file):
@@ -1210,12 +1210,12 @@ def get_dependencies() -> str:
                 if len(deps) > 20:
                     results.append(f"  ... and {len(deps) - 20} more")
             results.append("")
-        
+
         # Python - pyproject.toml
         pyproject = os.path.join(project_root, 'pyproject.toml')
         if os.path.exists(pyproject):
             results.append("🐍 Python (pyproject.toml): (file exists)")
-        
+
         # Node.js - package.json
         package_json = os.path.join(project_root, 'package.json')
         if os.path.exists(package_json):
@@ -1224,7 +1224,7 @@ def get_dependencies() -> str:
                     data = json.load(f)
                     deps = data.get('dependencies', {})
                     dev_deps = data.get('devDependencies', {})
-                    
+
                     if deps:
                         results.append("📦 Node.js Dependencies:")
                         for name, version in list(deps.items())[:15]:
@@ -1232,7 +1232,7 @@ def get_dependencies() -> str:
                         if len(deps) > 15:
                             results.append(f"  ... and {len(deps) - 15} more")
                         results.append("")
-                    
+
                     if dev_deps:
                         results.append("🛠️  Node.js Dev Dependencies:")
                         for name, version in list(dev_deps.items())[:10]:
@@ -1242,7 +1242,7 @@ def get_dependencies() -> str:
                         results.append("")
             except:
                 results.append("📦 Node.js (package.json): (file exists but couldn't parse)")
-        
+
         # Go - go.mod
         go_mod = os.path.join(project_root, 'go.mod')
         if os.path.exists(go_mod):
@@ -1262,17 +1262,17 @@ def get_dependencies() -> str:
                     if in_require and ')' in line:
                         break
             results.append("")
-        
+
         # Rust - Cargo.toml
         cargo_toml = os.path.join(project_root, 'Cargo.toml')
         if os.path.exists(cargo_toml):
             results.append("🦀 Rust (Cargo.toml): (file exists)")
-        
+
         if len(results) == 2:  # Only header
             return "❌ No dependency files found (requirements.txt, package.json, go.mod, Cargo.toml, etc.)"
-        
+
         return "\n".join(results)
-    
+
     except Exception as e:
         return f"Error getting dependencies: {e}"
 
@@ -2041,7 +2041,7 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
 
         try:
             result = builtin_func(**func_args)
-            
+
             # Check if the result is a generator (a streaming result).
             # We check for a generator type object.
             if hasattr(result, '__iter__') and not isinstance(result, (str, dict, list)):
@@ -2056,11 +2056,11 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                 tokens_saved = optimization_utils.estimate_tokens(result) - optimization_utils.estimate_tokens(optimized_result)
                 optimization.record_tokens_saved(tokens_saved)
                 log(f"✓ Optimized output: saved ~{tokens_saved} tokens")
-            
+
             # Cache the result if appropriate
             if optimization.should_cache_tool(function_name):
                 optimization.cache_tool_output(function_name, tool_args, optimized_result)
-            
+
             optimization.record_optimization()
             return optimized_result
         except Exception as e:
