@@ -66,6 +66,23 @@ async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_ro
         log(error_msg)
         return json.dumps({"error": error_msg})
 
+def _format_tool_response_part(function_name: str, output: str) -> Dict[str, Any]:
+    """Formats the output of a tool call into a functionResponse part."""
+    response_payload = {}
+    if output:
+        try:
+            response_payload = json.loads(output)
+        except (json.JSONDecodeError, TypeError):
+            response_payload = {"content": str(output)}
+
+    return {
+        "functionResponse": {
+            "name": function_name,
+            "response": response_payload
+        }
+    }
+
+
 async def execute_multiple_tools_async(
     tool_calls: List[Dict[str, Any]],
     project_root_override: str | None = None
@@ -82,66 +99,37 @@ async def execute_multiple_tools_async(
     """
     from app.utils.core.optimization_utils import can_execute_parallel
 
+    response_parts = []
     if can_execute_parallel(tool_calls):
         log(f"✓ Executing {len(tool_calls)} tools in parallel")
 
-        # Execute all tools concurrently
         tasks = [
             execute_mcp_tool_async(tc['name'], tc['args'], project_root_override)
             for tc in tool_calls
         ]
-        
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Build response parts
-        response_parts = []
+
         for tool_call, result in zip(tool_calls, results):
             function_name = tool_call['name']
-            
+
             if isinstance(result, Exception):
                 output = json.dumps({"error": str(result)})
             else:
                 output = result
-            
-            # Parse output
-            response_payload = {}
-            if output:
-                try:
-                    response_payload = json.loads(output)
-                except (json.JSONDecodeError, TypeError):
-                    response_payload = {"content": str(output)}
-            
-            response_parts.append({
-                "functionResponse": {
-                    "name": function_name,
-                    "response": response_payload
-                }
-            })
-        
-        return response_parts
+
+            response_parts.append(_format_tool_response_part(function_name, output))
+
     else:
         # Sequential execution
         log(f"✓ Executing {len(tool_calls)} tools sequentially")
-        
-        response_parts = []
+
         for tool_call in tool_calls:
             function_name = tool_call['name']
             tool_args = tool_call['args']
-            
+
             output = await execute_mcp_tool_async(function_name, tool_args, project_root_override)
-            
-            response_payload = {}
-            if output:
-                try:
-                    response_payload = json.loads(output)
-                except (json.JSONDecodeError, TypeError):
-                    response_payload = {"content": str(output)}
-            
-            response_parts.append({
-                "functionResponse": {
-                    "name": function_name,
-                    "response": response_payload
-                }
-            })
-        
-        return response_parts
+
+            response_parts.append(_format_tool_response_part(function_name, output))
+
+    return response_parts
