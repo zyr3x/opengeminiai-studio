@@ -17,32 +17,15 @@ def init_db():
     print("Checking/Initializing database tables...")
     conn = get_db_connection()
     conn.execute('PRAGMA foreign_keys = ON;')
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS chats (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    ''')
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id INTEGER NOT NULL,
-            role TEXT NOT NULL, -- user, model, or tool
-            parts TEXT NOT NULL, -- JSON list of parts (text or file references)
-            FOREIGN KEY (chat_id) REFERENCES chats (id) ON DELETE CASCADE
-        );
-    ''')
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS token_usage (
-            date TEXT NOT NULL,
-            key_hash TEXT NOT NULL,
-            model_name TEXT NOT NULL,
-            input_tokens INTEGER NOT NULL DEFAULT 0,
-            output_tokens INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY (date, key_hash, model_name)
-        );
-    ''')
+    conn.execute(f'{get_schema("chats")}')
+    conn.execute(f'{get_schema("messages")}')
+    conn.execute(f'{get_schema("token_usage")}')
     conn.commit()
     conn.close()
+
     print("Database check/initialization complete.")
+
+def get_schema(name):
+    with open(os.path.realpath(os.path.expanduser(f"etc/database/schema/{name}.sql")), 'r', encoding='utf-8',
+              errors='ignore') as f:
+        return f.read()
