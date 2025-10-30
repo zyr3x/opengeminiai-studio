@@ -148,68 +148,6 @@ async def execute_tools_parallel_async(
     
     return output
 
-async def smart_truncate_contents_async(
-    contents: list,
-    limit: int,
-    keep_recent: int = 5
-) -> list:
-    """
-    Async: Smart truncation with summarization of old messages.
-    Keeps the first message (system prompt), last N messages, and summarizes the middle.
-    """
-    from app.utils.core.tools import estimate_token_count, log
-    
-    if estimate_token_count(contents) <= limit:
-        return contents
-    
-    if len(contents) <= keep_recent + 1:
-        # Not enough messages to truncate intelligently
-        return contents
-    
-    # Keep first message (usually system prompt)
-    result = [contents[0]]
-    
-    # Messages to summarize (middle portion)
-    middle_start = 1
-    middle_end = len(contents) - keep_recent
-    
-    if middle_end <= middle_start:
-        # Not enough middle messages, just keep recent
-        return [contents[0]] + contents[-keep_recent:]
-    
-    middle_messages = contents[middle_start:middle_end]
-    
-    # Create a summary of the middle messages
-    summary_parts = []
-    for msg in middle_messages:
-        role = msg.get('role', 'user')
-        parts = msg.get('parts', [])
-        
-        for part in parts:
-            if 'text' in part:
-                text = part['text']
-                # Take first 100 chars as preview
-                preview = text[:100] + ('...' if len(text) > 100 else '')
-                summary_parts.append(f"[{role}]: {preview}")
-    
-    # Add summary as a single message
-    if summary_parts:
-        summary_text = (
-            f"[Context summary: {len(middle_messages)} messages omitted]\n" +
-            '\n'.join(summary_parts[:5])  # Show preview of first 5
-        )
-        result.append({
-            'role': 'user',
-            'parts': [{'text': summary_text}]
-        })
-    
-    # Add recent messages
-    result.extend(contents[-keep_recent:])
-    
-    log(f"Smart truncation: kept 1 + {len(middle_messages)} summarized + {keep_recent} recent = {len(result)} messages")
-    
-    return result
-
 # --- Prompt Caching ---
 _prompt_cache: Dict[str, Tuple[str, float]] = {}
 _prompt_cache_lock = asyncio.Lock()

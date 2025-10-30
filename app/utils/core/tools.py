@@ -169,18 +169,7 @@ def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> i
         log(f"Error fetching model details for {model_name}: {e}. Using default limit of 8192.")
         return 8192
 
-from app.utils.core.optimization_utils import estimate_tokens
-
-def estimate_token_count(contents: list) -> int:
-    """
-    Estimates the token count of the 'contents' list by summing up text parts.
-    """
-    total_text = ""
-    for item in contents:
-        for part in item.get("parts", []):
-            if "text" in part:
-                total_text += part.get("text", "")
-    return estimate_tokens(total_text)
+from app.utils.core.optimization_utils import estimate_tokens, estimate_token_count
 
 def truncate_contents(contents: list, limit: int, current_query: str = None) -> list:
     """
@@ -221,18 +210,23 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
         except Exception as e:
             log(f"Selective Context failed, falling back: {e}")
 
+    truncated_contents = contents
     try:
-        from app.utils.flask import optimization
-        truncated = optimization.smart_truncate_contents(contents, limit, keep_recent=5)
-        final_tokens = estimate_token_count(truncated)
-        log(f"Smart truncation complete. Final estimated token count: {final_tokens}")
-        return truncated
+        from app.utils.core import optimization_utils
+        truncated_contents = optimization_utils.smart_truncate_contents(contents, limit, keep_recent=5)
+        log(f"Smart truncation applied. Message count: {len(contents)} -> {len(truncated_contents)}")
     except Exception as e:
-        log(f"Smart truncation failed, falling back to simple truncation: {e}")
+        log(f"Smart truncation failed, will use simple truncation: {e}")
 
-    truncated_contents = contents.copy()
-    while estimate_token_count(truncated_contents) > limit and len(truncated_contents) > 1:
-        truncated_contents.pop(1)
+    # Always run simple truncation if smart truncation wasn't enough or failed
+    if estimate_token_count(truncated_contents) > limit:
+        log("Content still over limit after smart truncation, applying simple truncation...")
+        final_truncated = truncated_contents.copy()
+        # Keep first message (system prompt) and remove from the start of history
+        while estimate_token_count(final_truncated) > limit and len(final_truncated) > 1:
+            final_truncated.pop(1)
+        truncated_contents = final_truncated
+
 
     final_tokens = estimate_token_count(truncated_contents)
     log(f"Truncation complete. Final estimated token count: {final_tokens}")

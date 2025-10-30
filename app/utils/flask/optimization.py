@@ -177,69 +177,6 @@ def optimize_tool_output(output: str, function_name: str) -> str:
 
     return output
 
-def summarize_message(message: dict) -> str:
-    """Creates a brief summary of the message"""
-    role = message.get('role', 'unknown')
-    parts = message.get('parts', [])
-
-    text_parts = []
-    for part in parts:
-        if 'text' in part:
-            text_parts.append(part['text'])
-
-    full_text = ' '.join(text_parts)
-
-    max_summary_length = 100
-    if len(full_text) > max_summary_length:
-        words = full_text.split()
-        summary = ' '.join(words[:15]) + '...'
-    else:
-        summary = full_text
-
-    return f"[{role}]: {summary}"
-
-def smart_truncate_contents(contents: list, limit: int, keep_recent: int = 5) -> list:
-    """
-    Intelligently compresses message history instead of deleting it.
-    Keeps the system prompt, the last N messages, and creates a brief summary of the rest.
-    """
-    from app.utils.core.tools import estimate_token_count
-
-    tokens = estimate_token_count(contents)
-
-    if tokens <= limit:
-        return contents
-
-    if len(contents) <= keep_recent + 1:
-        return contents[:1] + contents[-(keep_recent-1):]
-
-    result = [contents[0]]
-
-    recent_messages = contents[-keep_recent:]
-
-    middle_messages = contents[1:-keep_recent]
-
-    if middle_messages:
-        summaries = [summarize_message(msg) for msg in middle_messages]
-        summary_text = "Previous conversation summary:\n" + "\n".join(summaries)
-
-        result.append({
-            "role": "user",
-            "parts": [{"text": summary_text}]
-        })
-
-    result.extend(recent_messages)
-
-    new_tokens = estimate_token_count(result)
-
-    if new_tokens > limit:
-        if keep_recent > 2:
-            return smart_truncate_contents(contents, limit, keep_recent - 1)
-        else:
-            return result[:1] + result[-2:]
-
-    return result
-
 _token_stats_lock = threading.Lock()
 
 

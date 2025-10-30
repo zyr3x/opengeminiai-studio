@@ -8,12 +8,8 @@ import random
 import asyncio
 from typing import Optional
 
-VERBOSE_LOGGING = True
-DEBUG_CLIENT_LOGGING = False
-
-cached_models_response = None
-model_info_cache = {}
-TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95
+from app.utils.core.tools import log, model_info_cache
+from app.utils.core.optimization_utils import estimate_token_count
 
 _async_session: Optional[aiohttp.ClientSession] = None
 _session_lock = asyncio.Lock()
@@ -24,7 +20,7 @@ async def get_async_session() -> aiohttp.ClientSession:
     This session should be reused for all HTTP requests for better performance.
     """
     global _async_session
-    
+
     if _async_session is None or _async_session.closed:
         async with _session_lock:
             if _async_session is None or _async_session.closed:
@@ -40,7 +36,7 @@ async def get_async_session() -> aiohttp.ClientSession:
                     timeout=timeout,
                     connector=connector
                 )
-    
+
     return _async_session
 
 async def close_async_session():
@@ -49,16 +45,6 @@ async def close_async_session():
     if _async_session and not _async_session.closed:
         await _async_session.close()
         _async_session = None
-
-def log(message: str):
-    """Prints a message to the console if verbose logging is enabled."""
-    if VERBOSE_LOGGING:
-        print(message)
-
-def debug(message: str):
-    """Prints a message to the console if debug logging is enabled."""
-    if DEBUG_CLIENT_LOGGING:
-        print(message)
 
 async def process_image_url_async(image_url: dict) -> Optional[dict]:
     """
@@ -191,7 +177,6 @@ async def make_request_with_retry_async(
     
     raise aiohttp.ClientError(f"All {retries} retries failed.")
 
-from app.utils.core.tools import estimate_token_count
 
 async def truncate_contents_async(contents: list, limit: int, current_query: str = None) -> list:
     """
@@ -208,7 +193,7 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
     from app.config import config as app_config
     if current_query and app_config.SELECTIVE_CONTEXT_ENABLED:
         try:
-            from app.utils.core.tools import context_selector
+            from app.utils.core import context_selector
 
             selected = context_selector.smart_context_window(
                 messages=contents,
@@ -226,26 +211,22 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
         except Exception as e:
             log(f"Selective Context failed, falling back: {e}")
 
-    try:
-        from app.utils.quart import optimization
-        truncated = await optimization.smart_truncate_contents_async(contents, limit, keep_recent=5)
-        final_tokens = estimate_token_count(truncated)
-        log(f"Smart truncation complete. Final estimated token count: {final_tokens}")
-        return truncated
-    except Exception as e:
-        log(f"Smart truncation failed, falling back to simple truncation: {e}")
+    from app.utils.core import optimization_utils
+    # This function is not I/O bound, so running it synchronously is fine.
+    truncated_contents = optimization_utils.smart_truncate_contents(contents, limit, keep_recent=5)
 
-    truncated_contents = contents.copy()
-    while estimate_token_count(truncated_contents) > limit and len(truncated_contents) > 1:
-        truncated_contents.pop(1)
+    # Always run simple truncation if smart truncation wasn't enough
+    if estimate_token_count(truncated_contents) > limit:
+        log("Content still over limit after smart truncation, applying simple truncation...")
+        final_truncated = truncated_contents.copy()
+        while estimate_token_count(final_truncated) > limit and len(final_truncated) > 1:
+            final_truncated.pop(1)
+        truncated_contents = final_truncated
+
 
     final_tokens = estimate_token_count(truncated_contents)
     log(f"Truncation complete. Final estimated token count: {final_tokens}")
     return truncated_contents
-
-def pretty_json(data):
-    """Returns a pretty-printed JSON string."""
-    return json.dumps(data, indent=2, ensure_ascii=False, default=str)
 
 async def read_file_async(file_path: str, mode: str = 'r') -> str:
     """Async file reading."""
