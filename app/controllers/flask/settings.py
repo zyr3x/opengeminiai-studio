@@ -2,9 +2,8 @@
 Flask routes for handling general application settings.
 """
 from flask import Blueprint, request, redirect, url_for, jsonify
-from app.config import config
-from app.utils.core import tools as utils
 from app.utils.core.api_key_manager import api_key_manager
+from app.utils.core import settings_logic
 
 settings_bp = Blueprint('settings', __name__)
 
@@ -18,154 +17,56 @@ def get_api_key_data():
 @settings_bp.route('/add_or_update_api_key', methods=['POST'])
 def add_or_update_api_key():
     """Adds or updates an API key."""
-    data = request.json
-    key_id = data.get('key_id')
-    key_value = data.get('key_value')
-    set_active = data.get('set_active', False)
-
-    if not key_id or not key_value:
-        return jsonify({"error": "key_id and key_value are required"}), 400
-
-    api_key_manager.add_or_update_key(key_id, key_value)
-    if set_active:
-        api_key_manager.set_active_key(key_id)
-        config.reload_api_key()
-
-    utils.log(f"API Key '{key_id}' has been added/updated.")
-    return jsonify({"message": f"API Key '{key_id}' processed successfully."}), 200
+    message, status_code = settings_logic.handle_add_or_update_api_key(request.json)
+    return jsonify(message), status_code
 
 
 @settings_bp.route('/set_active_api_key', methods=['POST'])
 def set_active_api_key():
     """Sets the active API key."""
-    data = request.json
-    key_id = data.get('key_id')
-    if not key_id:
-        return jsonify({"error": "key_id is required"}), 400
-
-    if api_key_manager.set_active_key(key_id):
-        config.reload_api_key()
-        utils.log(f"Active API Key set to '{key_id}'.")
-        return jsonify({"message": f"Active API Key set to '{key_id}'."}), 200
-    return jsonify({"error": f"API Key ID '{key_id}' not found."}), 404
+    message, status_code = settings_logic.handle_set_active_api_key(request.json)
+    return jsonify(message), status_code
 
 
 @settings_bp.route('/delete_api_key', methods=['POST'])
 def delete_api_key():
     """Deletes an API key."""
-    data = request.json
-    key_id = data.get('key_id')
-    if not key_id:
-        return jsonify({"error": "key_id is required"}), 400
+    message, status_code = settings_logic.handle_delete_api_key(request.json)
+    return jsonify(message), status_code
 
-    if api_key_manager.delete_key(key_id):
-        config.reload_api_key()
-        utils.log(f"API Key '{key_id}' has been deleted.")
-        return jsonify({"message": f"API Key '{key_id}' deleted."}), 200
-    return jsonify({"error": f"API Key ID '{key_id}' not found."}), 404
 
 @settings_bp.route('/set_api_key', methods=['POST'])
 def set_api_key():
     """
     Sets the API_KEY from a web form and saves it to the .env file for persistence.
     """
-    form = request.form
-    new_key = form.get('api_key')
-    if new_key:
-        config.set_api_key(new_key)
-        utils.log("API Key has been updated via web interface and saved to .env file.")
-        utils.cached_models_response = None
-        utils.model_info_cache.clear()
-        utils.log("Caches cleared due to API key change.")
+    settings_logic.handle_set_api_key_form(request.form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
+
 
 @settings_bp.route('/set_logging', methods=['POST'])
 def set_logging():
     """Enables or disables verbose and debug client logging."""
-    form = request.form
-    verbose_logging_enabled = form.get('verbose_logging') == 'on'
-    debug_client_logging_enabled = form.get('debug_client_logging') == 'on'
-    utils.set_verbose_logging(verbose_logging_enabled)
-    utils.set_debug_client_logging(debug_client_logging_enabled)
+    settings_logic.handle_set_logging(request.form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
+
 
 @settings_bp.route('/set_context_settings', methods=['POST'])
 def set_context_settings():
     """Updates context management settings and saves them to .env file."""
-    from dotenv import set_key
-    form = request.form
-    
-    # Get values from form
-    selective_context_enabled = form.get('selective_context_enabled') == 'on'
-    context_min_relevance_score = form.get('context_min_relevance_score', '0.3')
-    context_always_keep_recent = form.get('context_always_keep_recent', '15')
-    min_context_caching_tokens = form.get('min_context_caching_tokens', '512')
-
-    # Update .env file
-    env_file = '.env'
-    set_key(env_file, 'SELECTIVE_CONTEXT_ENABLED', 'true' if selective_context_enabled else 'false')
-    set_key(env_file, 'CONTEXT_MIN_RELEVANCE_SCORE', str(context_min_relevance_score))
-    set_key(env_file, 'CONTEXT_ALWAYS_KEEP_RECENT', str(context_always_keep_recent))
-    set_key(env_file, 'MIN_CONTEXT_CACHING_TOKENS', str(min_context_caching_tokens))
-
-    # Update config in memory
-    config.SELECTIVE_CONTEXT_ENABLED = selective_context_enabled
-    config.CONTEXT_MIN_RELEVANCE_SCORE = float(context_min_relevance_score)
-    config.CONTEXT_ALWAYS_KEEP_RECENT = int(context_always_keep_recent)
-    config.MIN_CONTEXT_CACHING_TOKENS = int(min_context_caching_tokens)
-
-    utils.log(f"Context settings updated: selective={selective_context_enabled}, min_score={context_min_relevance_score}, keep_recent={context_always_keep_recent}, min_cache_tokens={min_context_caching_tokens}")
+    settings_logic.handle_set_context_settings(request.form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
+
 
 @settings_bp.route('/set_streaming_settings', methods=['POST'])
 def set_streaming_settings():
     """Updates streaming settings and saves them to .env file."""
-    from dotenv import set_key
-    form = request.form
-
-    # Get values from form
-    streaming_enabled = form.get('streaming_enabled') == 'on'
-    streaming_progress_enabled = form.get('streaming_progress_enabled') == 'on'
-
-    # Update .env file
-    env_file = '.env'
-    set_key(env_file, 'STREAMING_ENABLED', 'true' if streaming_enabled else 'false')
-    set_key(env_file, 'STREAMING_PROGRESS_ENABLED', 'true' if streaming_progress_enabled else 'false')
-
-    # Update config in memory
-    config.STREAMING_ENABLED = streaming_enabled
-    config.STREAMING_PROGRESS_ENABLED = streaming_progress_enabled
-
-    utils.log(f"Streaming settings updated: enabled={streaming_enabled}, progress_enabled={streaming_progress_enabled}")
+    settings_logic.handle_set_streaming_settings(request.form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
+
 
 @settings_bp.route('/set_security_settings', methods=['POST'])
 def set_security_settings():
     """Updates security settings and saves them to .env file."""
-    from dotenv import set_key
-    import os
-    form = request.form
-    
-    # Get values from form
-    allowed_code_paths = form.get('allowed_code_paths', '').strip()
-    max_code_injection_size_kb = form.get('max_code_injection_size_kb', '128')
-
-    # Update .env file
-    env_file = '.env'
-    set_key(env_file, 'ALLOWED_CODE_PATHS', allowed_code_paths)
-    set_key(env_file, 'MAX_CODE_INJECTION_SIZE_KB', str(max_code_injection_size_kb))
-
-    # Update config in memory
-    if allowed_code_paths:
-        config.ALLOWED_CODE_PATHS = [
-            os.path.realpath(os.path.expanduser(p.strip())) 
-            for p in allowed_code_paths.split(',') 
-            if p.strip()
-        ]
-    else:
-        config.ALLOWED_CODE_PATHS = []
-
-    config.MAX_CODE_INJECTION_SIZE_KB = int(max_code_injection_size_kb)
-
-    utils.log(f"Security settings updated: allowed_code_paths={config.ALLOWED_CODE_PATHS}, max_code_injection_size_kb={config.MAX_CODE_INJECTION_SIZE_KB}")
+    settings_logic.handle_set_security_settings(request.form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))

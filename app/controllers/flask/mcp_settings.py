@@ -2,30 +2,20 @@
 Flask routes for handling MCP (Model Configuration Provider) settings.
 """
 from flask import Blueprint, request, redirect, url_for, jsonify
-
-from app.utils.core import mcp_handler
-from app.utils.core import tools as utils
+from app.utils.core import mcp_handler, settings_logic
 
 mcp_settings_bp = Blueprint('mcp_settings', __name__)
+
 
 @mcp_settings_bp.route('/set_mcp_config', methods=['POST'])
 def set_mcp_config():
     """Saves MCP tool configuration from web form to a JSON file and reloads it."""
-    form = request.form
-    config_str = form.get('mcp_config', '')
-
-    try:
-        utils.save_config_to_file(
-            config_str=config_str,
-            file_path=mcp_handler.MCP_CONFIG_FILE,
-            config_name="MCP config"
-        )
-    except ValueError as e:
-        utils.log(f"Error: {e}")
-        return redirect(url_for('web_ui.index', _anchor='mcp'))
-
-    mcp_handler.load_mcp_config()
+    error = settings_logic.handle_set_mcp_config(request.form)
+    if error:
+        # Optionally, flash the error message to the user
+        pass
     return redirect(url_for('web_ui.index', _anchor='mcp'))
+
 
 @mcp_settings_bp.route('/mcp_tool_info', methods=['POST'])
 def mcp_tool_info():
@@ -40,14 +30,11 @@ def mcp_tool_info():
     result = mcp_handler.fetch_mcp_tool_list(tool_config)
     return jsonify(result)
 
+
 @mcp_settings_bp.route('/set_mcp_general_settings', methods=['POST'])
 def set_mcp_general_settings():
     """
     Sets general MCP settings, like enabling/disabling all tools.
     """
-    form = request.form
-    disable_all_tools_enabled = form.get('disable_all_mcp_tools') == 'on'
-    mcp_handler.set_disable_all_mcp_tools(disable_all_tools_enabled)
-    # Reload the entire MCP config to ensure consistency
-    mcp_handler.load_mcp_config()
+    settings_logic.handle_set_mcp_general_settings(request.form)
     return redirect(url_for('web_ui.index', _anchor='mcp'))

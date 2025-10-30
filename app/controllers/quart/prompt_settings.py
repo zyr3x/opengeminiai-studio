@@ -2,44 +2,28 @@
 Quart routes for handling prompt override settings.
 """
 from quart import Blueprint, request, redirect, url_for
-from app.utils.core import tools as utils
+from app.utils.core import settings_logic
 
 prompt_settings_bp = Blueprint('prompt_settings', __name__)
+
 
 @prompt_settings_bp.route('/set_prompt_config', methods=['POST'])
 async def set_prompt_config():
     """Saves prompt override configuration from web form to a JSON file and reloads it."""
     form = await request.form
-    config_str = form.get('prompt_overrides', '')
-
-    try:
-        utils.save_config_to_file(
-            config_str=config_str,
-            file_path=utils.PROMPT_OVERRIDES_FILE,
-            config_name="Prompt overrides"
-        )
-    except ValueError as e:
-        utils.log(f"Error: {e}")
-        return redirect(url_for('web_ui.index', _anchor='prompts'))
-
-    utils.load_prompt_config()
+    error = settings_logic.handle_set_prompt_config(form)
+    if error:
+        # Optionally, flash the error message
+        pass
     return redirect(url_for('web_ui.index', _anchor='prompts'))
+
 
 @prompt_settings_bp.route('/set_system_prompt_config', methods=['POST'])
 async def set_system_prompt_config():
     """Saves system prompt configuration from web form to a JSON file and reloads it."""
     form = await request.form
-    config_str = form.get('system_prompts', '')
-
-    try:
-        utils.save_config_to_file(
-            config_str=config_str,
-            file_path=utils.SYSTEM_PROMPTS_FILE,
-            config_name="System prompts"
-        )
-    except ValueError as e:
-        utils.log(f"Error: {e}")
-        return redirect(url_for('web_ui.index', _anchor='prompts'))
-
-    utils.load_system_prompt_config()
+    error = settings_logic.handle_set_system_prompt_config(form)
+    if error:
+        # Optionally, flash the error message
+        pass
     return redirect(url_for('web_ui.index', _anchor='prompts'))
