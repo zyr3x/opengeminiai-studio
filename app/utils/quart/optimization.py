@@ -76,26 +76,6 @@ async def cache_tool_output(function_name: str, tool_args: dict, output: str):
         output
     )
 
-async def optimize_code_output_async(code: str, max_tokens: int = MAX_TOOL_OUTPUT_TOKENS) -> str:
-    """Async: Optimizes code output to fit within token limit."""
-    current_tokens = estimate_tokens(code)
-
-    if current_tokens <= max_tokens:
-        return code
-
-    # Calculate how many lines we can keep
-    lines = code.split('\n')
-    target_lines = int(len(lines) * (max_tokens / current_tokens))
-
-    if target_lines < 10:
-        # If too small, return first and last few lines
-        preview = '\n'.join(lines[:5] + ['...', f'[{len(lines) - 10} lines omitted]', '...'] + lines[-5:])
-        return preview
-
-    # Return first portion with indicator
-    truncated = '\n'.join(lines[:target_lines])
-    return f"{truncated}\n...\n[Output truncated: {len(lines) - target_lines} lines omitted]"
-
 async def execute_tools_parallel_async(
     tool_calls: List[Dict[str, Any]],
     executor_func
