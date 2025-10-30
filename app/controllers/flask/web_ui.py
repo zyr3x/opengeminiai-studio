@@ -10,6 +10,7 @@ from flask import Blueprint, Response, render_template
 from app.config import config
 from app.utils.core import mcp_handler
 from app.utils.core import tools as utils
+from app.utils.core import logging
 from app.utils.core.prompt_loader import load_default_system_prompts, load_default_override_prompts
 from .metrics import get_metrics
 
@@ -78,8 +79,8 @@ def index():
         default_prompt_overrides_json=utils.pretty_json(default_prompt_overrides),
         system_prompt_profiles=system_prompt_profiles, current_system_prompts_str=current_system_prompts_str,
         default_system_prompts_json=utils.pretty_json(default_system_prompts),
-        verbose_logging_status=utils.VERBOSE_LOGGING,
-        debug_client_logging_status=utils.DEBUG_CLIENT_LOGGING,
+        verbose_logging_status=logging.VERBOSE_LOGGING,
+        debug_client_logging_status=logging.DEBUG_CLIENT_LOGGING,
         streaming_enabled=config.STREAMING_ENABLED,
         streaming_progress_enabled=config.STREAMING_PROGRESS_ENABLED,
         selective_context_enabled=config.SELECTIVE_CONTEXT_ENABLED,
