@@ -372,11 +372,37 @@ def prepare_message_parts_for_gemini(db_parts_json: str) -> list:
     return reconstructed_parts
 
 
-def summarize_with_aux_model(content: str, tool_name: str) -> str:
+def summarize_with_aux_model(content: str, tool_name: str, task_context: str = None) -> str:
+    """
+    Summarize tool output using auxiliary model (legacy interface)
+    
+    This function now uses the enhanced aux model system when enabled,
+    otherwise falls back to the original implementation.
+    """
     from app.config import config
+    
     if not config.AGENT_AUX_MODEL_ENABLED:
         return content
-
+    
+    # Try using enhanced aux model if available
+    try:
+        from app.utils.core.aux_model_enhanced import get_aux_model
+        
+        aux = get_aux_model()
+        processed, metadata = aux.process_with_aux(tool_name, content, task_context=task_context)
+        
+        if metadata.get('used_aux'):
+            tokens_saved = metadata.get('tokens_saved', 0)
+            if tokens_saved > 0:
+                log(f"✓ Enhanced aux model: saved {tokens_saved} tokens (strategy: {metadata.get('strategy', 'unknown')})")
+            return processed
+            
+    except ImportError:
+        log("Enhanced aux model not available, using legacy implementation")
+    except Exception as e:
+        log(f"Enhanced aux model error: {e}, falling back to legacy")
+    
+    # Legacy implementation (original code)
     log(f"Summarizing output of tool '{tool_name}' with model '{config.AGENT_AUX_MODEL_NAME}'")
     prompt_template = (
         "You are an expert at summarizing content for other AI models. "

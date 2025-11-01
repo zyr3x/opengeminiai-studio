@@ -96,6 +96,15 @@ def get_index_context():
         'max_code_injection_size_kb': config.MAX_CODE_INJECTION_SIZE_KB,
         'agent_aux_model_enabled': config.AGENT_AUX_MODEL_ENABLED,
         'agent_aux_model_name': config.AGENT_AUX_MODEL_NAME,
+        # Agent Intelligence settings
+        'agent_intelligence_enabled': config.AGENT_INTELLIGENCE_ENABLED,
+        'agent_memory_size': config.AGENT_MEMORY_SIZE,
+        'agent_plan_validation': config.AGENT_PLAN_VALIDATION,
+        'agent_reflection_enabled': config.AGENT_REFLECTION_ENABLED,
+        # Enhanced Aux Model settings
+        'aux_model_cache_size': config.AUX_MODEL_CACHE_SIZE,
+        'aux_model_min_tokens': config.AUX_MODEL_MIN_TOKENS,
+        'aux_model_max_tokens': config.AUX_MODEL_MAX_TOKENS,
         'current_max_function_declarations': mcp_config_data.get("maxFunctionDeclarations",
                                                                  mcp_handler.max_function_declarations_limit),
         'current_disable_all_mcp_tools': mcp_handler.disable_all_mcp_tools,

@@ -20,6 +20,18 @@ class AppConfig:
         self.MAX_CODE_INJECTION_SIZE_KB = int(os.getenv("MAX_CODE_INJECTION_SIZE_KB", "256"))
         self.AGENT_AUX_MODEL_ENABLED = os.getenv("AGENT_AUX_MODEL_ENABLED", "false").lower() == "true"
         self.AGENT_AUX_MODEL_NAME = os.getenv("AGENT_AUX_MODEL_NAME", "gemini-flash-latest")
+        
+        # Agent Intelligence settings
+        self.AGENT_INTELLIGENCE_ENABLED = os.getenv("AGENT_INTELLIGENCE_ENABLED", "true").lower() == "true"
+        self.AGENT_MEMORY_SIZE = int(os.getenv("AGENT_MEMORY_SIZE", "100"))
+        self.AGENT_PLAN_VALIDATION = os.getenv("AGENT_PLAN_VALIDATION", "true").lower() == "true"
+        self.AGENT_REFLECTION_ENABLED = os.getenv("AGENT_REFLECTION_ENABLED", "true").lower() == "true"
+        
+        # Enhanced Aux Model settings
+        self.AUX_MODEL_CACHE_SIZE = int(os.getenv("AUX_MODEL_CACHE_SIZE", "100"))
+        self.AUX_MODEL_MIN_TOKENS = int(os.getenv("AUX_MODEL_MIN_TOKENS", "200"))
+        self.AUX_MODEL_MAX_TOKENS = int(os.getenv("AUX_MODEL_MAX_TOKENS", "1000"))
+        
         self.ETC_DIR =  os.path.realpath(os.path.expanduser(os.getenv("ETC_DIR", "etc/")))
         self.VERBOSE_LOGGING = os.getenv("VERBOSE_LOGGING", "true").lower() == "true"
         self.DEBUG_CLIENT_LOGGING = os.getenv("DEBUG_CLIENT_LOGGING", "true").lower() == "true"

@@ -90,6 +90,21 @@
             </div>
         </div>
     </div>
+    <div class="row">
+
+        <div class="col-md-12">
+            <div class="card mt-3" id="agent_stats_card" style="display: none;">
+                <div class="card-body">
+                    <h5 class="card-title">📊 Agent Intelligence Statistics</h5>
+                    <div id="agent_stats_content">
+                        <p class="text-muted">Loading statistics...</p>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm mt-2" onclick="refreshAgentStats()">🔄 Refresh</button>
+                    <button type="button" class="btn btn-warning btn-sm mt-2" onclick="resetAgentSession()">🔄 Reset Session</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/metrics_updater.js') }}"></script>

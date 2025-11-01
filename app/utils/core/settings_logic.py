@@ -167,3 +167,42 @@ def handle_set_agent_settings(form):
     config.AGENT_AUX_MODEL_ENABLED = agent_aux_model_enabled
     config.AGENT_AUX_MODEL_NAME = agent_aux_model_name
     utils.log(f"Agent settings updated: aux_model_enabled={agent_aux_model_enabled}, aux_model_name={agent_aux_model_name}")
+
+
+def handle_set_agent_intelligence_settings(form):
+    """Handle Agent Intelligence settings updates"""
+    agent_intelligence_enabled = form.get('agent_intelligence_enabled') == 'on'
+    agent_memory_size = int(form.get('agent_memory_size', '100'))
+    agent_plan_validation = form.get('agent_plan_validation') == 'on'
+    agent_reflection_enabled = form.get('agent_reflection_enabled') == 'on'
+    
+    env_file = '.env'
+    set_key(env_file, 'AGENT_INTELLIGENCE_ENABLED', 'true' if agent_intelligence_enabled else 'false')
+    set_key(env_file, 'AGENT_MEMORY_SIZE', str(agent_memory_size))
+    set_key(env_file, 'AGENT_PLAN_VALIDATION', 'true' if agent_plan_validation else 'false')
+    set_key(env_file, 'AGENT_REFLECTION_ENABLED', 'true' if agent_reflection_enabled else 'false')
+    
+    config.AGENT_INTELLIGENCE_ENABLED = agent_intelligence_enabled
+    config.AGENT_MEMORY_SIZE = agent_memory_size
+    config.AGENT_PLAN_VALIDATION = agent_plan_validation
+    config.AGENT_REFLECTION_ENABLED = agent_reflection_enabled
+    
+    utils.log(f"Agent Intelligence settings updated: enabled={agent_intelligence_enabled}, memory_size={agent_memory_size}")
+
+
+def handle_set_aux_model_enhanced_settings(form):
+    """Handle Enhanced Aux Model settings updates"""
+    aux_model_cache_size = int(form.get('aux_model_cache_size', '100'))
+    aux_model_min_tokens = int(form.get('aux_model_min_tokens', '200'))
+    aux_model_max_tokens = int(form.get('aux_model_max_tokens', '1000'))
+    
+    env_file = '.env'
+    set_key(env_file, 'AUX_MODEL_CACHE_SIZE', str(aux_model_cache_size))
+    set_key(env_file, 'AUX_MODEL_MIN_TOKENS', str(aux_model_min_tokens))
+    set_key(env_file, 'AUX_MODEL_MAX_TOKENS', str(aux_model_max_tokens))
+    
+    config.AUX_MODEL_CACHE_SIZE = aux_model_cache_size
+    config.AUX_MODEL_MIN_TOKENS = aux_model_min_tokens
+    config.AUX_MODEL_MAX_TOKENS = aux_model_max_tokens
+    
+    utils.log(f"Enhanced Aux Model settings updated: cache_size={aux_model_cache_size}, min_tokens={aux_model_min_tokens}, max_tokens={aux_model_max_tokens}")

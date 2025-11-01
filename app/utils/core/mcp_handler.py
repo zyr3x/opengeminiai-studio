@@ -1582,6 +1582,17 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
     tool_name = mcp_function_to_tool_map.get(function_name)
     is_builtin = (tool_name == BUILTIN_TOOL_NAME)
     record_tool_call(is_builtin=is_builtin)
+    
+    # Agent Intelligence: Get orchestrator if enabled
+    orchestrator = None
+    try:
+        from app.config import config
+        if config.AGENT_INTELLIGENCE_ENABLED and project_root_override:
+            from app.utils.core.agent_intelligence import get_agent_orchestrator
+            orchestrator = get_agent_orchestrator()
+    except Exception as e:
+        log(f"Agent intelligence not available: {e}")
+    
     if not tool_name:
         return f"Error: Function '{function_name}' not found in any configured MCP tool."
     if optimization_utils.should_cache_tool(function_name):
@@ -1752,6 +1763,26 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
             if hasattr(result, '__iter__') and not isinstance(result, (str, dict, list)):
                 log(f"Returning streaming result for built-in function: {function_name}")
                 return result
+            
+            # Agent Intelligence: Process result with reflection
+            if orchestrator:
+                try:
+                    intelligence_result = orchestrator.after_tool_execution(
+                        function_name, func_args, result
+                    )
+                    
+                    if not intelligence_result.get('output_valid'):
+                        log(f"⚠️  Agent reflection: {intelligence_result.get('validation_reason')}")
+                        if intelligence_result.get('recovery_suggestions'):
+                            log(f"💡 Recovery suggestions: {intelligence_result['recovery_suggestions']}")
+                    
+                    # Add context hints to result if available
+                    if intelligence_result.get('suggested_next_tools'):
+                        suggested = intelligence_result['suggested_next_tools'][:3]
+                        result += f"\n\n💡 Suggested next steps: {', '.join(suggested)}"
+                except Exception as e:
+                    log(f"Agent intelligence processing error: {e}")
+            
             optimized_result = optimization_utils.optimize_tool_output(result, function_name)
             if len(optimized_result) < len(result):
                 tokens_saved = optimization_utils.estimate_tokens(result) - optimization_utils.estimate_tokens(optimized_result)
@@ -1763,7 +1794,22 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
             return optimized_result
         except Exception as e:
             log(f"Error executing built-in tool {function_name} with args {func_args}: {type(e).__name__}: {e}")
-            return f"Error executing built-in function '{function_name}': {e}"
+            error_msg = f"Error executing built-in function '{function_name}': {e}"
+            
+            # Agent Intelligence: Suggest recovery on error
+            if orchestrator:
+                try:
+                    recovery = orchestrator.reflection.suggest_recovery({
+                        'error': str(e),
+                        'tool': function_name,
+                        'args': func_args
+                    })
+                    if recovery:
+                        error_msg += f"\n\n💡 Suggestions:\n" + "\n".join(f"  • {s}" for s in recovery[:3])
+                except:
+                    pass
+            
+            return error_msg
     tool_info = mcp_config.get("mcpServers", {}).get(tool_name)
     if not tool_info:
         return f"Error: Tool '{tool_name}' for function '{function_name}' not found in mcpServers config."
@@ -1896,3 +1942,92 @@ def cleanup_orig_files():
                     log(f"Cleaned up temporary file: {filepath}")
                 except OSError as e:
                     log(f"Error cleaning up { filepath}: {e}")
+
+
+def create_agent_plan(task_description: str, available_tools: list[str]) -> dict:
+    """
+    Create an execution plan for agent task using Agent Intelligence
+    
+    Args:
+        task_description: User's task description
+        available_tools: List of available tool names
+        
+    Returns:
+        Plan dictionary with steps, risks, and validation method
+    """
+    try:
+        from app.config import config
+        if not config.AGENT_INTELLIGENCE_ENABLED:
+            return None
+        
+        from app.utils.core.agent_intelligence import get_agent_orchestrator
+        orchestrator = get_agent_orchestrator()
+        plan = orchestrator.start_task(task_description, available_tools)
+        
+        log(f"🎯 Agent plan created: {len(plan.get('steps', []))} steps")
+        return plan
+    except Exception as e:
+        log(f"Error creating agent plan: {e}")
+        return None
+
+
+def get_agent_context_prompt(project_root: str = None) -> str:
+    """
+    Get enhanced prompt with agent intelligence context
+    
+    Returns:
+        Enhanced prompt text with planning and memory context
+    """
+    try:
+        from app.config import config
+        if not config.AGENT_INTELLIGENCE_ENABLED:
+            return ""
+        
+        from app.utils.core.agent_intelligence import get_agent_orchestrator
+        orchestrator = get_agent_orchestrator()
+        
+        # Get recent context
+        context = orchestrator.memory.get_recent_context()
+        
+        # Get current plan if exists
+        plan_prompt = ""
+        if orchestrator.current_plan:
+            plan = orchestrator.current_plan
+            plan_prompt = "\n\n## 🎯 CURRENT TASK PLAN\n\n"
+            plan_prompt += f"**Goal:** {plan.get('goal', 'Unknown')}\n\n"
+            
+            if plan.get('steps'):
+                plan_prompt += "**Steps:**\n"
+                for i, step in enumerate(plan['steps'], 1):
+                    plan_prompt += f"{i}. Use `{step['tool']}` - {step['rationale']}\n"
+        
+        # Combine context
+        if context or plan_prompt:
+            return f"\n\n## 📝 AGENT CONTEXT\n\n{context}{plan_prompt}\n"
+        
+        return ""
+    except Exception as e:
+        log(f"Error getting agent context: {e}")
+        return ""
+
+
+def get_aux_model_stats() -> dict:
+    """
+    Get statistics from enhanced aux model
+    
+    Returns:
+        Dictionary with stats (calls, tokens_saved, cache_hit_rate, etc.)
+    """
+    try:
+        from app.utils.core.aux_model_enhanced import get_aux_model
+        aux = get_aux_model()
+        return aux.get_stats()
+    except Exception as e:
+        log(f"Error getting aux model stats: {e}")
+        return {
+            'total_calls': 0,
+            'total_tokens_saved': 0,
+            'cache_hits': 0,
+            'cache_misses': 0,
+            'cache_hit_rate': 0
+        }
