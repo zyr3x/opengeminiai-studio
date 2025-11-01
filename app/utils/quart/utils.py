@@ -193,3 +193,45 @@ async def write_file_async(file_path: str, content: str, mode: str = 'w'):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     async with aiofiles.open(file_path, mode) as f:
         await f.write(content)
+
+
+async def summarize_with_aux_model_async(content: str, tool_name: str) -> str:
+    if not config.AGENT_AUX_MODEL_ENABLED:
+        return content
+
+    log(f"Summarizing output of tool '{tool_name}' with model '{config.AGENT_AUX_MODEL_NAME}' (async)")
+    prompt_template = (
+        "You are an expert at summarizing content for other AI models. "
+        "The output from the tool `{tool_name}` is too long to be processed. "
+        "Your task is to summarize it, keeping all crucial information like file paths, "
+        "function names, class names, error messages, and key results. "
+        "The summary MUST be concise but comprehensive. "
+        "Original content:\n\n---\n\n{content}"
+    )
+    prompt = prompt_template.format(tool_name=tool_name, content=content)
+
+    try:
+        GEMINI_URL = f"{config.UPSTREAM_URL}/v1beta/models/{config.AGENT_AUX_MODEL_NAME}:generateContent"
+        headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
+        request_data = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1024}
+        }
+
+        response = await make_request_with_retry_async(
+            url=GEMINI_URL,
+            headers=headers,
+            json_data=request_data,
+            stream=False,
+            timeout=120
+        )
+        response_data = await response.json()
+        summary = response_data['candidates'][0]['content']['parts'][0]['text']
+        original_tokens = estimate_token_count([{"parts": [{"text": content}]}])
+        summary_tokens = estimate_token_count([{"parts": [{"text": summary}]}])
+        log(f"Summarization complete. Tokens reduced from {original_tokens} to {summary_tokens}")
+        return summary
+    except Exception as e:
+        log(f"Error during summarization with auxiliary model: {e}")
+        from app.utils.core.optimization_utils import optimize_tool_output
+        return optimize_tool_output(content, tool_name)

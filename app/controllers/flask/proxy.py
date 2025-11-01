@@ -391,6 +391,10 @@ def chat_completions():
                     for tool_call_data, output in results:
                         function_name = tool_call_data['name']
 
+                        from app.utils.core.optimization_utils import estimate_tokens, MAX_TOOL_OUTPUT_TOKENS
+                        if project_context_root and config.AGENT_AUX_MODEL_ENABLED and isinstance(output, str) and estimate_tokens(output) > MAX_TOOL_OUTPUT_TOKENS:
+                            output = utils.summarize_with_aux_model(output, function_name)
+
                         response_payload = {}
                         if output is not None:
                             try:
@@ -419,6 +423,10 @@ def chat_completions():
                         utils.log(feedback_message)
 
                         output = mcp_handler.execute_mcp_tool(function_name, tool_args, project_context_root)
+
+                        from app.utils.core.optimization_utils import estimate_tokens, MAX_TOOL_OUTPUT_TOKENS
+                        if project_context_root and config.AGENT_AUX_MODEL_ENABLED and isinstance(output, str) and estimate_tokens(output) > MAX_TOOL_OUTPUT_TOKENS:
+                            output = utils.summarize_with_aux_model(output, function_name)
 
                         response_payload = {}
                         if output is not None:

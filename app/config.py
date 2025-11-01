@@ -18,6 +18,8 @@ class AppConfig:
         self.STREAMING_PROGRESS_ENABLED = os.getenv("STREAMING_PROGRESS_ENABLED", "true").lower() == "true"
         self.MIN_CONTEXT_CACHING_TOKENS = int(os.getenv("MIN_CONTEXT_CACHING_TOKENS", "2048"))
         self.MAX_CODE_INJECTION_SIZE_KB = int(os.getenv("MAX_CODE_INJECTION_SIZE_KB", "256"))
+        self.AGENT_AUX_MODEL_ENABLED = os.getenv("AGENT_AUX_MODEL_ENABLED", "false").lower() == "true"
+        self.AGENT_AUX_MODEL_NAME = os.getenv("AGENT_AUX_MODEL_NAME", "gemini-flash-latest")
         self.ETC_DIR =  os.path.realpath(os.path.expanduser(os.getenv("ETC_DIR", "etc/")))
         self.VERBOSE_LOGGING = os.getenv("VERBOSE_LOGGING", "true").lower() == "true"
         self.DEBUG_CLIENT_LOGGING = os.getenv("DEBUG_CLIENT_LOGGING", "true").lower() == "true"

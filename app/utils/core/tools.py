@@ -346,3 +346,45 @@ def prepare_message_parts_for_gemini(db_parts_json: str) -> list:
         logging.log(f"Error preparing message parts for Gemini API: {e}. Raw parts: {db_parts_json}")
         reconstructed_parts.append({"text": f"Error preparing message: {e}"})
     return reconstructed_parts
+
+
+def summarize_with_aux_model(content: str, tool_name: str) -> str:
+    from app.config import config
+    if not config.AGENT_AUX_MODEL_ENABLED:
+        return content
+
+    log(f"Summarizing output of tool '{tool_name}' with model '{config.AGENT_AUX_MODEL_NAME}'")
+    prompt_template = (
+        "You are an expert at summarizing content for other AI models. "
+        "The output from the tool `{tool_name}` is too long to be processed. "
+        "Your task is to summarize it, keeping all crucial information like file paths, "
+        "function names, class names, error messages, and key results. "
+        "The summary MUST be concise but comprehensive. "
+        "Original content:\n\n---\n\n{content}"
+    )
+    prompt = prompt_template.format(tool_name=tool_name, content=content)
+
+    try:
+        GEMINI_URL = f"{config.UPSTREAM_URL}/v1beta/models/{config.AGENT_AUX_MODEL_NAME}:generateContent"
+        headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
+        request_data = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1024}
+        }
+        response = make_request_with_retry(
+            url=GEMINI_URL,
+            headers=headers,
+            json_data=request_data,
+            stream=False,
+            timeout=120
+        )
+        response_data = response.json()
+        summary = response_data['candidates'][0]['content']['parts'][0]['text']
+        original_tokens = estimate_token_count([{"parts": [{"text": content}]}])
+        summary_tokens = estimate_token_count([{"parts": [{"text": summary}]}])
+        log(f"Summarization complete. Tokens reduced from {original_tokens} to {summary_tokens}")
+        return summary
+    except Exception as e:
+        log(f"Error during summarization with auxiliary model: {e}")
+        from app.utils.core.optimization_utils import optimize_tool_output
+        return optimize_tool_output(content, tool_name)

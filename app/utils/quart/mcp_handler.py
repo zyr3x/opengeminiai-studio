@@ -34,6 +34,13 @@ async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_ro
             project_root_override
         )
 
+        from app.config import config
+        from app.utils.core.optimization_utils import estimate_tokens, MAX_TOOL_OUTPUT_TOKENS
+        from . import utils as quart_utils
+        is_agent_mode = project_root_override is not None
+        if is_agent_mode and config.AGENT_AUX_MODEL_ENABLED and isinstance(output, str) and estimate_tokens(output) > MAX_TOOL_OUTPUT_TOKENS:
+            output = await quart_utils.summarize_with_aux_model_async(output, function_name)
+
         if should_cache_tool(function_name):
             await cache_tool_output(function_name, tool_args, output)
 
