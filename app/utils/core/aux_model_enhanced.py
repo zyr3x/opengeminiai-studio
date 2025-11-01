@@ -294,16 +294,35 @@ class AuxModelEnhanced:
         )
         
         response_data = response.json()
-        
-        if 'candidates' in response_data and response_data['candidates']:
+
+        # Check for explicit API errors in the response body
+        if 'error' in response_data:
+            error_details = response_data['error']
+            raise ValueError(f"Google API Error: {error_details.get('message', 'Unknown error')}")
+
+        try:
+            # Safely navigate the response structure
             candidate = response_data['candidates'][0]
-            if 'content' in candidate and 'parts' in candidate['content']:
-                parts = candidate['content']['parts']
-                if parts and 'text' in parts[0]:
-                    return parts[0]['text']
-        
-        raise ValueError("Invalid response from aux model")
-    
+
+            # The model can return a candidate but no content, e.g. due to safety filters.
+            if 'content' not in candidate or not candidate['content'].get('parts'):
+                finish_reason = candidate.get('finishReason', 'UNKNOWN')
+                if finish_reason == 'SAFETY':
+                    safety_ratings = candidate.get('safetyRatings')
+                    raise ValueError(f"Content blocked by Google API due to safety filters. Ratings: {safety_ratings}")
+
+                if response_data.get('promptFeedback', {}).get('blockReason'):
+                    reason = response_data['promptFeedback']['blockReason']
+                    raise ValueError(f"Request blocked by Google API. Reason: {reason}")
+
+                raise ValueError(f"No valid content in API response. Finish reason: {finish_reason}")
+
+            return candidate['content']['parts'][0]['text']
+
+        except (KeyError, IndexError) as e:
+            log(f"🔍 Aux model response parsing failed. Error: {e}. Full response: {json.dumps(response_data, indent=2)}")
+            raise ValueError(f"Invalid response structure from aux model, couldn't parse. Details: {e}")
+
     def process_multiple(
         self,
         tool_outputs: List[Tuple[str, str]],
