@@ -23,7 +23,7 @@ def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
     next_match_start = len(content) if (i + 1 >= len(all_matches)) else all_matches[i + 1].start()
     search_region = content[command_end:next_match_start]
 
-    param_pattern = re.compile(r'\s+(ignore_type|ignore_file|ignore_dir|project_mode)=([^\s]+)')
+    param_pattern = re.compile(r'\s+(ignore_type|ignore_file|ignore_dir|project_mode|project_feature)=([^\s]+)')
     last_param_end = 0
     remaining_search_region = search_region
     while True:
@@ -83,6 +83,11 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
             if mode_match:
                 project_mode = mode_match.group(1).strip("'\"")
 
+            feature_name = None
+            feature_match = re.search(r'\s+project_feature=([^\s]+)', search_area)
+            if feature_match:
+                feature_name = feature_match.group(1).strip("'\"")
+
             _load_agent_prompts()
 
             prompt_data = AGENT_PROMPTS.get(project_mode)
@@ -92,6 +97,8 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                 prompt_data = AGENT_PROMPTS.get(project_mode)
             if prompt_data and prompt_data.get('prompt'):
                 prompt_template = prompt_data['prompt']
+                if feature_name:
+                    prompt_template = prompt_template.replace('<feature_name>', feature_name)
                 system_context_text = prompt_template.format(project_root=file_path_str)
             else:
                 logging.log(f"Warning: Could not load prompt for mode '{project_mode}'. No system context will be injected.")
