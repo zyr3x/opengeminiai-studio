@@ -84,9 +84,33 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                 project_mode = mode_match.group(1).strip("'\"")
 
             feature_name = None
+            feature_context = ""
             feature_match = re.search(r'\s+project_feature=([^\s]+)', search_area)
             if feature_match:
                 feature_name = feature_match.group(1).strip("'\"")
+                doc_path_mode = project_mode
+                feature_docs_path = os.path.join(expanded_path, '.opengemini', doc_path_mode, feature_name)
+                if os.path.isdir(feature_docs_path):
+                    if project_mode == 'feature':
+                        project_mode = 'feature_continue'
+
+                    feature_context += f"\n\n## 📚 CONTEXT: Continuing work on '{feature_name}' in mode '{doc_path_mode}'\n\n"
+                    feature_context += "The following documentation for this task already exists. Review it before continuing.\n\n"
+
+                    try:
+                        doc_files = sorted(os.listdir(feature_docs_path))
+                        for doc_file in doc_files:
+                            if doc_file.endswith('.md'):
+                                try:
+                                    with open(os.path.join(feature_docs_path, doc_file), 'r',
+                                              encoding='utf-8') as f:
+                                        file_content = f.read()
+                                    feature_context += f"### File: `{doc_file}`\n\n```markdown\n{file_content}\n```\n\n"
+                                except Exception as e:
+                                    logging.log(f"Error reading documentation file {doc_file} for {feature_name}: {e}")
+                    except Exception as e:
+                        logging.log(
+                            f"Error listing documentation files for {feature_name} in {feature_docs_path}: {e}")
 
             _load_agent_prompts()
 
@@ -100,6 +124,8 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                 if feature_name:
                     prompt_template = prompt_template.replace('<feature_name>', feature_name)
                 system_context_text = prompt_template.format(project_root=file_path_str)
+                if feature_context:
+                    system_context_text = feature_context + system_context_text
             else:
                 logging.log(f"Warning: Could not load prompt for mode '{project_mode}'. No system context will be injected.")
                 system_context_text = None
