@@ -109,7 +109,6 @@ async def chat_api():
                     "generationConfig": {"temperature": 0.7, "topP": 1.0, "maxOutputTokens": 2048}
                 }
 
-                # --- Tool Configuration ---
                 final_tools, mcp_declarations_to_use = [], None
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
@@ -134,7 +133,6 @@ async def chat_api():
                 tool_calls, model_response_parts = [], []
 
                 if enable_native_tools:
-                    # Non-streaming for native tools
                     GEMINI_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
                     try:
                         response = await quart_utils.make_request_with_retry_async(url=GEMINI_URL, headers=headers, json_data=request_data, stream=False, timeout=300)
@@ -147,12 +145,11 @@ async def chat_api():
                             model_response_parts = candidate.get('content', {}).get('parts', [])
                             tool_calls = [p['functionCall'] for p in model_response_parts if 'functionCall' in p]
                             full_text = " ".join(p.get('text', '') for p in model_response_parts if 'text' in p)
-                            yield full_text # Simplified for brevity, citation logic removed from here
+                            yield full_text
                     except Exception as e:
                         yield f"ERROR: Error from upstream Gemini API: {e}"
                         return
                 else:
-                    # Streaming for MCP tools
                     GEMINI_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:streamGenerateContent"
                     try:
                         response = await quart_utils.make_request_with_retry_async(url=GEMINI_URL, headers=headers, json_data=request_data, stream=True, timeout=300)
