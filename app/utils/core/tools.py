@@ -24,10 +24,6 @@ TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95
 
 
 def load_prompt_config():
-    """
-    Loads prompt overrides from JSON file into the global prompt_overrides dict.
-    Only profiles marked as 'enabled' (or without the key) will be loaded.
-    """
     global prompt_overrides
     if os.path.exists(PROMPT_OVERRIDES_FILE):
         try:
@@ -55,10 +51,6 @@ def load_prompt_config():
         prompt_overrides = {}
 
 def load_system_prompt_config():
-    """
-    Loads preset system prompts from JSON file into the global system_prompts dict.
-    Only profiles marked as 'enabled' (or without the key) and containing a prompt will be loaded.
-    """
     global system_prompts
     if os.path.exists(SYSTEM_PROMPTS_FILE):
         try:
@@ -85,10 +77,6 @@ def load_system_prompt_config():
         system_prompts = {}
 
 def _process_image_url(image_url: dict) -> dict | None:
-    """
-    Processes an OpenAI image_url object and converts it to a Gemini inline_data part.
-    Supports both web URLs and Base64 data URIs.
-    """
     url = image_url.get("url")
     if not url:
         return None
@@ -129,9 +117,6 @@ def _process_image_url(image_url: dict) -> dict | None:
         return None
 
 def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> int:
-    """
-    Fetches the input token limit for a given model from the Gemini API and caches it.
-    """
     if model_name in model_info_cache:
         return model_info_cache[model_name].get("inputTokenLimit", 8192)
 
@@ -151,17 +136,6 @@ def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> i
 from app.utils.core.optimization_utils import estimate_tokens, estimate_token_count
 
 def truncate_contents(contents: list, limit: int, current_query: str = None) -> list:
-    """
-    Truncates the 'contents' list by removing older messages (but keeping the first one)
-    until the estimated token count is within the specified limit.
-
-    NEW: Uses smart truncation with summarization when available.
-
-    Args:
-        contents: List of messages
-        limit: Token limit
-        current_query: Current user query (optional) - enables selective context
-    """
     estimated_tokens = estimate_token_count(contents)
     if estimated_tokens <= limit:
         return contents
@@ -197,11 +171,9 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
     except Exception as e:
         log(f"Smart truncation failed, will use simple truncation: {e}")
 
-    # Always run simple truncation if smart truncation wasn't enough or failed
     if estimate_token_count(truncated_contents) > limit:
         log("Content still over limit after smart truncation, applying simple truncation...")
         final_truncated = truncated_contents.copy()
-        # Keep first message (system prompt) and remove from the start of history
         while estimate_token_count(final_truncated) > limit and len(final_truncated) > 1:
             final_truncated.pop(1)
         truncated_contents = final_truncated
@@ -212,14 +184,9 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
     return truncated_contents
 
 def pretty_json(data):
-    """Returns a pretty-printed JSON string."""
     return json.dumps(data, indent=2, ensure_ascii=False, default=str)
 
 def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bool = False, timeout: int = 300) -> requests.Response:
-    """
-    Makes a POST request with retry logic for 429 and connection errors.
-    OPTIMIZED: Uses connection pooling for better performance.
-    """
     from app.utils.flask import optimization
     session = optimization.get_http_session()
     rate_limiter = optimization.get_rate_limiter()
@@ -242,7 +209,6 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
 
 
 def save_config_to_file(config_str: str, file_path: str, config_name: str):
-    """Saves a configuration string to a file, validating JSON first."""
     if not config_str.strip():
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -263,16 +229,12 @@ def save_config_to_file(config_str: str, file_path: str, config_name: str):
 DEFAULT_IGNORE_PATTERNS_PATH = 'etc/code_ignore_patterns.txt'
 
 def _load_default_ignore_patterns(path: str) -> list[str]:
-    """Helper to load default ignore patterns from a file."""
     return load_text_file_lines(path, default=[])
 
 
 DEFAULT_CODE_IGNORE_PATTERNS: list[str] = _load_default_ignore_patterns(DEFAULT_IGNORE_PATTERNS_PATH)
 
 def load_code_ignore_patterns(project_root: str, filename: str = '.aiignore') -> list[str]:
-        """
-        Loads code ignore patterns from a file in the project root and combines them with defaults.
-        """
         ignore_patterns = DEFAULT_CODE_IGNORE_PATTERNS[:]
         ignore_file_path = os.path.join(project_root, filename)
 
@@ -302,7 +264,6 @@ def load_code_ignore_patterns(project_root: str, filename: str = '.aiignore') ->
 EXTENSION_MAP_PATH = 'etc/extension_map.json'
 
 def _load_extension_map(path: str) -> dict[str, str]:
-    """Helper to load the language extension map from a JSON file."""
     return load_json_file(path, default={})
 
 
@@ -310,9 +271,6 @@ EXTENSION_TO_LANGUAGE_MAP: dict[str, str] = _load_extension_map(EXTENSION_MAP_PA
 
 
 def get_code_language_from_filename(filename: str) -> str:
-    """
-    Determines the markdown code block language based on the file extension.
-    """
     if not filename:
         return 'text'
 
@@ -323,10 +281,6 @@ def get_code_language_from_filename(filename: str) -> str:
 
 
 def format_tool_output_for_display(tool_parts: list, use_html_tags: bool = True) -> str | None:
-    """
-    Formats the output from tool calls for display, especially when the model is silent.
-    Handles different response payload structures and pretty-prints JSON.
-    """
     formatted_tool_outputs = []
     for tool_part in tool_parts:
         func_resp = tool_part.get('functionResponse', {})
@@ -367,10 +321,9 @@ def format_tool_output_for_display(tool_parts: list, use_html_tags: bool = True)
     if formatted_tool_outputs:
         return "".join(formatted_tool_outputs)
 
-    return "" # Return empty string instead of None for consistency
+    return ""
 
 def add_message_to_db(chat_id: int, role: str, parts: list):
-    """Adds a message with its parts to the database and returns the new message ID."""
     conn = get_db_connection()
     cursor = conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
                  (chat_id, role, json.dumps(parts)))
@@ -380,10 +333,6 @@ def add_message_to_db(chat_id: int, role: str, parts: list):
     return message_id
 
 def format_message_parts_for_ui(db_parts_json: str, use_html_tags: bool = True) -> dict:
-    """
-    Formats a message's parts (from DB JSON string) for display in the UI.
-    Converts file_data paths to /uploads URLs.
-    """
     message_data = {'content': '', 'files': []}
     try:
         parts = json.loads(db_parts_json)
@@ -414,10 +363,6 @@ def format_message_parts_for_ui(db_parts_json: str, use_html_tags: bool = True) 
     return message_data
 
 def prepare_message_parts_for_gemini(db_parts_json: str) -> list:
-    """
-    Prepares a message's parts (from DB JSON string) for sending to the Gemini API.
-    Reads file_data paths and converts them to Base64 inline_data.
-    """
     reconstructed_parts = []
     try:
         parts = json.loads(db_parts_json)

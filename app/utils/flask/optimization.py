@@ -3,16 +3,6 @@ from typing import List, Dict, Tuple
 from concurrent.futures import as_completed
 
 def execute_tools_parallel(tool_calls: List[Dict], project_root_override: str | None = None) -> List[Tuple[Dict, str]]:
-    """
-    Executes multiple tool calls in parallel using a thread pool.
-
-    Args:
-        tool_calls: List of dictionaries with 'name' and 'args'
-        project_root_override: The project root path to be used by all tool calls in this batch.
-
-    Returns:
-        List of tuples (tool_call, result)
-    """
     if not tool_calls:
         return []
 

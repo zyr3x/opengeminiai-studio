@@ -23,7 +23,6 @@ CACHE_TTL = 300
 CACHE_MAX_SIZE = 100
 
 def clean_cache():
-    """Cleans up expired entries from the cache"""
     global _tool_output_cache
     with _cache_lock:
         now = time.time()
@@ -43,7 +42,6 @@ def clean_cache():
             _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
 
 def get_cached_tool_output(function_name: str, tool_args: dict) -> Optional[str]:
-    """Gets result from cache if present and not expired"""
     clean_cache()
 
     cache_key = get_cache_key(function_name, tool_args)
@@ -56,7 +54,6 @@ def get_cached_tool_output(function_name: str, tool_args: dict) -> Optional[str]
     return None
 
 def cache_tool_output(function_name: str, tool_args: dict, output: str):
-    """Saves tool result to cache"""
     with _cache_lock:
         cache_key = get_cache_key(function_name, tool_args)
         _tool_output_cache[cache_key] = (output, time.time())
@@ -66,7 +63,6 @@ _token_stats_lock = threading.Lock()
 
 
 def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_tokens: int):
-    """Records token usage for a specific API key and model, persisting to DB."""
     if not api_key or not model_name:
         return
 
@@ -101,7 +97,6 @@ def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_
 
 
 def get_key_token_stats() -> List[Dict]:
-    """Returns token usage statistics structured by API key, aggregated from DB."""
     stats = {}
     conn = None
     with _token_stats_lock:
@@ -147,7 +142,6 @@ def get_key_token_stats() -> List[Dict]:
     return list(stats.values())
 
 def reset_token_stats():
-    """Resets the token usage statistics by clearing the database table."""
     conn = None
     with _token_stats_lock:
         try:
@@ -171,34 +165,28 @@ _metrics = {
 }
 
 def record_tool_call(is_builtin: bool = True):
-    """Records a tool call"""
     with _metrics_lock:
         _metrics['tool_calls_total'] += 1
         if not is_builtin:
             _metrics['tool_calls_external'] += 1
 
 def record_cache_hit():
-    """Records a cache hit"""
     with _metrics_lock:
         _metrics['cache_hits'] += 1
 
 def record_cache_miss():
-    """Records a cache miss"""
     with _metrics_lock:
         _metrics['cache_misses'] += 1
 
 def record_tokens_saved(count: int):
-    """Records tokens saved"""
     with _metrics_lock:
         _metrics['tokens_saved'] += count
 
 def record_optimization():
-    """Records an optimized request"""
     with _metrics_lock:
         _metrics['requests_optimized'] += 1
 
 def get_metrics() -> dict:
-    """Returns optimization metrics"""
     with _metrics_lock:
         total_cache_requests = _metrics['cache_hits'] + _metrics['cache_misses']
         cache_hit_rate = (_metrics['cache_hits'] / total_cache_requests * 100) if total_cache_requests > 0 else 0
@@ -216,7 +204,6 @@ def get_metrics() -> dict:
     }
 
 def reset_metrics():
-    """Resets the metrics"""
     global _metrics
     with _metrics_lock:
         _metrics = {
@@ -237,10 +224,6 @@ _http_session = None
 _session_lock = threading.Lock()
 
 def get_http_session() -> requests.Session:
-    """
-    Returns a configured HTTP session with connection pooling and a retry strategy.
-    Reuses connections to improve performance.
-    """
     global _http_session
 
     if _http_session is None:
@@ -271,30 +254,19 @@ def get_http_session() -> requests.Session:
     return _http_session
 
 def close_http_session():
-    """Closes the HTTP session (called on shutdown)"""
     global _http_session
     if _http_session is not None:
         _http_session.close()
         _http_session = None
 
 class RateLimiter:
-    """
-    Thread-safe rate limiter for limiting request frequency.
-    Uses sliding window algorithm.
-    """
     def __init__(self, max_calls: int, period: int):
-        """
-        Args:
-            max_calls: Maximum number of calls
-            period: Period in seconds
-        """
         self.max_calls = max_calls
         self.period = period
         self.calls = deque()
         self.lock = threading.Lock()
 
     def __call__(self, func):
-        """Decorator to apply rate limiting"""
         @wraps(func)
         def wrapper(*args, **kwargs):
             with self.lock:
@@ -318,7 +290,6 @@ class RateLimiter:
         return wrapper
 
     def wait_if_needed(self):
-        """Waits if rate limit is reached (without executing function)"""
         with self.lock:
             now = time.time()
 
@@ -333,7 +304,6 @@ class RateLimiter:
 _gemini_rate_limiter = None
 
 def get_rate_limiter(max_calls: int = 60, period: int = 60) -> RateLimiter:
-    """Returns the global rate limiter"""
     global _gemini_rate_limiter
     if _gemini_rate_limiter is None:
         _gemini_rate_limiter = RateLimiter(max_calls, period)
@@ -343,9 +313,6 @@ _tool_executor = None
 _executor_lock = threading.Lock()
 
 def get_tool_executor(max_workers: int = 5) -> ThreadPoolExecutor:
-    """
-    Returns a thread pool executor for parallel tool execution.
-    """
     global _tool_executor
 
     if _tool_executor is None:
@@ -359,7 +326,6 @@ def get_tool_executor(max_workers: int = 5) -> ThreadPoolExecutor:
     return _tool_executor
 
 def shutdown_tool_executor():
-    """Shuts down the thread pool executor"""
     global _tool_executor
     if _tool_executor is not None:
         _tool_executor.shutdown(wait=True)
@@ -369,7 +335,6 @@ _cached_contexts = {}
 _context_cache_lock = threading.Lock()
 
 class CachedContext:
-    """Represents a cached context on the Gemini side"""
     def __init__(self, cache_id: str, created_at: float, ttl: int = 3600):
         self.cache_id = cache_id
         self.created_at = created_at
@@ -377,11 +342,9 @@ class CachedContext:
         self.last_used = created_at
 
     def is_expired(self) -> bool:
-        """Checks if the cache has expired"""
         return time.time() - self.created_at > self.ttl
 
     def touch(self):
-        """Updates the last used time"""
         self.last_used = time.time()
 
 def create_cached_context(
@@ -391,19 +354,6 @@ def create_cached_context(
     system_instruction: str,
     ttl_minutes: int = 60
 ) -> Optional[str]:
-    """
-    Creates a cached context on the Gemini API side.
-
-    Args:
-        api_key: Gemini API key
-        upstream_url: Gemini API URL
-        model: Model name
-        system_instruction: System instruction for caching
-        ttl_minutes: Cache time-to-live in minutes (default 60)
-
-    Returns:
-        Cache ID or None on error
-    """
     try:
         cache_key = hashlib.md5(f"{model}:{system_instruction}".encode()).hexdigest()
 
@@ -461,12 +411,6 @@ def get_cached_context_id(
     model: str,
     system_instruction: str
 ) -> Optional[str]:
-    """
-    Gets the cached context ID, creating it if necessary.
-
-    Returns:
-        Cache ID or None if caching is unavailable
-    """
     cache_key = hashlib.md5(f"{model}:{system_instruction}".encode()).hexdigest()
 
     with _context_cache_lock:
@@ -481,7 +425,6 @@ def get_cached_context_id(
     return create_cached_context(api_key, upstream_url, model, system_instruction)
 
 def clear_expired_contexts():
-    """Clears expired cached contexts"""
     with _context_cache_lock:
         expired = [
             key for key, cached in _cached_contexts.items()
@@ -491,7 +434,6 @@ def clear_expired_contexts():
             del _cached_contexts[key]
 
 def cleanup_resources():
-    """Clears all optimization resources upon shutdown"""
     close_http_session()
     shutdown_tool_executor()
     clear_expired_contexts()

@@ -1,17 +1,6 @@
 from app.utils.core import tools as utils, logging
 
 def get_prompt_override_config(full_prompt_text: str) -> dict:
-    """
-    Analyzes the full prompt text against defined prompt override profiles
-    to determine tool usage flags and active text replacements defined by the profile.
-
-    Returns:
-        A dict containing:
-        - active_overrides (dict): Text replacements to apply.
-        - disable_mcp_tools_by_profile (bool): Should MCP tools be disabled by this profile.
-        - enable_native_tools_by_profile (bool): Should native Google tools be enabled by this profile.
-        - profile_selected_mcp_tools (list): Tools explicitly selected by a matched profile.
-    """
     active_overrides = {}
     disable_mcp_tools_by_profile = True
     enable_native_tools_by_profile = False

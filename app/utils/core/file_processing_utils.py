@@ -15,7 +15,6 @@ AGENT_PROMPTS_PATH = 'etc/prompt/agent/default.json'
 
 
 def _load_agent_prompts():
-    """Lazy-loads agent prompts from the JSON file."""
     global AGENT_PROMPTS
     if not AGENT_PROMPTS:
         from app.utils.core.config_loader import load_json_file
@@ -26,10 +25,6 @@ def _load_agent_prompts():
 
 
 def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
-    """
-    Parses parameters following a path command and returns the end index
-    of the entire command (path + parameters) for removal/replacement.
-    """
     command_end = current_match.end()
 
     next_match_start = len(content) if (i + 1 >= len(all_matches)) else all_matches[i + 1].start()
@@ -54,28 +49,9 @@ def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
 
 def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, None, None] | tuple[
     list[Any], Any | None, str | None]:
-    """
-    Processes a message content string to find local file paths (e.g.,
-    image_path=..., code_path=..., project_path=...), and replaces them with
-    appropriate content parts for multimodal input or project context.
-
-    - image_path, pdf_path, audio_path: Embeds files as multimodal data
-    - code_path: Recursively loads all code files as text context
-    - project_path: Activates tools and provides project structure for agent
-
-    Args:
-        content: The message content string.
-        processed_paths: A set for tracking already processed file/project paths to avoid duplicates across multiple messages.
-
-    Returns:
-        A tuple containing:
-        - The processed content (either a list of parts for multimodal input or the original string if no paths are found).
-        - The project root path if `project_path=` was found, otherwise None.
-    """
     if not isinstance(content, str):
         return content, None, None
 
-    # Improved regex to handle quoted paths and avoid trailing punctuation
     path_pattern = re.compile(r'(image|pdf|audio|code|project)_path=("[^"]+"|\'[^\']+\'|[^\s,;)]+)')
     matches = list(path_pattern.finditer(content))
 
@@ -86,20 +62,17 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
     last_end = 0
     project_path_found = None
     system_context_text = None
-    # processed_paths = set() # Now an argument
 
     for i, match in enumerate(matches):
         start, end = match.span()
         if start > last_end:
             new_content_parts.append({"type": "text", "text": content[last_end:start]})
 
-        # Parse potential parameters to correctly calculate command_end
         command_end = _parse_ignore_patterns(content, match, matches, i)
 
         file_type = match.group(1)
         raw_path = match.group(2)
 
-        # Strip quotes if they exist to handle paths with spaces
         if raw_path.startswith(('"', "'")) and raw_path.endswith(raw_path[0]):
             file_path_str = raw_path[1:-1]
         else:
@@ -114,15 +87,12 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
         processed_paths.add(expanded_path)
 
         if file_type == 'project':
-            # project_path: Activate tools and provide project structure for agent
             project_path_found = expanded_path
 
-            # Parse project_mode parameter
-            project_mode = 'feature'  # Default mode
+            project_mode = 'feature'
             search_area = content[match.end():command_end]
             mode_match = re.search(r'\s+project_mode=([^\s]+)', search_area)
             if mode_match:
-                # Strip quotes if they exist, e.g. project_mode="feature"
                 project_mode = mode_match.group(1).strip("'\"")
 
             _load_agent_prompts()
@@ -141,10 +111,9 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                 system_context_text = None
 
 
-            # Check if path is valid for proactive feedback
             if not os.path.isdir(expanded_path):
-                project_path_found = None # Do not set context if path is invalid
-                system_context_text = None # Also clear context text
+                project_path_found = None
+                system_context_text = None
                 context_text = f"[Error: Project path '{file_path_str}' not found or is not a directory. All tools remain enabled but the project context is the current working directory.]"
                 new_content_parts.append({"type": "text", "text": context_text})
 
@@ -152,7 +121,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
             continue
 
         if file_type == 'code':
-            # code_path: Recursively load all code files as text
             if not os.path.exists(expanded_path):
                 logging.log(f"Code path not found: {expanded_path}")
                 new_content_parts.append({
@@ -162,15 +130,12 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                 last_end = command_end
                 continue
 
-            # Collect code files
             code_files = []
             total_size = 0
             MAX_CODE_SIZE = config.MAX_CODE_INJECTION_SIZE_KB * 1024
 
-            # Default ignore patterns for code
             ignore_patterns = utils.DEFAULT_CODE_IGNORE_PATTERNS
 
-            # Parse ignore patterns from prompt
             param_pattern = re.compile(r'\s+(ignore_type|ignore_file|ignore_dir)=([^\s]+)')
             search_region = content[end:command_end]
             for param_match in param_pattern.finditer(search_region):
@@ -184,7 +149,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                     ignore_patterns.extend(patterns)
 
             if os.path.isfile(expanded_path):
-                # Single file
                 try:
                     size = os.path.getsize(expanded_path)
                     if size <= MAX_CODE_SIZE:
@@ -196,11 +160,9 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                     logging.log(f"Error reading code file {expanded_path}: {e}")
 
             elif os.path.isdir(expanded_path):
-                # Directory - recursively collect files
                 import fnmatch
-                
+
                 for root, dirs, files in os.walk(expanded_path):
-                    # Filter ignored directories
                     dirs[:] = [d for d in dirs if not any(
                         fnmatch.fnmatch(d, p) for p in ignore_patterns
                     )]
@@ -212,7 +174,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                         filepath = os.path.join(root, filename)
                         rel_path = os.path.relpath(filepath, expanded_path)
 
-                        # Check ignore patterns
                         if any(fnmatch.fnmatch(rel_path, p) or fnmatch.fnmatch(filename, p) 
                                for p in ignore_patterns):
                             continue
@@ -237,7 +198,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                         break
 
             if code_files:
-                # Format code files for injection
                 code_parts = []
                 code_parts.append(
                     f"\n🛑 **CRITICAL**: You *MUST** start path for {expanded_path}...\n"
@@ -266,7 +226,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
             last_end = command_end
             continue
 
-        # Multimodal file handling (image, pdf, audio)
         if not os.path.exists(expanded_path):
             logging.log(f"Local file not found: {expanded_path}")
             new_content_parts.append({"type": "text", "text": content[start:command_end]})
@@ -283,7 +242,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                 else:
                     mime_type, _ = mimetypes.guess_type(expanded_path)
                     if not mime_type:
-                        mime_type = 'application/octet-stream'  # Fallback
+                        mime_type = 'application/octet-stream'
                         if expanded_path.lower().endswith('.pdf'):
                             mime_type = 'application/pdf'
 

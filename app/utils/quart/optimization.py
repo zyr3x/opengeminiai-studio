@@ -1,7 +1,3 @@
-"""
-Async optimization module to reduce token usage and improve performance.
-Provides async versions of optimization functions for better concurrency.
-"""
 import hashlib
 import json
 import time

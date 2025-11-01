@@ -1,13 +1,8 @@
 from app.utils.core import optimization
 
 def get_view_metrics():
-    """
-    Returns optimization metrics including cache hit rate, tokens saved,
-    connection pool stats, rate limiter status, and selective context stats.
-    """
     metrics = optimization.get_metrics()
 
-    # Add information about PHASE 2
     phase2_metrics = {
         'connection_pool_active': optimization._http_session is not None,
         'rate_limiter_active': optimization._gemini_rate_limiter is not None,
@@ -15,7 +10,6 @@ def get_view_metrics():
         'cached_contexts_count': len(optimization._cached_contexts)
     }
 
-    # Add information about PHASE 3
     try:
         from app.utils.core import context_selector
         from app.config import config as app_config

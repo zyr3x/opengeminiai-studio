@@ -1,6 +1,3 @@
-"""
-Shared business logic for web UI chat controllers (Flask & Quart).
-"""
 import base64
 import json
 import os
@@ -17,7 +14,6 @@ from app.utils.core import tools as utils
 
 
 def generate_image_logic(chat_id, model, prompt):
-    """Handles the logic for generating an image."""
     if not config.API_KEY:
         return {"error": "API key not configured."}, 401
 
@@ -25,11 +21,9 @@ def generate_image_logic(chat_id, model, prompt):
         return {"error": "chat_id, model, and prompt are required"}, 400
 
     try:
-        # 1. Save user message to DB
         user_parts = [{"text": prompt}]
         utils.add_message_to_db(chat_id, 'user', user_parts)
 
-        # 2. Call the image generation model via non-streaming API
         IMAGE_GEN_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
         headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
         request_data = {
@@ -45,32 +39,27 @@ def generate_image_logic(chat_id, model, prompt):
         )
         response_data = response.json()
 
-        # 3. Process the response
         parts = response_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
 
         image_data = None
         mime_type = None
 
-        # Try to find inline image data first
         inline_part = next((p for p in parts if 'inline_data' in p and 'image' in p['inline_data']['mime_type']), None)
         if inline_part:
             mime_type = inline_part['inline_data']['mime_type']
             image_data = base64.b64decode(inline_part['inline_data']['data'])
         else:
-            # If not found, try to find a file URI from fileData and download the image
-            # Note: Gemini API returns camelCase keys like 'fileData'
             uri_part = next((p for p in parts if 'fileData' in p and 'image' in p['fileData']['mimeType']), None)
             if uri_part:
                 try:
                     mime_type = uri_part['fileData']['mimeType']
                     image_url = uri_part['fileData']['fileUri']
-                    # Download the image from the public URL
                     image_response = requests.get(image_url, timeout=60)
                     image_response.raise_for_status()
                     image_data = image_response.content
                 except (RequestException, HTTPError) as e:
                     logging.log(f"Failed to download image from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
-                    image_data = None  # Ensure image_data is None on failure
+                    image_data = None
 
         if not image_data or not mime_type:
             text_response = " ".join(p.get('text', '') for p in parts).strip() or "Sorry, I couldn't generate an image. The model returned an unexpected response."
@@ -78,7 +67,6 @@ def generate_image_logic(chat_id, model, prompt):
             bot_message_id = utils.add_message_to_db(chat_id, 'model', bot_text_parts)
             return {'content': text_response, 'message_id': bot_message_id}, 200
 
-        # 4. Save image and bot message to DB
         ext = mime_type.split('/')[-1] if '/' in mime_type else 'png'
 
         chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
@@ -101,7 +89,6 @@ def generate_image_logic(chat_id, model, prompt):
         ]
         bot_message_id = utils.add_message_to_db(chat_id, 'model', bot_parts)
 
-        # 5. Return markdown content to the frontend
         response_content = f"{bot_response_text}\n![{prompt}]({file_url})"
         return {'content': response_content, 'message_id': bot_message_id}, 200
 
@@ -116,7 +103,6 @@ def generate_image_logic(chat_id, model, prompt):
 
 
 def prepare_chat_data(form, files):
-    """Prepares all data needed for a chat API request, handling form data, files, and prompt engineering."""
     chat_id = form.get('chat_id', type=int)
     if not chat_id:
         return {"error": "chat_id is required"}, 400, None
@@ -132,7 +118,6 @@ def prepare_chat_data(form, files):
                 f"Files={len(attached_files)}, SystemPrompt='{system_prompt_name}', "
                 f"Tools='{selected_mcp_tools}'")
 
-    # --- Prompt Engineering & Tool Control ---
     conn = get_db_connection()
     db_messages_for_prompt = conn.execute(
         'SELECT parts FROM messages WHERE chat_id = ? ORDER BY id ASC', (chat_id,)
@@ -158,7 +143,6 @@ def prepare_chat_data(form, files):
             if find in user_message:
                 user_message = user_message.replace(find, replace)
 
-    # --- Process User Input ---
     user_parts = []
     project_context_root = None
     project_context_tools_requested = False
@@ -190,7 +174,7 @@ def prepare_chat_data(form, files):
                             header, encoded = data_uri.split(",", 1)
                             mime_type = header.split(":")[1].split(";")[0]
                             file_bytes = base64.b64decode(encoded)
-                        else:  # inline_data
+                        else:
                             source = part.get("source", {})
                             mime_type = source.get("media_type")
                             file_bytes = base64.b64decode(source.get("data"))
@@ -235,7 +219,6 @@ def prepare_chat_data(form, files):
             conn.commit()
             conn.close()
 
-    # --- Build Gemini Contents ---
     conn = get_db_connection()
     db_messages = conn.execute('SELECT role, parts FROM messages WHERE chat_id = ? ORDER BY id ASC', (chat_id,)).fetchall()
     conn.close()

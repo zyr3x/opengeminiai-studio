@@ -10,7 +10,6 @@ def get_db_connection():
     return conn
 
 def init_db():
-    # Ensure data and upload directories exist
     os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 

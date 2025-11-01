@@ -22,15 +22,6 @@ STOP_WORDS = load_stop_words()
 
 
 def extract_keywords(text: str) -> List[str]:
-    """
-    Extracts keywords from the text.
-
-    Args:
-        text: Source text
-
-    Returns:
-        List of keywords (up to MAX_KEYWORDS)
-    """
     if not text:
         return []
 
@@ -50,23 +41,12 @@ def extract_keywords(text: str) -> List[str]:
 
     word_freq = Counter(filtered_tokens)
 
-    # Take the top-N most frequent words
     top_keywords = [word for word, _ in word_freq.most_common(MAX_KEYWORDS)]
-    
+
     return top_keywords
 
 
 def calculate_relevance(message: dict, keywords: List[str]) -> float:
-    """
-    Calculates the relevance of a message relative to a list of keywords.
-
-    Args:
-        message: Message in Gemini API format.
-        keywords: List of keywords.
-
-    Returns:
-        Relevance score from 0.0 to 1.0
-    """
     if not keywords:
         return 0.0
 
@@ -77,11 +57,9 @@ def calculate_relevance(message: dict, keywords: List[str]) -> float:
         if 'text' in part:
             text_parts.append(part['text'])
         elif 'functionCall' in part:
-            # Account for function calls
             func_call = part['functionCall']
             text_parts.append(func_call.get('name', ''))
         elif 'functionResponse' in part:
-            # Account for function responses
             func_resp = part['functionResponse']
             text_parts.append(func_resp.get('name', ''))
 
@@ -122,24 +100,9 @@ def select_relevant_messages(
     keep_recent: int = ALWAYS_KEEP_RECENT,
     min_relevance: float = MIN_RELEVANCE_SCORE
 ) -> List[dict]:
-    """
-    Intelligent selection of relevant messages from history.
-
-    Args:
-        messages: List of all messages
-        current_query: The user's current query
-        max_tokens: Maximum token limit
-        keep_recent: How many recent messages to always keep
-        min_relevance: Minimum relevance score
-
-    Returns:
-        The filtered list of messages
-    """
-    # If there are few messages, return all
     if len(messages) <= keep_recent + 1:
         return messages
 
-    # Check if filtering is even necessary
     total_tokens = estimate_token_count(messages)
     if total_tokens <= max_tokens * 0.8:
         return messages
@@ -210,7 +173,6 @@ def smart_context_window(
         min_relevance=MIN_RELEVANCE_SCORE
     )
 
-    # Log results
     original_count = len(messages)
     selected_count = len(selected)
 
@@ -225,8 +187,6 @@ def smart_context_window(
 
     return selected
 
-
-# --- Stats ---
 
 _stats = {
     'total_calls': 0,

@@ -8,10 +8,6 @@ from app.utils.core.metrics_utils import get_view_metrics
 from app.utils.core.config_loader import load_json_file
 
 def get_index_context():
-    """
-    Prepares the context dictionary for rendering the main index page.
-    This logic is shared between the Flask and Quart versions.
-    """
     api_key_status = "Set" if config.API_KEY else "Not Set"
     current_mcp_config_str = ""
     if os.path.exists(mcp_handler.MCP_CONFIG_FILE):
@@ -51,7 +47,6 @@ def get_index_context():
             loaded_mcp_config = json.loads(current_mcp_config_str)
             if "mcpServers" in loaded_mcp_config and isinstance(loaded_mcp_config.get("mcpServers"), dict):
                 mcp_config_data = loaded_mcp_config
-            # Also load the disableAllTools setting if present in the saved config
             mcp_config_data["disableAllTools"] = loaded_mcp_config.get("disableAllTools",
                                                                        mcp_handler.DISABLE_ALL_MCP_TOOLS_DEFAULT)
         except json.JSONDecodeError:
@@ -85,8 +80,8 @@ def get_index_context():
         'max_code_injection_size_kb': config.MAX_CODE_INJECTION_SIZE_KB,
         'current_max_function_declarations': mcp_config_data.get("maxFunctionDeclarations",
                                                                  mcp_handler.max_function_declarations_limit),
-        'current_disable_all_mcp_tools': mcp_handler.disable_all_mcp_tools,  # Pass current status of global disable
+        'current_disable_all_mcp_tools': mcp_handler.disable_all_mcp_tools,
         'current_year': datetime.now().year,
-        'mcp_functions_by_tool': mcp_functions_by_tool,  # Pass available MCP functions grouped by tool
+        'mcp_functions_by_tool': mcp_functions_by_tool,
         'metrics': get_view_metrics()
     }

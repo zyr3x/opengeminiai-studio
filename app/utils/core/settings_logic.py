@@ -1,13 +1,9 @@
-"""
-Shared business logic for handling application settings from web UI controllers.
-"""
 from app.config import config
 from app.utils.core import tools as utils, mcp_handler
 from app.utils.core.api_key_manager import api_key_manager
 from dotenv import set_key
 import os
 
-# --- API Key Settings (from settings.py) ---
 
 def handle_add_or_update_api_key(data):
     key_id = data.get('key_id')
@@ -56,7 +52,6 @@ def handle_set_api_key_form(form):
         utils.model_info_cache.clear()
         utils.log("Caches cleared due to API key change.")
 
-# --- General Settings (from settings.py) ---
 
 def handle_set_logging(form):
     verbose_logging_enabled = form.get('verbose_logging') == 'on'
@@ -118,8 +113,6 @@ def handle_set_security_settings(form):
     utils.log(f"Security settings updated: allowed_code_paths={config.ALLOWED_CODE_PATHS}, max_code_injection_size_kb={config.MAX_CODE_INJECTION_SIZE_KB}")
 
 
-# --- MCP Settings (from mcp_settings.py) ---
-
 def handle_set_mcp_config(form):
     config_str = form.get('mcp_config', '')
     try:
@@ -139,8 +132,6 @@ def handle_set_mcp_general_settings(form):
     mcp_handler.set_disable_all_mcp_tools(disable_all_tools_enabled)
     mcp_handler.load_mcp_config()
 
-
-# --- Prompt Settings (from prompt_settings.py) ---
 
 def handle_set_prompt_config(form):
     config_str = form.get('prompt_overrides', '')

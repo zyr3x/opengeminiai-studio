@@ -4,7 +4,6 @@ from app.utils.core.logging import log
 
 
 def _resolve_path(file_path: str) -> str | None:
-    """Checks for a file at a given path, then falls back to checking relative to CWD."""
     path_to_check = file_path
     if not os.path.exists(path_to_check):
         path_to_check = os.path.join(os.getcwd(), file_path)
@@ -15,7 +14,6 @@ def _resolve_path(file_path: str) -> str | None:
 
 
 def load_json_file(file_path: str, default=None):
-    """Loads a JSON file, checking both relative and CWD-based paths."""
     if default is None:
         default = {}
 
@@ -27,7 +25,6 @@ def load_json_file(file_path: str, default=None):
     try:
         with open(resolved_path, 'r', encoding='utf-8') as f:
             content = f.read()
-            # Handle potential BOM (Byte Order Mark) at the start of the file
             if content.startswith('\ufeff'):
                 content = content.lstrip('\ufeff')
             return json.loads(content)
@@ -37,7 +34,6 @@ def load_json_file(file_path: str, default=None):
 
 
 def load_text_file_lines(file_path: str, default=None):
-    """Loads a text file and returns a list of stripped lines, ignoring comments."""
     if default is None:
         default = []
 

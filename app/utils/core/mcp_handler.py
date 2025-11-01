@@ -1,6 +1,3 @@
-"""
-MCP Tool Handling logic for Gemini-Proxy.
-"""
 import os
 import tempfile
 import json
@@ -25,12 +22,10 @@ BUILTIN_TOOL_NAME = "__builtin_code_navigator"
 _request_context = threading.local()
 
 def get_project_root() -> str:
-    """Gets the project root for the current request. Defaults to CWD if not set."""
     return getattr(_request_context, 'project_root', os.path.realpath(os.getcwd()))
 
 @contextmanager
 def set_project_root(path: str | None):
-    """A context manager to set the project root for the duration of a request."""
     original_path = getattr(_request_context, 'project_root', None)
     if path and os.path.isdir(os.path.expanduser(path)):
         _request_context.project_root = os.path.realpath(os.path.expanduser(path))
@@ -45,9 +40,6 @@ def set_project_root(path: str | None):
 _ignore_patterns_cache = {}
 
 def get_code_ignore_patterns() -> list[str]:
-    """
-    Loads and caches code ignore patterns from the .aiignore file and defaults.
-    """
     project_root = get_project_root()
     if project_root not in _ignore_patterns_cache:
         patterns = load_code_ignore_patterns(project_root)
@@ -57,7 +49,6 @@ def get_code_ignore_patterns() -> list[str]:
 
 
 def _safe_path_resolve(path: str) -> str | None:
-    """Resolves a path relative to the current request's project root and checks if it stays within bounds."""
     from app.config import config
 
     project_root = get_project_root()
@@ -82,7 +73,6 @@ def _safe_path_resolve(path: str) -> str | None:
     return resolved_path
 
 def _generate_tree_local(file_paths, root_name):
-    """Generates an ASCII directory tree from a list of relative file paths."""
     tree_dict = {}
     for path_str in file_paths:
         path_str = path_str.replace(os.sep, '/')
@@ -110,13 +100,6 @@ def _generate_tree_local(file_paths, root_name):
 
 
 def list_files(path: str = ".", max_depth: int = -1) -> str:
-    """
-    Lists files and directories recursively for code context.
-    Respects common ignore patterns. Returns an ASCII tree structure.
-    An optional max_depth can be specified to limit traversal depth (e.g., max_depth=3).
-
-    PHASE 3 - STAGE 2: Now with progress feedback for better UX.
-    """
     from app.config import config
 
     resolved_path = _safe_path_resolve(path)
@@ -192,10 +175,6 @@ def list_files(path: str = ".", max_depth: int = -1) -> str:
     return full_tree_content
 
 def get_file_content(path: str) -> str:
-    """
-    Reads the content of a single file, respecting safety bounds and size limits.
-    Returns the file content formatted as a code snippet.
-    """
     resolved_path = _safe_path_resolve(path)
     if not resolved_path or not os.path.exists(resolved_path):
         return f"Error: File '{path}' not found or inaccessible."
@@ -232,10 +211,6 @@ def get_file_content(path: str) -> str:
         return f"Error reading file '{path}': {e}"
 
 def get_code_snippet(path: str, symbol_name: str) -> str:
-    """
-    Extracts the source code of a specific function or class from a Python file.
-    Use this after finding a symbol with `list_symbols_in_file`.
-    """
     resolved_path = _safe_path_resolve(path)
     if not resolved_path or not os.path.exists(resolved_path):
         return f"Error: File '{path}' not found or inaccessible."
@@ -260,13 +235,6 @@ def get_code_snippet(path: str, symbol_name: str) -> str:
         return f"Error processing file '{path}' for symbol '{symbol_name}': {e}"
 
 def search_codebase(query: str) -> str:
-    """
-    Searches the entire project codebase for a specific query string.
-    Uses 'ripgrep' (rg) if available for speed and .gitignore support, otherwise falls back to 'grep'.
-    Returns a formatted list of matches, including file paths and line numbers.
-
-    PHASE 3 - STAGE 2: Now with progress feedback for better UX.
-    """
     from app.config import config
 
     MAX_SEARCH_RESULTS = 100
@@ -322,11 +290,6 @@ def search_codebase(query: str) -> str:
     return f"Search results for '{query}':\n```\n{output}\n```"
 
 def apply_patch(patch_content: str) -> str:
-    """
-    Applies a patch to the codebase to modify files.
-    The user must provide the patch content in the standard unified diff format (e.g., from `git diff`).
-    This tool should be used as the final step when a user asks to fix, refactor, or add code.
-    """
     if not patch_content or not isinstance(patch_content, str):
         return "Error: Patch content must be a non-empty string."
 
@@ -350,19 +313,6 @@ def apply_patch(patch_content: str) -> str:
     if not (patch_content.startswith('---') or patch_content.startswith('diff ')):
         log(f"Warning: Patch doesn't start with standard format. First line: {patch_content.split(chr(10))[0][:50]}")
 
-    """
-    Applies a git-style patch string to the project codebase using the system's `patch` utility.
-
-    This function securely writes the patch content to a temporary file and executes the
-    `patch -p1` command from the project root.
-
-    Args:
-        patch_content: A string containing the patch in the standard unified diff format.
-
-    Returns:
-        A string indicating the success or failure of the patch application, including
-        error messages if applicable.
-    """
     log(f"Attempting to apply patch:\n---\n{patch_content}\n---")
 
     try:
@@ -413,7 +363,6 @@ def apply_patch(patch_content: str) -> str:
         return f"Error: An unexpected exception occurred while trying to apply the patch: {e}"
 
 def _run_git_command(cmd: list, timeout: int) -> tuple[subprocess.CompletedProcess | None, str | None]:
-    """Runs a git command and handles common errors."""
     try:
         result = subprocess.run(
             cmd,
@@ -434,10 +383,6 @@ def _run_git_command(cmd: list, timeout: int) -> tuple[subprocess.CompletedProce
 
 
 def git_status() -> str:
-    """
-    Shows the working tree status including staged, unstaged, and untracked files.
-    This is useful for understanding what changes exist before committing.
-    """
     cmd = ['git', 'status', '--short', '--branch']
     result, error = _run_git_command(cmd, 10)
     if error:
@@ -453,13 +398,9 @@ def git_status() -> str:
 
 
 def git_log(max_count: int = 10, path: str = None) -> str:
-    """
-    Shows the commit history with author, date, and commit message.
-    Optionally filter by a specific file path.
-    """
     try:
         max_count = int(max_count) if max_count else 10
-        max_count = min(max(1, max_count), 50)  # Limit between 1 and 50
+        max_count = min(max(1, max_count), 50)
 
         cmd = ['git', 'log', f'--max-count={max_count}', '--oneline', '--graph', '--decorate']
         if path:
@@ -485,10 +426,6 @@ def git_log(max_count: int = 10, path: str = None) -> str:
 
 
 def git_diff(staged: bool = False, path: str = None) -> str:
-    """
-    Shows changes in the working directory or staged area.
-    Use staged=True to see changes in the staging area (git diff --cached).
-    """
     try:
         cmd = ['git', 'diff']
         if staged:
@@ -511,9 +448,8 @@ def git_diff(staged: bool = False, path: str = None) -> str:
             area = "staged area" if staged else "working directory"
             return f"No changes in {area}." + (f" for path '{path}'." if path else "")
 
-        # Limit output size
         output = result.stdout
-        if len(output) > 50000:  # ~50KB limit
+        if len(output) > 50000:
             output = output[:50000] + "\n... (output truncated, diff is too large)"
 
         return f"Git Diff:\n```diff\n{output}\n```"
@@ -522,15 +458,10 @@ def git_diff(staged: bool = False, path: str = None) -> str:
 
 
 def git_show(commit: str = "HEAD", path: str = None) -> str:
-    """
-    Shows the contents of a specific commit.
-    Optionally filter by a specific file path to see only changes to that file.
-    """
     try:
         if not commit:
             commit = "HEAD"
 
-        # Security: sanitize commit reference
         if not re.match(r'^[a-zA-Z0-9_\-\.\/]+$', commit):
             return f"Error: Invalid commit reference '{commit}'."
 
@@ -539,7 +470,6 @@ def git_show(commit: str = "HEAD", path: str = None) -> str:
             resolved_path = _safe_path_resolve(path)
             if not resolved_path:
                 return f"Error: Invalid or unsafe path '{path}'."
-            # For git show, we need relative path from git root
             try:
                 git_root = subprocess.run(
                     ['git', 'rev-parse', '--show-toplevel'],
@@ -570,10 +500,6 @@ def git_show(commit: str = "HEAD", path: str = None) -> str:
 
 
 def git_blame(path: str, start_line: int = None, end_line: int = None) -> str:
-    """
-    Shows who last modified each line of a file and when.
-    Optionally specify line range with start_line and end_line.
-    """
     resolved_path = _safe_path_resolve(path)
     if not resolved_path or not os.path.exists(resolved_path):
         return f"Error: File '{path}' not found or inaccessible."
@@ -590,7 +516,6 @@ def git_blame(path: str, start_line: int = None, end_line: int = None) -> str:
             if start_line > 0 and end_line >= start_line:
                 cmd.extend(['-L', f'{start_line},{end_line}'])
 
-        # Get relative path from git root
         git_root = subprocess.run(
             ['git', 'rev-parse', '--show-toplevel'],
             cwd=get_project_root(),
@@ -621,13 +546,9 @@ def git_blame(path: str, start_line: int = None, end_line: int = None) -> str:
 
 
 def list_recent_changes(days: int = 7, max_files: int = 20) -> str:
-    """
-    Lists files that were modified in the last N days using git log.
-    Useful for understanding recent development activity.
-    """
     try:
         days = int(days) if days else 7
-        days = min(max(1, days), 90)  # Limit between 1 and 90 days
+        days = min(max(1, days), 90)
 
         max_files = int(max_files) if max_files else 20
         max_files = min(max(1, max_files), 100)
@@ -640,7 +561,6 @@ def list_recent_changes(days: int = 7, max_files: int = 20) -> str:
         if result.returncode != 0:
             return f"Error: git log failed.\n{result.stderr}"
 
-        # Parse unique files from output
         files = set()
         for line in result.stdout.strip().split('\n'):
             line = line.strip()
@@ -658,12 +578,7 @@ def list_recent_changes(days: int = 7, max_files: int = 20) -> str:
         return f"Error listing recent changes: {e}"
 
 
-# --- FILE ANALYSIS ---
 def analyze_file_structure(path: str) -> str:
-    """
-    Analyzes a Python file to extract comprehensive structural information:
-    imports, functions, classes, decorators, and docstrings.
-    """
     resolved_path = _safe_path_resolve(path)
     if not resolved_path or not os.path.exists(resolved_path):
         return f"Error: File '{path}' not found or inaccessible."
@@ -677,7 +592,6 @@ def analyze_file_structure(path: str) -> str:
 
         tree = ast.parse(content)
 
-        # Extract imports
         imports = []
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -689,13 +603,11 @@ def analyze_file_structure(path: str) -> str:
                     imports.append(
                         f"from {module} import {alias.name}" + (f" as {alias.asname}" if alias.asname else ""))
 
-        # Extract top-level definitions
         functions = []
         classes = []
 
         for node in tree.body:
             if isinstance(node, ast.FunctionDef):
-                # Extract function signature
                 args_str = ", ".join([arg.arg for arg in node.args.args])
                 decorators = [d.id if isinstance(d, ast.Name) else ast.unparse(d) for d in node.decorator_list]
 
@@ -703,10 +615,8 @@ def analyze_file_structure(path: str) -> str:
                 if decorators:
                     func_info = f"@{', @'.join(decorators)}\n  {func_info}"
 
-                # Add docstring if present
                 docstring = ast.get_docstring(node)
                 if docstring:
-                    # Truncate long docstrings
                     if len(docstring) > 100:
                         docstring = docstring[:100] + "..."
                     func_info += f"\n    \"\"\"{docstring}\"\"\""
@@ -714,17 +624,14 @@ def analyze_file_structure(path: str) -> str:
                 functions.append(func_info)
 
             elif isinstance(node, ast.ClassDef):
-                # Extract class info
                 bases = [ast.unparse(base) for base in node.bases]
                 bases_str = f"({', '.join(bases)})" if bases else ""
 
                 class_info = f"class {node.name}{bases_str}"
 
-                # Count methods
                 methods = [n for n in node.body if isinstance(n, ast.FunctionDef)]
                 class_info += f"  # {len(methods)} method(s)"
 
-                # Add docstring
                 docstring = ast.get_docstring(node)
                 if docstring:
                     if len(docstring) > 80:
@@ -733,12 +640,11 @@ def analyze_file_structure(path: str) -> str:
 
                 classes.append(class_info)
 
-        # Build result
         result = [f"File Structure Analysis: {path}", "=" * 50, ""]
 
         if imports:
             result.append("IMPORTS:")
-            for imp in imports[:20]:  # Limit to first 20
+            for imp in imports[:20]:
                 result.append(f"  {imp}")
             if len(imports) > 20:
                 result.append(f"  ... and {len(imports) - 20} more")
@@ -768,9 +674,6 @@ def analyze_file_structure(path: str) -> str:
 
 
 def get_file_stats(path: str) -> str:
-    """
-    Returns statistics about a file: size, lines, language, last modified date, and git info.
-    """
     resolved_path = _safe_path_resolve(path)
     if not resolved_path or not os.path.exists(resolved_path):
         return f"Error: File '{path}' not found or inaccessible."
@@ -783,7 +686,6 @@ def get_file_stats(path: str) -> str:
         file_size = stats.st_size
         modified_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(stats.st_mtime))
 
-        # Detect language by extension
         _, ext = os.path.splitext(resolved_path)
         lang_map = {
             '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
@@ -795,7 +697,6 @@ def get_file_stats(path: str) -> str:
         }
         language = lang_map.get(ext.lower(), 'Unknown')
 
-        # Count lines
         try:
             with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
                 lines = f.readlines()
@@ -806,10 +707,8 @@ def get_file_stats(path: str) -> str:
         except:
             total_lines = code_lines = blank_lines = comment_lines = 0
 
-        # Git info
         git_info = ""
         try:
-            # Get relative path from git root
             git_root = subprocess.run(
                 ['git', 'rev-parse', '--show-toplevel'],
                 cwd=get_project_root(),
@@ -820,7 +719,6 @@ def get_file_stats(path: str) -> str:
             ).stdout.strip()
             rel_path = os.path.relpath(resolved_path, git_root)
 
-            # Last commit for this file
             last_commit = subprocess.run(
                 ['git', 'log', '-1', '--pretty=format:%h - %an, %ar: %s', '--', rel_path],
                 cwd=get_project_root(),
@@ -834,7 +732,6 @@ def get_file_stats(path: str) -> str:
         except:
             git_info = "Git Info:        Not in a git repository or git not available"
 
-        # Format output
         result = [
             f"File Statistics: {path}",
             "=" * 60,
@@ -856,36 +753,23 @@ def get_file_stats(path: str) -> str:
         return f"Error getting file stats: {e}"
 
 def create_file(path: str, content: str, mode: str = "644") -> str:
-    """
-    Creates a new file with the specified content.
-    Args:
-        path: File path relative to project root
-        content: Content to write to the file
-        mode: File permissions (default: 644)
-    Returns:
-        Success message or error
-    """
     try:
         resolved_path = _safe_path_resolve(path)
         if not resolved_path:
             return f"Error: Access denied to path '{path}' (outside project root)"
 
-        # Check if file already exists
         if os.path.exists(resolved_path):
             return f"Error: File '{path}' already exists. Use write_file to overwrite or choose different name."
 
-        # Create parent directories if needed
         os.makedirs(os.path.dirname(resolved_path), exist_ok=True)
 
-        # Write content
         with open(resolved_path, 'w', encoding='utf-8') as f:
             f.write(content)
 
-        # Set permissions
         try:
             os.chmod(resolved_path, int(mode, 8))
         except:
-            pass  # Ignore permission errors on Windows
+            pass
 
         file_size = len(content.encode('utf-8'))
         lines = content.count('\n') + 1
@@ -896,14 +780,6 @@ def create_file(path: str, content: str, mode: str = "644") -> str:
         return f"Error creating file: {e}"
 
 def write_file(path: str, content: str) -> str:
-    """
-    Writes content to an existing file, overwriting it completely.
-    Args:
-        path: File path relative to project root
-        content: New content for the file
-    Returns:
-        Success message or error
-    """
     try:
         resolved_path = _safe_path_resolve(path)
         if not resolved_path:
@@ -912,10 +788,8 @@ def write_file(path: str, content: str) -> str:
         if not os.path.exists(resolved_path):
             return f"Error: File '{path}' does not exist. Use create_file to create new files."
 
-        # Backup old content size for reporting
         old_size = os.path.getsize(resolved_path)
 
-        # Write new content
         with open(resolved_path, 'w', encoding='utf-8') as f:
             f.write(content)
 
@@ -928,21 +802,11 @@ def write_file(path: str, content: str) -> str:
         return f"Error writing file: {e}"
 
 def execute_command(command: str, timeout: int = 30) -> str:
-    """
-    Executes a shell command and returns its output.
-    Args:
-        command: Shell command to execute
-        timeout: Maximum execution time in seconds (default: 30, max: 300)
-    Returns:
-        Command output (stdout + stderr) or error
-    """
     try:
-        # Security: limit timeout
         timeout = min(max(1, timeout), 300)
 
         log(f"Executing command: {command[:100]}...")
 
-        # Execute command
         result = subprocess.run(
             command,
             shell=True,
@@ -970,11 +834,6 @@ def execute_command(command: str, timeout: int = 30) -> str:
         return f"Error executing command: {e}"
 
 def analyze_project_structure() -> str:
-    """
-    Analyzes the entire project structure and returns a comprehensive overview.
-    Returns:
-        Project analysis including file types, sizes, dependencies, and structure
-    """
     try:
         project_root = get_project_root()
 
@@ -982,7 +841,6 @@ def analyze_project_structure() -> str:
         analysis.append(f"📊 Project Analysis: {os.path.basename(project_root)}")
         analysis.append(f"Root: {project_root}\n")
 
-        # Collect file statistics
         file_types = {}
         total_files = 0
         total_size = 0
@@ -991,7 +849,6 @@ def analyze_project_structure() -> str:
         ignore_patterns = get_code_ignore_patterns()
 
         for root, dirs, files in os.walk(project_root):
-            # Filter directories
             dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, p) for p in ignore_patterns)]
 
             rel_root = os.path.relpath(root, project_root)
@@ -1002,7 +859,6 @@ def analyze_project_structure() -> str:
                 filepath = os.path.join(root, file)
                 rel_path = os.path.relpath(filepath, project_root)
 
-                # Check if file matches ignore patterns
                 if any(fnmatch.fnmatch(rel_path, p) or fnmatch.fnmatch(file, p) for p in ignore_patterns):
                     continue
 
@@ -1014,7 +870,6 @@ def analyze_project_structure() -> str:
                     total_files += 1
                     total_size += size
 
-                    # Language detection
                     lang_map = {
                         '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
                         '.java': 'Java', '.cpp': 'C++', '.c': 'C', '.h': 'C/C++',
@@ -1031,24 +886,20 @@ def analyze_project_structure() -> str:
                 except:
                     pass
 
-        # File types summary
         analysis.append("📁 File Types:")
         sorted_types = sorted(file_types.items(), key=lambda x: x[1], reverse=True)[:15]
         for ext, count in sorted_types:
             analysis.append(f"  {ext}: {count} files")
 
-        # Language summary
         if language_files:
             analysis.append("\n💻 Programming Languages:")
             sorted_langs = sorted(language_files.items(), key=lambda x: x[1], reverse=True)
             for lang, count in sorted_langs:
                 analysis.append(f"  {lang}: {count} files")
 
-        # Size summary
         size_mb = total_size / (1024 * 1024)
         analysis.append(f"\n📦 Total: {total_files} files, {size_mb:.2f} MB")
 
-        # Check for common project files
         analysis.append("\n📋 Project Configuration:")
         config_files = [
             'package.json', 'requirements.txt', 'Cargo.toml', 'go.mod',
@@ -1066,7 +917,6 @@ def analyze_project_structure() -> str:
         else:
             analysis.append("  (no standard config files found)")
 
-        # Git status if available
         git_dir = os.path.join(project_root, '.git')
         if os.path.isdir(git_dir):
             try:
@@ -1086,13 +936,6 @@ def analyze_project_structure() -> str:
         return f"Error analyzing project: {e}"
 
 def find_symbol(symbol_name: str) -> str:
-    """
-    Searches for a symbol (function, class, variable) across the entire project.
-    Args:
-        symbol_name: Name of the symbol to find
-    Returns:
-        List of files and locations where the symbol is defined or used
-    """
     try:
         project_root = get_project_root()
         ignore_patterns = get_code_ignore_patterns()
@@ -1100,16 +943,15 @@ def find_symbol(symbol_name: str) -> str:
         results = []
         results.append(f"🔍 Searching for symbol: '{symbol_name}'\n")
 
-        # Patterns to search for
         patterns = [
-            f"def {symbol_name}",      # Python function
-            f"class {symbol_name}",    # Python/Java class
-            f"function {symbol_name}", # JavaScript function
-            f"const {symbol_name}",    # JavaScript/TypeScript const
-            f"let {symbol_name}",      # JavaScript/TypeScript let
-            f"var {symbol_name}",      # JavaScript var
-            f"{symbol_name} =",        # Assignment
-            f"{symbol_name}(",         # Function call
+            f"def {symbol_name}",
+            f"class {symbol_name}",
+            f"function {symbol_name}",
+            f"const {symbol_name}",
+            f"let {symbol_name}",
+            f"var {symbol_name}",
+            f"{symbol_name} =",
+            f"{symbol_name}(",
         ]
 
         found_items = []
@@ -1122,7 +964,6 @@ def find_symbol(symbol_name: str) -> str:
                 continue
 
             for file in files:
-                # Only search in code files
                 if not any(file.endswith(ext) for ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.rb', '.php', '.kt', '.swift']):
                     continue
 
@@ -1144,14 +985,13 @@ def find_symbol(symbol_name: str) -> str:
                                         'content': line.strip(),
                                         'type': pattern.split()[0] if ' ' in pattern else 'usage'
                                     })
-                                    break  # One match per line
+                                    break
                 except:
                     pass
 
         if not found_items:
             return f"❌ Symbol '{symbol_name}' not found in the project."
 
-        # Group by file
         from collections import defaultdict
         by_file = defaultdict(list)
         for item in found_items:
@@ -1161,7 +1001,7 @@ def find_symbol(symbol_name: str) -> str:
 
         for file, items in sorted(by_file.items()):
             results.append(f"📄 {file}:")
-            for item in items[:5]:  # Limit to first 5 per file
+            for item in items[:5]:
                 results.append(f"  Line {item['line']}: {item['content'][:80]}")
             if len(items) > 5:
                 results.append(f"  ... and {len(items) - 5} more occurrences")
@@ -1173,18 +1013,12 @@ def find_symbol(symbol_name: str) -> str:
         return f"Error finding symbol: {e}"
 
 def get_dependencies() -> str:
-    """
-    Detects and lists project dependencies from common dependency files.
-    Returns:
-        List of dependencies found in the project
-    """
     try:
         project_root = get_project_root()
 
         results = []
         results.append("📦 Project Dependencies\n")
 
-        # Python - requirements.txt
         req_file = os.path.join(project_root, 'requirements.txt')
         if os.path.exists(req_file):
             results.append("🐍 Python (requirements.txt):")
@@ -1196,12 +1030,10 @@ def get_dependencies() -> str:
                     results.append(f"  ... and {len(deps) - 20} more")
             results.append("")
 
-        # Python - pyproject.toml
         pyproject = os.path.join(project_root, 'pyproject.toml')
         if os.path.exists(pyproject):
             results.append("🐍 Python (pyproject.toml): (file exists)")
 
-        # Node.js - package.json
         package_json = os.path.join(project_root, 'package.json')
         if os.path.exists(package_json):
             try:
@@ -1228,7 +1060,6 @@ def get_dependencies() -> str:
             except:
                 results.append("📦 Node.js (package.json): (file exists but couldn't parse)")
 
-        # Go - go.mod
         go_mod = os.path.join(project_root, 'go.mod')
         if os.path.exists(go_mod):
             results.append("🔷 Go (go.mod):")
@@ -1248,12 +1079,11 @@ def get_dependencies() -> str:
                         break
             results.append("")
 
-        # Rust - Cargo.toml
         cargo_toml = os.path.join(project_root, 'Cargo.toml')
         if os.path.exists(cargo_toml):
             results.append("🦀 Rust (Cargo.toml): (file exists)")
 
-        if len(results) == 2:  # Only header
+        if len(results) == 2:
             return "❌ No dependency files found (requirements.txt, package.json, go.mod, Cargo.toml, etc.)"
 
         return "\n".join(results)
@@ -1286,37 +1116,32 @@ BUILTIN_FUNCTIONS = {
 BUILTIN_DECLARATIONS_PATH = 'etc/mcp/declaration/default.json'
 
 def load_builtin_declarations() -> list:
-    """Loads BUILTIN_DECLARATIONS from the external JSON file."""
     from app.utils.core.config_loader import load_json_file
     return load_json_file(BUILTIN_DECLARATIONS_PATH, default=[])
 
 
 BUILTIN_DECLARATIONS = load_builtin_declarations()
-# --- END BUILT-IN CODE NAVIGATION TOOL DEFINITIONS ---
 
 
-# --- MCP Tool Configuration ---
 MCP_CONFIG_FILE = 'var/config/mcp.json'
-mcp_function_declarations = []  # A flat list of all function declarations from all tools
-mcp_function_to_tool_map = {}   # Maps a function name to its parent tool name (from mcpServers)
-mcp_function_input_schema_map = {}  # Maps a function name to its inputSchema from MCP
-mcp_tool_processes = {}  # Cache for running tool subprocesses
-mcp_request_id_counter = 1  # Counter for unique JSON-RPC request IDs
-mcp_request_id_lock = threading.Lock() # Lock to ensure thread-safe request ID generation
-_mcp_tool_locks = {} # Cache for tool-specific locks to prevent race conditions
-_mcp_tool_locks_lock = threading.Lock() # Lock to manage access to the locks dictionary
+mcp_function_declarations = []
+mcp_function_to_tool_map = {}
+mcp_function_input_schema_map = {}
+mcp_tool_processes = {}
+mcp_request_id_counter = 1
+mcp_request_id_lock = threading.Lock()
+_mcp_tool_locks = {}
+_mcp_tool_locks_lock = threading.Lock()
 
-MAX_FUNCTION_DECLARATIONS_DEFAULT = 64 # Default documented limit
-max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT # Configurable limit
+MAX_FUNCTION_DECLARATIONS_DEFAULT = 64
+max_function_declarations_limit = MAX_FUNCTION_DECLARATIONS_DEFAULT
 
 DISABLE_ALL_MCP_TOOLS_DEFAULT = False
-disable_all_mcp_tools = DISABLE_ALL_MCP_TOOLS_DEFAULT # Global flag to disable all MCP tools
+disable_all_mcp_tools = DISABLE_ALL_MCP_TOOLS_DEFAULT
 
 def set_disable_all_mcp_tools(status: bool):
-    """Sets the global status for disabling all MCP tools and saves it to config."""
     global disable_all_mcp_tools, mcp_config
     disable_all_mcp_tools = status
-    # Update the in-memory config and save it
     mcp_config["disableAllTools"] = status
     try:
         with open(MCP_CONFIG_FILE, 'w') as f:
@@ -1327,10 +1152,6 @@ def set_disable_all_mcp_tools(status: bool):
 
 
 def _fetch_raw_mcp_tools(tool_name: str, tool_info: dict) -> tuple[list | None, str | None]:
-    """
-    Executes an MCP tool's tools/list command and returns the raw tool list.
-    Returns (tools, None) on success, or (None, error_message) on failure.
-    """
     command_str = tool_info.get("command")
     if not command_str:
         return None, "Command not provided for tool."
@@ -1399,7 +1220,6 @@ def _fetch_raw_mcp_tools(tool_name: str, tool_info: dict) -> tuple[list | None, 
 
 
 def get_declarations_from_tool(tool_name, tool_info):
-    """Fetches function declaration schema(s) from an MCP tool using MCP protocol."""
     global mcp_function_input_schema_map
 
     mcp_tools, error = _fetch_raw_mcp_tools(tool_name, tool_info)
@@ -1409,27 +1229,22 @@ def get_declarations_from_tool(tool_name, tool_info):
         return []
 
     tools = []
-    # Convert MCP tool format to Gemini function declarations
     for tool in mcp_tools:
         declaration = {
             "name": tool["name"],
             "description": tool.get("description", f"Execute {tool['name']} tool")
         }
-        # Cache original inputSchema for later argument coercion
         mcp_function_input_schema_map[tool["name"]] = tool.get("inputSchema")
 
-        # Convert MCP input schema to Gemini parameters format
         if "inputSchema" in tool:
             schema = tool["inputSchema"]
             if schema.get("type") == "object":
-                # Use Gemini function schema types (uppercase)
                 declaration["parameters"] = {
                     "type": "OBJECT",
                     "properties": {}
                 }
 
                 def convert_property_to_gemini(prop_def):
-                    """Convert a JSON Schema property to Gemini function parameter format."""
                     t = str(prop_def.get("type", "string")).lower()
 
                     if t == "string":
@@ -1452,12 +1267,10 @@ def get_declarations_from_tool(tool_name, tool_info):
                             "type": "ARRAY",
                             "description": prop_def.get("description", "Array parameter")
                         }
-                        # Handle array items - required for Gemini API
                         items = prop_def.get("items", {})
                         if items:
                             param["items"] = convert_property_to_gemini(items)
                         else:
-                            # Default to string items if not specified
                             param["items"] = {"type": "STRING"}
                         return param
                     elif t == "object":
@@ -1465,7 +1278,6 @@ def get_declarations_from_tool(tool_name, tool_info):
                             "type": "OBJECT",
                             "description": prop_def.get("description", "Object parameter")
                         }
-                        # Handle nested object properties
                         if "properties" in prop_def:
                             param["properties"] = {}
                             for nested_name, nested_def in prop_def["properties"].items():
@@ -1490,8 +1302,6 @@ def get_declarations_from_tool(tool_name, tool_info):
 
 
 def fetch_mcp_tool_list(tool_info):
-    """Fetches the raw list of tools from an MCP server based on its config."""
-    # Tool name for error reporting is derived from the command
     tool_name = tool_info.get("command", "unnamed_tool")
     mcp_tools, error = _fetch_raw_mcp_tools(tool_name, tool_info)
 
@@ -1502,12 +1312,10 @@ def fetch_mcp_tool_list(tool_info):
 
 
 def load_mcp_config():
-    """Loads MCP tool configuration from file and fetches schemas for all configured tools."""
     global mcp_config, mcp_function_declarations, mcp_function_to_tool_map, mcp_function_input_schema_map, mcp_tool_processes, max_function_declarations_limit, disable_all_mcp_tools
 
-    # Terminate any existing tool processes before reloading config
     for tool_name, process in mcp_tool_processes.items():
-        if process.poll() is None:  # Check if the process is running
+        if process.poll() is None:
             try:
                 log(f"Terminating old process for tool '{tool_name}'...")
                 process.terminate()
@@ -1549,9 +1357,7 @@ def load_mcp_config():
     if disable_all_mcp_tools:
         log("All MCP tools are globally disabled by configuration.")
 
-    # 1. Load Declarations from External MCP Servers
     if mcp_config.get("mcpServers"):
-        # Sort servers by priority (higher first), default 0
         sorted_servers = sorted(
             mcp_config["mcpServers"].items(),
             key=lambda item: item[1].get('priority', 0),
@@ -1559,7 +1365,6 @@ def load_mcp_config():
         )
 
         for tool_name, tool_info in sorted_servers:
-            # Skip disabled tools (defaults to enabled if 'enabled' key is missing)
             if not tool_info.get('enabled', True):
                 log(f"Skipping disabled tool: '{tool_name}'.")
                 continue
@@ -1570,23 +1375,15 @@ def load_mcp_config():
                 if 'name' in decl:
                     mcp_function_to_tool_map[decl['name']] = tool_name
 
-    # 2. Add Built-in Code Navigation Tool (always registered)
     mcp_function_declarations.extend(BUILTIN_DECLARATIONS)
     for decl in BUILTIN_DECLARATIONS:
         if 'name' in decl:
             mcp_function_to_tool_map[decl['name']] = BUILTIN_TOOL_NAME
-            # Built-in tools have no external schema, use empty dict for input coercion logic safety
             mcp_function_input_schema_map[decl['name']] = {}
 
     log(f"Total function declarations loaded: {len(mcp_function_declarations)}")
 
 def create_tool_declarations(prompt_text: str = ""):
-    """
-    Returns tool declarations for the Gemini API, intelligently selecting them based on the prompt.
-    If a tool's name (e.g., 'youtrack') or a function's name (e.g., 'get_issue') is mentioned in the prompt,
-    only the functions from the relevant tool(s) are sent. Otherwise, it sends all available functions
-    up to the API limit.
-    """
     if disable_all_mcp_tools:
         log("All MCP tools are globally disabled. Returning no declarations.")
         return None
@@ -1597,16 +1394,13 @@ def create_tool_declarations(prompt_text: str = ""):
     selected_tool_names = set()
     padded_prompt = f' {prompt_text.lower()} '
 
-    # Context-aware tool selection
     if prompt_text:
-        # 1. Check for tool server names (e.g., 'youtrack')
         if mcp_config.get("mcpServers"):
             for tool_name in mcp_config["mcpServers"].keys():
                 if f' {tool_name.lower()} ' in padded_prompt:
                     log(f"Detected keyword for tool server '{tool_name}'.")
                     selected_tool_names.add(tool_name)
 
-        # 2. Check for individual function names (e.g., 'get_issue')
         for func_decl in mcp_function_declarations:
             func_name = func_decl['name']
             if f' {func_name.lower()} ' in padded_prompt:
@@ -1615,7 +1409,6 @@ def create_tool_declarations(prompt_text: str = ""):
                     log(f"Detected keyword for function '{func_name}'. Selecting parent tool '{parent_tool_name}'.")
                     selected_tool_names.add(parent_tool_name)
 
-    # If specific tools were selected, build the declaration list from them
     if selected_tool_names:
         log(f"Final selected tools: {list(selected_tool_names)}")
         selected_declarations = []
@@ -1624,7 +1417,6 @@ def create_tool_declarations(prompt_text: str = ""):
                 selected_declarations.append(func_decl)
         final_declarations = selected_declarations
     else:
-        # Fallback: use all declarations
         final_declarations = []
 
     if len(final_declarations) > max_function_declarations_limit:
@@ -1637,10 +1429,6 @@ def create_tool_declarations(prompt_text: str = ""):
     return [{"functionDeclarations": final_declarations}]
 
 def create_tool_declarations_from_list(function_names: list[str]):
-    """
-    Returns tool declarations for the Gemini API, selecting only those from the specified list of function names.
-    This bypasses context-aware selection and respects the max_function_declarations_limit.
-    """
     if disable_all_mcp_tools:
         log("All MCP tools are globally disabled. Returning no declarations.")
         return None
@@ -1649,10 +1437,9 @@ def create_tool_declarations_from_list(function_names: list[str]):
         return None
 
     selected_declarations = []
-    # Handle sentinel for "all functions"
     if function_names == ["*"]:
         log("Selecting all available MCP functions due to '*' sentinel.")
-        selected_declarations = mcp_function_declarations[:]  # Make a copy
+        selected_declarations = mcp_function_declarations[:]
     else:
         for func_decl in mcp_function_declarations:
             if func_decl.get('name') in function_names:
@@ -1669,10 +1456,6 @@ def create_tool_declarations_from_list(function_names: list[str]):
 
 
 def _parse_kwargs_string(s: str) -> dict:
-    """
-    Parses a simple key=value string (supports quoted values) into a dict.
-    Example: 'issue_id="ACS-611" limit=10' -> {'issue_id': 'ACS-611', 'limit': '10'}
-    """
     result = {}
     try:
         tokens = shlex.split(s)
@@ -1685,36 +1468,24 @@ def _parse_kwargs_string(s: str) -> dict:
     return result
 
 def _normalize_mcp_args(args) -> dict:
-    """
-    Normalizes functionCall args from Gemini into a JSON object suitable for MCP tools/call.
-    Handles:
-      - dict with 'kwargs' field containing string or dict
-      - plain string (JSON or key=value pairs)
-      - already-correct dict
-    """
     if args is None:
         return {}
-    # If already a dict without wrapper keys
     if isinstance(args, dict) and "kwargs" not in args and "args" not in args:
         return args
-    # If dict with kwargs wrapper
     if isinstance(args, dict):
         kwargs_val = args.get("kwargs")
         if isinstance(kwargs_val, dict):
             return kwargs_val
         if isinstance(kwargs_val, str):
-            # Try JSON first
             try:
                 parsed = json.loads(kwargs_val)
                 if isinstance(parsed, dict):
                     return parsed
             except json.JSONDecodeError:
                 pass
-            # Fallback to key=value parsing
             parsed_kv = _parse_kwargs_string(kwargs_val)
             if parsed_kv:
                 return parsed_kv
-        # If 'args' is a JSON string with object, try it
         args_val = args.get("args")
         if isinstance(args_val, str):
             try:
@@ -1724,7 +1495,6 @@ def _normalize_mcp_args(args) -> dict:
             except json.JSONDecodeError:
                 pass
         return {}
-    # If a raw string
     if isinstance(args, str):
         try:
             parsed = json.loads(args)
@@ -1733,13 +1503,9 @@ def _normalize_mcp_args(args) -> dict:
         except json.JSONDecodeError:
             pass
         return _parse_kwargs_string(args)
-    # Unknown type
     return {}
 
 def _ensure_dict(value):
-    """
-    Ensures the value is a dict. If a string, try JSON then key=value parsing.
-    """
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
@@ -1752,10 +1518,6 @@ def _ensure_dict(value):
     return {}
 
 def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
-    """
-    Coerces normalized arguments into the structure required by input_schema.
-    If schema expects 'args'/'kwargs', wrap values accordingly.
-    """
     if not isinstance(input_schema, dict):
         return normalized_args
 
@@ -1765,21 +1527,16 @@ def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
     expects_wrapped = ("args" in props) or ("kwargs" in props) or ("args" in required) or ("kwargs" in required)
 
     if not expects_wrapped:
-        # Pass through normalized args as the flat parameter object
         return normalized_args
 
-    # Build wrapped structure
     result = {}
 
-    # Handle kwargs
     if "kwargs" in props or "kwargs" in required:
         if "kwargs" in normalized_args:
             result["kwargs"] = _ensure_dict(normalized_args.get("kwargs"))
         else:
-            # Use entire flat normalized_args as kwargs
             result["kwargs"] = normalized_args
 
-    # Handle args
     if "args" in props or "args" in required:
         raw_args = normalized_args.get("args") if isinstance(normalized_args, dict) else None
         if isinstance(raw_args, str):
@@ -1796,31 +1553,18 @@ def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
     return result
 
 def execute_mcp_tool(function_name, tool_args, project_root_override: str | None = None):
-    """
-    Executes an MCP tool function using MCP protocol and returns its output.
-    This function maintains a pool of long-running tool processes and reuses them for subsequent calls.
-    If a process for a tool is not running, it will be started and initialized.
-    Includes caching and optimization for performance.
-
-    Args:
-        function_name: The name of the function to call.
-        tool_args: Dictionary of arguments for the tool function.
-        project_root_override: Optional path to set as the project root for built-in tools.
-    """
     global mcp_tool_processes, mcp_request_id_counter
 
     log(f"Executing MCP function: {function_name} with args: {tool_args}")
     function_name = function_name.replace("default_api:", "")
     tool_name = mcp_function_to_tool_map.get(function_name)
 
-    # Record the tool execution
     is_builtin = (tool_name == BUILTIN_TOOL_NAME)
     record_tool_call(is_builtin=is_builtin)
 
     if not tool_name:
         return f"Error: Function '{function_name}' not found in any configured MCP tool."
 
-    # --- OPTIMIZATION: Check cache first ---
     if optimization_utils.should_cache_tool(function_name):
         cached_output = optimization.get_cached_tool_output(function_name, tool_args)
         if cached_output is not None:
@@ -1831,7 +1575,6 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
             log(f"✗ Cache MISS for {function_name}")
             optimization.record_cache_miss()
 
-    # Handle built-in tools (executed locally)
     if tool_name == BUILTIN_TOOL_NAME:
         builtin_func = BUILTIN_FUNCTIONS.get(function_name)
         if not builtin_func:
@@ -1840,10 +1583,8 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
         normalized_args = _normalize_mcp_args(tool_args)
         log(f"Normalized args for {function_name}: {normalized_args}")
 
-        # Use set_project_root to ensure the context is set correctly in the current thread (the executor thread)
         with set_project_root(project_root_override):
 
-            # Prepare args for the specific built-in function call
             func_args = {}
             try:
                 if function_name == 'list_files':
@@ -1887,7 +1628,7 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                     content = normalized_args.get('content')
                     if not path:
                         raise TypeError("Path argument is required.")
-                    if content is None: # Can be empty string
+                    if content is None:
                         raise TypeError("Content argument is required.")
                     func_args['path'] = path
                     func_args['content'] = content
@@ -1918,9 +1659,8 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                         raise TypeError("Symbol name argument is required.")
                     func_args['symbol_name'] = symbol_name
 
-                # Git operations
                 elif function_name == 'git_status':
-                    pass # No arguments needed
+                    pass
 
                 elif function_name == 'git_log':
                     if 'max_count' in normalized_args:
@@ -1956,7 +1696,6 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                     if 'max_files' in normalized_args:
                         func_args['max_files'] = normalized_args.get('max_files')
 
-                # File analysis
                 elif function_name == 'analyze_file_structure':
                     path = normalized_args.get('path')
                     if not path:
@@ -1969,9 +1708,6 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                         raise TypeError("Path argument is required.")
                     func_args['path'] = path
 
-                # No-arg functions don't need an entry:
-                # analyze_project_structure, get_dependencies
-
             except KeyError as e:
                 log(f"Error: Missing required argument '{e.args[0]}' for function '{function_name}'. Normalized args: {normalized_args}")
                 return f"Error: Missing required argument '{e.args[0]}' for function '{function_name}'."
@@ -1982,22 +1718,17 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
         try:
             result = builtin_func(**func_args)
 
-            # Check if the result is a generator (a streaming result).
-            # We check for a generator type object.
             if hasattr(result, '__iter__') and not isinstance(result, (str, dict, list)):
                 log(f"Returning streaming result for built-in function: {function_name}")
                 return result
 
-            # --- OPTIMIZATION: Optimize output and cache it (only for non-streaming results) ---
             optimized_result = optimization_utils.optimize_tool_output(result, function_name)
 
-            # Record tokens saved
             if len(optimized_result) < len(result):
                 tokens_saved = optimization_utils.estimate_tokens(result) - optimization_utils.estimate_tokens(optimized_result)
                 optimization.record_tokens_saved(tokens_saved)
                 log(f"✓ Optimized output: saved ~{tokens_saved} tokens")
 
-            # Cache the result if appropriate
             if optimization_utils.should_cache_tool(function_name):
                 optimization.cache_tool_output(function_name, tool_args, optimized_result)
 
@@ -2012,7 +1743,6 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
     if not tool_info:
         return f"Error: Tool '{tool_name}' for function '{function_name}' not found in mcpServers config."
 
-    # --- THREAD SAFETY: Acquire lock for this specific tool ---
     with _mcp_tool_locks_lock:
         if tool_name not in _mcp_tool_locks:
             _mcp_tool_locks[tool_name] = threading.Lock()
@@ -2021,7 +1751,6 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
     with tool_lock:
         process = mcp_tool_processes.get(tool_name)
 
-        # If process doesn't exist or has terminated, start a new one
         if process is None or process.poll() is not None:
             if process is not None:
                 log(f"Process for tool '{tool_name}' has terminated. Restarting.")
@@ -2044,7 +1773,6 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                 )
                 mcp_tool_processes[tool_name] = process
 
-                # Perform MCP handshake
                 mcp_init_request = {
                     "jsonrpc": "2.0", "id": 0, "method": "initialize",
                     "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "gemini-proxy", "version": "1.0.0"}}
@@ -2066,7 +1794,6 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                     del mcp_tool_processes[tool_name]
                 return error_message
 
-        # At this point, `process` should be a valid, running Popen object
         try:
             with mcp_request_id_lock:
                 call_id = mcp_request_id_counter
@@ -2089,14 +1816,11 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
             process.stdin.write(json.dumps(mcp_call_request) + "\n")
             process.stdin.flush()
 
-            # Read stdout/stderr until we get a response with the matching ID or timeout
             deadline = time.time() + 120
             while time.time() < deadline:
-                # Watch both stdout and stderr to prevent stderr buffer from filling up and causing a deadlock
                 ready_to_read, _, _ = select.select([process.stdout, process.stderr], [], [], 0.5)
 
                 if not ready_to_read:
-                    # If select times out, check if the process has terminated
                     if process.poll() is not None:
                         print(f"Tool '{tool_name}' process terminated while waiting for response.")
                         stderr_output = process.stderr.read()
@@ -2105,18 +1829,16 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                         if tool_name in mcp_tool_processes:
                             del mcp_tool_processes[tool_name]
                         return f"Error: Tool '{tool_name}' terminated unexpectedly."
-                    continue  # Continue waiting for I/O
+                    continue
 
-                # Drain stderr to prevent blocking
                 if process.stderr in ready_to_read:
                     err_line = process.stderr.readline()
                     if err_line:
                         print(f"Warning (stderr from '{tool_name}'): {err_line.strip()}")
 
-                # Process stdout for the response
                 if process.stdout in ready_to_read:
                     line = process.stdout.readline()
-                    if not line:  # EOF
+                    if not line:
                         print(f"Tool '{tool_name}' process closed stdout. Assuming termination.")
                         if tool_name in mcp_tool_processes:
                             del mcp_tool_processes[tool_name]
@@ -2134,13 +1856,11 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                         if response.get("id") == call_id:
                             if "result" in response:
                                 content = response["result"].get("content", [])
-                                # If the content is purely text, concatenate it and return a single string.
                                 is_all_text = content and all(item.get("type") == "text" for item in content)
                                 if is_all_text:
                                     result_text = "".join(item.get("text", "") for item in content)
                                     return result_text
 
-                                # For all other cases (mixed content, structured data), return the entire result object as a JSON string.
                                 return json.dumps(response["result"])
                             elif "error" in response:
                                 return f"MCP Error: {response['error'].get('message', 'Unknown error')}"
@@ -2150,13 +1870,11 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                         print(f"Warning: Could not decode JSON from tool '{tool_name}': {line}")
                         continue
 
-            # Timeout occurred
             return f"Error: Function '{function_name}' timed out after 120 seconds."
 
         except Exception as e:
             error_message = f"An unexpected error occurred while executing function '{function_name}': {e}"
             print(error_message)
-            # If a major error occurs, it's safer to terminate the process
             try:
                 if process.poll() is None:
                     process.terminate()
@@ -2167,11 +1885,7 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
             return error_message
 
 def cleanup_orig_files():
-    """
-    Recursively searches and removes *.orig files created during patch application.
-    """
     project_root = get_project_root()
-    # Use os .walk for robustness across platforms
     for root, _, files in os.walk(project_root):
         for filename in files:
             if filename.endswith('.orig'):
