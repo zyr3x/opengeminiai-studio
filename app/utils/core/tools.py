@@ -320,7 +320,7 @@ def format_message_parts_for_ui(db_parts_json: str, use_html_tags: bool = True) 
                     text_parts.append(formatted_output)
         message_data['content'] = " ".join(text_parts).strip()
     except (json.JSONDecodeError, TypeError) as e:
-        logging.log(f"Error parsing message parts for UI: {e}. Raw parts: {db_parts_json}")
+        log(f"Error parsing message parts for UI: {e}. Raw parts: {db_parts_json}")
         message_data['content'] = f"Error displaying message: {e}"
     return message_data
 def prepare_message_parts_for_gemini(db_parts_json: str) -> list:
@@ -338,12 +338,12 @@ def prepare_message_parts_for_gemini(db_parts_json: str) -> list:
                         "inline_data": {"mime_type": part['file_data']['mime_type'], "data": file_base64}
                     })
                 else:
-                    logging.log(f"File not found when preparing for Gemini API: {file_path}")
+                    log(f"File not found when preparing for Gemini API: {file_path}")
                     reconstructed_parts.append({"text": f"[File not found: {os.path.basename(file_path)}]"})
             else:
                 reconstructed_parts.append(part)
     except (json.JSONDecodeError, TypeError) as e:
-        logging.log(f"Error preparing message parts for Gemini API: {e}. Raw parts: {db_parts_json}")
+        log(f"Error preparing message parts for Gemini API: {e}. Raw parts: {db_parts_json}")
         reconstructed_parts.append({"text": f"Error preparing message: {e}"})
     return reconstructed_parts
 
