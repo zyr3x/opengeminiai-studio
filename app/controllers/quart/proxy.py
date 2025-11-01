@@ -460,7 +460,6 @@ async def async_chat_completions():
             }
         }
         return jsonify(error_response), 500
-
 @async_proxy_bp.route('/v1/models', methods=['GET'])
 async def async_list_models():
     if not config.API_KEY:

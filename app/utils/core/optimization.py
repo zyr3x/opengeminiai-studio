@@ -68,7 +68,6 @@ def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_
                     output_tokens = output_tokens + ?
                 WHERE date = ? AND key_hash = ? AND model_name = ?
             """, (input_tokens, output_tokens, today, key_hash, model_name))
-
             if cursor.rowcount == 0:
                 cursor.execute("""
                     INSERT INTO token_usage (date, key_hash, model_name, input_tokens, output_tokens)
@@ -96,13 +95,11 @@ def get_key_token_stats() -> List[Dict]:
                 FROM token_usage
                 GROUP BY key_hash, model_name
             """).fetchall()
-
             for row in results:
                 key_hash = row['key_hash']
                 model_name = row['model_name']
                 input_t = row['input_tokens']
                 output_t = row['output_tokens']
-
                 if key_hash not in stats:
                     stats[key_hash] = {
                         'key_id': key_hash,
@@ -288,7 +285,6 @@ class CachedContext:
         self.created_at = created_at
         self.ttl = ttl
         self.last_used = created_at
-
     def is_expired(self) -> bool:
         return time.time() - self.created_at > self.ttl
     def touch(self):
@@ -325,7 +321,6 @@ def create_cached_context(
             },
             timeout=30
         )
-
         if response.status_code == 200:
             cache_data = response.json()
             cache_id = cache_data.get("name")
@@ -340,7 +335,6 @@ def create_cached_context(
         else:
             print(f"Failed to create cached context: {response.status_code} {response.text}")
             return None
-
     except Exception as e:
         print(f"Error creating cached context: {e}")
         return None

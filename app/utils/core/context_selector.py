@@ -96,7 +96,6 @@ def select_relevant_messages(
         score = calculate_relevance(msg, keywords)
         if score >= min_relevance:
             scored_messages.append((score, idx, msg))
-
     scored_messages.sort(reverse=True, key=lambda x: x[0])
     current_tokens = estimate_token_count(result + recent_messages)
     target_tokens = max_tokens * 0.8
@@ -125,7 +124,6 @@ def smart_context_window(
         return messages
     if len(messages) <= 1:
         return messages
-    # Apply selective context
     selected = select_relevant_messages(
         messages=messages,
         current_query=current_query,
