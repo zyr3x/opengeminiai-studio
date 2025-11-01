@@ -9,15 +9,6 @@ from app.utils.core import tools as utils, logging
 
 MAX_MULTIMODAL_FILE_SIZE_MB = 12
 MAX_MULTIMODAL_FILE_SIZE = MAX_MULTIMODAL_FILE_SIZE_MB * 1024 * 1024
-AGENT_PROMPTS = {}
-AGENT_PROMPTS_PATH = 'etc/prompt/agent/default.json'
-def _load_agent_prompts():
-    global AGENT_PROMPTS
-    if not AGENT_PROMPTS:
-        from app.utils.core.config_loader import load_json_file
-        AGENT_PROMPTS = load_json_file(AGENT_PROMPTS_PATH, default={})
-        if AGENT_PROMPTS:
-            logging.log(f"Agent prompts loaded from {AGENT_PROMPTS_PATH}")
 def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
     command_end = current_match.end()
     next_match_start = len(content) if (i + 1 >= len(all_matches)) else all_matches[i + 1].start()
@@ -112,9 +103,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                         logging.log(
                             f"Error listing documentation files for {feature_name} in {feature_docs_path}: {e}")
 
-            _load_agent_prompts()
-
-            prompt_data = AGENT_PROMPTS.get(project_mode)
+            prompt_data = utils.agent_prompts.get(project_mode)
             if not prompt_data:
                 logging.log(f"Warning: project_mode '{project_mode}' not found. Defaulting to 'feature'.")
                 project_mode = 'feature'

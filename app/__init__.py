@@ -14,6 +14,7 @@ def _init_common():
     mcp_handler.load_mcp_config()
     utils.load_prompt_config()
     utils.load_system_prompt_config()
+    utils.load_agent_prompt_config()
 def create_flask_app(app: Flask):
     _init_common()
     from app.controllers.flask.proxy import proxy_bp

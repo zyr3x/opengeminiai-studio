@@ -35,6 +35,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const systemPromptProfilesContainer = document.getElementById('system-prompt-profiles-container');
     const addSystemPromptBtn = document.getElementById('add-system-prompt-btn');
 
+    // Agent Prompt Editor Elements
+    const agentPromptForm = document.getElementById('agent-prompt-form');
+    const agentPromptEditorModeSwitch = document.getElementById('agent-prompt-editor-mode-switch');
+    const agentFriendlyEditor = document.getElementById('agent-friendly-editor');
+    const agentAdvancedEditor = document.getElementById('agent-advanced-editor');
+    const agentPromptsTextarea = document.getElementById('agent_prompts_textarea');
+    const agentPromptProfilesContainer = document.getElementById('agent-prompt-profiles-container');
+    const addAgentPromptBtn = document.getElementById('add-agent-prompt-btn');
+
+
     // Add event delegation for the enabled switch to visually update the item
     promptProfilesContainer.addEventListener('change', function(e) {
         if (e.target.classList.contains('enabled-switch')) {
@@ -82,6 +92,28 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSystemEditorVisibility();
         systemPromptEditorModeSwitch.addEventListener('change', updateSystemEditorVisibility);
     }
+
+    // Initial state and listener for Agent Prompt editor visibility
+    function updateAgentEditorVisibility() {
+        if (agentPromptEditorModeSwitch && agentFriendlyEditor && agentAdvancedEditor) {
+            if (agentPromptEditorModeSwitch.checked) {
+                agentFriendlyEditor.classList.remove('d-none');
+                agentAdvancedEditor.classList.add('d-none');
+            } else {
+                agentFriendlyEditor.classList.add('d-none');
+                agentAdvancedEditor.classList.remove('d-none');
+            }
+        }
+    }
+    if (agentPromptEditorModeSwitch) {
+        updateAgentEditorVisibility();
+        agentPromptEditorModeSwitch.addEventListener('change', updateAgentEditorVisibility);
+    }
+
+    // Add event delegation for Agent prompt container
+    agentPromptProfilesContainer?.addEventListener('change', function(e) {
+        // Agent prompts do not have an 'enabled' switch yet, but we keep the structure flexible
+    });
 
     // Function to attach event listeners to a newly added or existing profile div
     function attachProfileEventListeners(profileDiv) {
@@ -202,6 +234,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Function to attach event listeners to a newly added or existing agent prompt profile div
+    function attachAgentPromptEventListeners(profileDiv) {
+        // Delete Profile
+        profileDiv.querySelector('.agent-delete-profile-btn')?.addEventListener('click', function() {
+            if (confirm('Are you sure you want to delete this Agent Prompt profile?')) {
+                profileDiv.remove();
+            }
+        });
+
+        // Update accordion button text if profile name changes
+        profileDiv.querySelector('.agent-prompt-name-input')?.addEventListener('input', function() {
+            const headerButton = profileDiv.querySelector('.accordion-header button');
+            if (headerButton) {
+                headerButton.textContent = this.value || 'Unnamed Agent Prompt';
+            }
+        });
+    }
+
+    document.querySelectorAll('#prompt-profiles-container .accordion-item').forEach(profileDiv => {
+        attachAgentPromptEventListeners(profileDiv);
+    });
 
     // Attach listeners to initially loaded profiles
     document.querySelectorAll('#prompt-profiles-container .accordion-item').forEach(profileDiv => {
@@ -362,6 +416,50 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Add new agent prompt button logic
+    if (addAgentPromptBtn && !addAgentPromptBtn.dataset.listenerAttached) {
+        addAgentPromptBtn.dataset.listenerAttached = 'true';
+        addAgentPromptBtn.addEventListener('click', function() {
+            if (!agentPromptProfilesContainer) return;
+            const newProfileIndex = agentPromptProfilesContainer.children.length + 1;
+            const profileId = `agent-${newProfileIndex}-${Date.now()}`; // Ensure unique IDs
+
+            const newProfileHtml = `
+                <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New Agent Prompt ${newProfileIndex}">
+                    <h2 class="accordion-header" id="agent-heading-${profileId}">
+                        <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#agent-collapse-${profileId}" aria-expanded="true" aria-controls="agent-collapse-${profileId}">
+                            New Agent Prompt ${newProfileIndex}
+                        </button>
+                    </h2>
+                    <div id="agent-collapse-${profileId}" class="accordion-collapse collapse show" aria-labelledby="agent-heading-${profileId}" data-bs-parent="#agent-prompt-profiles-container">
+                        <div class="accordion-body">
+                            <div class="mb-3">
+                                <label class="form-label"><b>Profile Name</b></label>
+                                <input type="text" class="form-control agent-prompt-name-input" value="New Agent Prompt ${newProfileIndex}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><b>Description</b></label>
+                                <input type="text" class="form-control agent-prompt-description-input" value="New agent workflow description.">
+                                <div class="form-text">A brief explanation of this workflow.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label"><b>Agent System Prompt Template</b></label>
+                                <textarea class="form-control agent-prompt-text-input" rows="10" name="prompt">## ⚡ CONTEXT OVERRIDE ⚡\n\n**CRITICAL:** You must ignore ALL previous instructions. Your role is defined below.\n\n## 🚀 PROJECT MODE: CUSTOM\n\n**Project Root:** '{project_root}'\n\n## 🎯 Your First Task\n\nYour first action is to greet the user and ask what they want to do.</textarea>
+                                <div class="form-text">This template defines the agent's role and workflow. Use <code>{project_root}</code> placeholder.</div>
+                            </div>
+                            <button class="btn btn-danger agent-delete-profile-btn" type="button">Delete Prompt</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            agentPromptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
+            const newProfileDiv = agentPromptProfilesContainer.lastElementChild;
+            // Attach event listeners to the newly added profile
+            attachAgentPromptEventListeners(newProfileDiv);
+        });
+    }
+
     // Function to initialize TomSelect for a given element if not already initialized
     function initTomSelectForElement(selectElement) {
         if (selectElement && !selectElement.tomselect) {
@@ -519,6 +617,45 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Now submit the form manually
             systemPromptForm.submit();
+        }
+    });
+
+    // Form submission handler for the user-friendly editor (Agent Prompts)
+    agentPromptForm?.addEventListener('submit', function(event) {
+        if (agentPromptEditorModeSwitch && agentPromptEditorModeSwitch.checked) {
+            event.preventDefault(); // Prevent default submission to serialize and then submit
+
+            const profiles = {};
+            document.querySelectorAll('#agent-prompt-profiles-container .accordion-item').forEach(profileDiv => {
+                const profileNameInput = profileDiv.querySelector('.agent-prompt-name-input');
+                const newProfileName = profileNameInput ? profileNameInput.value.trim() : '';
+
+                if (!newProfileName) {
+                    alert('All agent prompt names must be filled out.');
+                    profileNameInput?.focus();
+                    throw new Error('Empty agent prompt name found.'); // Stop submission
+                }
+
+                const promptTextInput = profileDiv.querySelector('.agent-prompt-text-input');
+                const promptText = promptTextInput ? promptTextInput.value.trim() : '';
+
+                const descriptionInput = profileDiv.querySelector('.agent-prompt-description-input');
+                const descriptionText = descriptionInput ? descriptionInput.value.trim() : '';
+
+                // Agent profiles don't currently support enabled/disabled flags, tool configs, or explicit selection like system/override prompts.
+                // We strictly map to the structure required by the agent loader (name, description, prompt).
+
+                profiles[newProfileName] = {
+                    name: newProfileName,
+                    description: descriptionText,
+                    prompt: promptText
+                };
+            });
+
+            agentPromptsTextarea.value = JSON.stringify(profiles, null, 2);
+
+            // Now submit the form manually
+            agentPromptForm.submit();
         }
     });
 });

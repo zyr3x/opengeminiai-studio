@@ -14,6 +14,8 @@ PROMPT_OVERRIDES_FILE = 'var/config/prompt.json'
 prompt_overrides = {}
 SYSTEM_PROMPTS_FILE = 'var/config/system_prompts.json'
 system_prompts = {}
+AGENT_PROMPTS_FILE = 'var/config/agent_prompts.json'
+agent_prompts = {}
 cached_models_response = None
 model_info_cache = {}
 TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95
@@ -68,6 +70,28 @@ def load_system_prompt_config():
             system_prompts = {}
     else:
         system_prompts = {}
+def load_agent_prompt_config():
+    global agent_prompts
+    from app.utils.core.prompt_loader import load_default_agent_prompts
+
+    default_prompts = load_default_agent_prompts()
+    agent_prompts = default_prompts
+
+    if os.path.exists(AGENT_PROMPTS_FILE):
+        try:
+            with open(AGENT_PROMPTS_FILE, 'r') as f:
+                user_prompts = json.load(f)
+
+            # Merge user prompts into defaults, prioritizing user changes
+            agent_prompts.update(user_prompts)
+
+            log(f"Agent prompts loaded/overridden from {AGENT_PROMPTS_FILE}. "
+                f"Total {len(agent_prompts)} profiles loaded.")
+        except (json.JSONDecodeError, IOError) as e:
+            log(f"Error loading agent prompts override: {e}. Using default/partial config.")
+    else:
+        log("No agent prompt override file found. Using default configuration.")
+
 def _process_image_url(image_url: dict) -> dict | None:
     url = image_url.get("url")
     if not url:

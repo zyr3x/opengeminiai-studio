@@ -40,6 +40,20 @@ def get_index_context():
         except json.JSONDecodeError:
             pass
 
+    current_agent_prompts_str = ""
+    if os.path.exists(utils.AGENT_PROMPTS_FILE):
+        with open(utils.AGENT_PROMPTS_FILE, 'r') as f:
+            current_agent_prompts_str = f.read()
+
+    from app.utils.core.prompt_loader import load_default_agent_prompts
+    default_agent_prompts = load_default_agent_prompts()
+    agent_prompt_profiles = default_agent_prompts
+    if current_agent_prompts_str.strip():
+        try:
+            agent_prompt_profiles = json.loads(current_agent_prompts_str)
+        except json.JSONDecodeError:
+            pass
+
     default_mcp_config = load_json_file('etc/mcp/default.json')
     mcp_config_data = default_mcp_config
     if current_mcp_config_str.strip():
@@ -68,6 +82,8 @@ def get_index_context():
         'default_prompt_overrides_json': utils.pretty_json(default_prompt_overrides),
         'system_prompt_profiles': system_prompt_profiles, 'current_system_prompts_str': current_system_prompts_str,
         'default_system_prompts_json': utils.pretty_json(default_system_prompts),
+        'agent_prompt_profiles': agent_prompt_profiles, 'current_agent_prompts_str': current_agent_prompts_str,
+        'default_agent_prompts_json': utils.pretty_json(default_agent_prompts),
         'verbose_logging_status': config.VERBOSE_LOGGING,
         'debug_client_logging_status': config.DEBUG_CLIENT_LOGGING,
         'streaming_enabled': config.STREAMING_ENABLED,

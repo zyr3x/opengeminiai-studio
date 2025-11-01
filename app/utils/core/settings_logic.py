@@ -141,6 +141,19 @@ def handle_set_system_prompt_config(form):
     except ValueError as e:
         utils.log(f"Error: {e}")
         return e
+def handle_set_agent_prompt_config(form):
+    config_str = form.get('agent_prompts', '')
+    try:
+        utils.save_config_to_file(
+            config_str=config_str,
+            file_path=utils.AGENT_PROMPTS_FILE,
+            config_name="Agent prompts"
+        )
+        utils.load_agent_prompt_config()
+        return None
+    except ValueError as e:
+        utils.log(f"Error: {e}")
+        return e
 
 
 def handle_set_agent_settings(form):
