@@ -9,9 +9,7 @@ from app.utils.core import tool_config_utils
 from app.utils.quart import optimization, utils, mcp_handler as async_mcp_handler
 from app.utils.core import mcp_handler
 import traceback
-
 async_proxy_bp = Blueprint('proxy', __name__)
-
 @async_proxy_bp.route('/v1/chat/completions', methods=['POST'])
 async def async_chat_completions():
     if not config.API_KEY:

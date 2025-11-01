@@ -3,8 +3,6 @@ from app.utils.core import tools as utils, mcp_handler
 from app.utils.core.api_key_manager import api_key_manager
 from dotenv import set_key
 import os
-
-
 def handle_add_or_update_api_key(data):
     key_id = data.get('key_id')
     key_value = data.get('key_value')
@@ -20,7 +18,6 @@ def handle_add_or_update_api_key(data):
 
     utils.log(f"API Key '{key_id}' has been added/updated.")
     return {"message": f"API Key '{key_id}' processed successfully."}, 200
-
 def handle_set_active_api_key(data):
     key_id = data.get('key_id')
     if not key_id:
@@ -31,7 +28,6 @@ def handle_set_active_api_key(data):
         utils.log(f"Active API Key set to '{key_id}'.")
         return {"message": f"Active API Key set to '{key_id}'."}, 200
     return {"error": f"API Key ID '{key_id}' not found."}, 404
-
 def handle_delete_api_key(data):
     key_id = data.get('key_id')
     if not key_id:
@@ -42,7 +38,6 @@ def handle_delete_api_key(data):
         utils.log(f"API Key '{key_id}' has been deleted.")
         return {"message": f"API Key '{key_id}' deleted."}, 200
     return {"error": f"API Key ID '{key_id}' not found."}, 404
-
 def handle_set_api_key_form(form):
     new_key = form.get('api_key')
     if new_key:
@@ -51,14 +46,11 @@ def handle_set_api_key_form(form):
         utils.cached_models_response = None
         utils.model_info_cache.clear()
         utils.log("Caches cleared due to API key change.")
-
-
 def handle_set_logging(form):
     verbose_logging_enabled = form.get('verbose_logging') == 'on'
     debug_client_logging_enabled = form.get('debug_client_logging') == 'on'
     utils.set_verbose_logging(verbose_logging_enabled)
     utils.set_debug_client_logging(debug_client_logging_enabled)
-
 def handle_set_context_settings(form):
     selective_context_enabled = form.get('selective_context_enabled') == 'on'
     context_min_relevance_score = form.get('context_min_relevance_score', '0.3')
@@ -75,9 +67,7 @@ def handle_set_context_settings(form):
     config.CONTEXT_MIN_RELEVANCE_SCORE = float(context_min_relevance_score)
     config.CONTEXT_ALWAYS_KEEP_RECENT = int(context_always_keep_recent)
     config.MIN_CONTEXT_CACHING_TOKENS = int(min_context_caching_tokens)
-
     utils.log(f"Context settings updated: selective={selective_context_enabled}, min_score={context_min_relevance_score}, keep_recent={context_always_keep_recent}, min_cache_tokens={min_context_caching_tokens}")
-
 def handle_set_streaming_settings(form):
     streaming_enabled = form.get('streaming_enabled') == 'on'
     streaming_progress_enabled = form.get('streaming_progress_enabled') == 'on'
@@ -88,9 +78,7 @@ def handle_set_streaming_settings(form):
 
     config.STREAMING_ENABLED = streaming_enabled
     config.STREAMING_PROGRESS_ENABLED = streaming_progress_enabled
-
     utils.log(f"Streaming settings updated: enabled={streaming_enabled}, progress_enabled={streaming_progress_enabled}")
-
 def handle_set_security_settings(form):
     allowed_code_paths = form.get('allowed_code_paths', '').strip()
     max_code_injection_size_kb = form.get('max_code_injection_size_kb', '128')
@@ -109,10 +97,7 @@ def handle_set_security_settings(form):
         config.ALLOWED_CODE_PATHS = []
 
     config.MAX_CODE_INJECTION_SIZE_KB = int(max_code_injection_size_kb)
-
     utils.log(f"Security settings updated: allowed_code_paths={config.ALLOWED_CODE_PATHS}, max_code_injection_size_kb={config.MAX_CODE_INJECTION_SIZE_KB}")
-
-
 def handle_set_mcp_config(form):
     config_str = form.get('mcp_config', '')
     try:
@@ -126,13 +111,10 @@ def handle_set_mcp_config(form):
     except ValueError as e:
         utils.log(f"Error: {e}")
         return e
-
 def handle_set_mcp_general_settings(form):
     disable_all_tools_enabled = form.get('disable_all_mcp_tools') == 'on'
     mcp_handler.set_disable_all_mcp_tools(disable_all_tools_enabled)
     mcp_handler.load_mcp_config()
-
-
 def handle_set_prompt_config(form):
     config_str = form.get('prompt_overrides', '')
     try:
@@ -146,7 +128,6 @@ def handle_set_prompt_config(form):
     except ValueError as e:
         utils.log(f"Error: {e}")
         return e
-
 def handle_set_system_prompt_config(form):
     config_str = form.get('system_prompts', '')
     try:

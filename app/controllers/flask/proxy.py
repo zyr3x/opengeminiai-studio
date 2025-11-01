@@ -14,9 +14,7 @@ from app.utils.core.optimization_utils import can_execute_parallel
 
 import traceback
 from app.utils.core import file_processing_utils
-
 proxy_bp = Blueprint('proxy', __name__)
-
 @proxy_bp.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
     if not config.API_KEY:
@@ -470,7 +468,6 @@ def chat_completions():
         error_message = f"An error occurred: {str(e)}"
         error_response = {"error": {"message": error_message, "type": "server_error", "code": "500"}}
         return jsonify(error_response), 500
-
 @proxy_bp.route('/v1/models', methods=['GET'])
 def list_models():
     if not config.API_KEY:

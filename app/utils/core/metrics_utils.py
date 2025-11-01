@@ -2,14 +2,12 @@ from app.utils.core import optimization
 
 def get_view_metrics():
     metrics = optimization.get_metrics()
-
     phase2_metrics = {
         'connection_pool_active': optimization._http_session is not None,
         'rate_limiter_active': optimization._gemini_rate_limiter is not None,
         'thread_pool_active': optimization._tool_executor is not None,
         'cached_contexts_count': len(optimization._cached_contexts)
     }
-
     try:
         from app.utils.core import context_selector
         from app.config import config as app_config
@@ -25,7 +23,6 @@ def get_view_metrics():
             'selective_context_enabled': False,
             'error': f'Module not loaded: {str(e)}'
         }
-
     return {
         "status": "success",
         "phase": "3",

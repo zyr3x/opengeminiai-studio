@@ -9,20 +9,15 @@ from app.utils.quart.optimization import record_token_usage_async
 from app.utils.quart import utils as quart_utils
 from app.utils.quart import mcp_handler as async_mcp_handler
 from app.utils.core import chat_web_logic
-
 web_ui_chat_bp = Blueprint('web_ui_chat', __name__)
-
-
 @web_ui_chat_bp.route('/api/chats', methods=['GET'])
 def get_chats():
     chats = chat_db_utils.get_all_chats()
     return jsonify(chats)
-
 @web_ui_chat_bp.route('/api/chats', methods=['POST'])
 def create_chat():
     new_chat = chat_db_utils.create_new_chat()
     return jsonify(new_chat), 201
-
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>/title', methods=['PUT'])
 async def update_chat_title(chat_id):
     data = await request.json
@@ -35,17 +30,14 @@ async def update_chat_title(chat_id):
     except Exception as e:
         tools.log(f"Error updating title for chat {chat_id}: {e}")
         return jsonify({'error': str(e)}), 500
-
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>', methods=['DELETE'])
 def delete_chat(chat_id):
     chat_db_utils.delete_chat_and_files(chat_id)
     return jsonify({'success': True}), 200
-
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>/messages', methods=['GET'])
 def get_chat_messages(chat_id):
     formatted_messages = chat_db_utils.get_messages_for_chat(chat_id)
     return jsonify(formatted_messages)
-
 @web_ui_chat_bp.route('/api/messages/<int:message_id>', methods=['DELETE'])
 def delete_message(message_id):
     try:
@@ -54,7 +46,6 @@ def delete_message(message_id):
     except Exception as e:
         tools.log(f"Error deleting message {message_id}: {e}")
         return jsonify({'error': str(e)}), 500
-
 @web_ui_chat_bp.route('/api/generate_image', methods=['POST'])
 async def generate_image_api():
     form = await request.form
@@ -63,8 +54,6 @@ async def generate_image_api():
     prompt = form.get('prompt', '')
     result, status_code = chat_web_logic.generate_image_logic(chat_id, model, prompt)
     return jsonify(result), status_code
-
-
 @web_ui_chat_bp.route('/chat_api', methods=['POST'])
 async def chat_api():
     if not config.API_KEY:

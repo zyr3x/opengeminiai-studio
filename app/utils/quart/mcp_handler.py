@@ -15,9 +15,7 @@ from .optimization import (
     cache_tool_output,
     should_cache_tool
 )
-
 _async_context = threading.local()
-
 async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_root_override: str | None = None) -> str:
     log(f"🔧 Executing tool (async): {function_name} with args: {tool_args}")
 
@@ -26,7 +24,6 @@ async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_ro
         if cached_output is not None:
             log(f"✓ Cache hit for {function_name}")
             return cached_output
-
     try:
         loop = asyncio.get_event_loop()
         output = await loop.run_in_executor(
@@ -46,7 +43,6 @@ async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_ro
         error_msg = f"Error executing tool {function_name}: {str(e)}"
         log(error_msg)
         return json.dumps({"error": error_msg})
-
 def _format_tool_response_part(function_name: str, output: str) -> Dict[str, Any]:
     response_payload = {}
     if output:
@@ -61,8 +57,6 @@ def _format_tool_response_part(function_name: str, output: str) -> Dict[str, Any
             "response": response_payload
         }
     }
-
-
 async def execute_multiple_tools_async(
     tool_calls: List[Dict[str, Any]],
     project_root_override: str | None = None
@@ -72,7 +66,6 @@ async def execute_multiple_tools_async(
     response_parts = []
     if can_execute_parallel(tool_calls):
         log(f"✓ Executing {len(tool_calls)} tools in parallel")
-
         tasks = [
             execute_mcp_tool_async(tc['name'], tc['args'], project_root_override)
             for tc in tool_calls
@@ -89,10 +82,8 @@ async def execute_multiple_tools_async(
                 output = result
 
             response_parts.append(_format_tool_response_part(function_name, output))
-
     else:
         log(f"✓ Executing {len(tool_calls)} tools sequentially")
-
         for tool_call in tool_calls:
             function_name = tool_call['name']
             tool_args = tool_call['args']

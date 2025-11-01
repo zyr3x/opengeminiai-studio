@@ -14,10 +14,8 @@ from app.utils.core.optimization_utils import estimate_token_count
 
 _async_session: Optional[aiohttp.ClientSession] = None
 _session_lock = asyncio.Lock()
-
 async def get_async_session() -> aiohttp.ClientSession:
     global _async_session
-
     if _async_session is None or _async_session.closed:
         async with _session_lock:
             if _async_session is None or _async_session.closed:
@@ -32,15 +30,12 @@ async def get_async_session() -> aiohttp.ClientSession:
                     timeout=timeout,
                     connector=connector
                 )
-
     return _async_session
-
 async def close_async_session():
     global _async_session
     if _async_session and not _async_session.closed:
         await _async_session.close()
         _async_session = None
-
 async def process_image_url_async(image_url: dict) -> Optional[dict]:
     url = image_url.get("url")
     if not url:
@@ -81,7 +76,6 @@ async def process_image_url_async(image_url: dict) -> Optional[dict]:
     except Exception as e:
         log(f"Error processing image URL {url}: {e}")
         return None
-
 async def get_model_input_limit_async(model_name: str, api_key: str, upstream_url: str) -> int:
     if model_name in model_info_cache:
         return model_info_cache[model_name].get("inputTokenLimit", 8192)
@@ -90,7 +84,6 @@ async def get_model_input_limit_async(model_name: str, api_key: str, upstream_ur
         log(f"Cache miss for {model_name}. Fetching model details from API...")
         GEMINI_MODEL_INFO_URL = f"{upstream_url}/v1beta/models/{model_name}"
         params = {"key": api_key}
-
         session = await get_async_session()
         async with session.get(GEMINI_MODEL_INFO_URL, params=params) as response:
             response.raise_for_status()
@@ -110,9 +103,7 @@ async def make_request_with_retry_async(
 ) -> aiohttp.ClientResponse:
     retries = 2
     backoff_factor = 1.0
-
     session = await get_async_session()
-
     for i in range(retries):
         try:
             response = await session.post(
@@ -158,17 +149,12 @@ async def make_request_with_retry_async(
             else:
                 log(f"Connection/Timeout Error after final retry: {e}")
                 raise
-
     raise aiohttp.ClientError(f"All {retries} retries failed.")
-
-
 async def truncate_contents_async(contents: list, limit: int, current_query: str = None) -> list:
     estimated_tokens = estimate_token_count(contents)
     if estimated_tokens <= limit:
         return contents
-
     log(f"Estimated token count ({estimated_tokens}) exceeds limit ({limit}). Truncating...")
-
     from app.config import config as app_config
     if current_query and app_config.SELECTIVE_CONTEXT_ENABLED:
         try:
@@ -189,26 +175,20 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
                 log(f"⚠ Selective Context result still exceeds limit, falling back...")
         except Exception as e:
             log(f"Selective Context failed, falling back: {e}")
-
     from app.utils.core import optimization_utils
     truncated_contents = optimization_utils.smart_truncate_contents(contents, limit, keep_recent=5)
-
     if estimate_token_count(truncated_contents) > limit:
         log("Content still over limit after smart truncation, applying simple truncation...")
         final_truncated = truncated_contents.copy()
         while estimate_token_count(final_truncated) > limit and len(final_truncated) > 1:
             final_truncated.pop(1)
         truncated_contents = final_truncated
-
-
     final_tokens = estimate_token_count(truncated_contents)
     log(f"Truncation complete. Final estimated token count: {final_tokens}")
     return truncated_contents
-
 async def read_file_async(file_path: str, mode: str = 'r') -> str:
     async with aiofiles.open(file_path, mode) as f:
         return await f.read()
-
 async def write_file_async(file_path: str, content: str, mode: str = 'w'):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     async with aiofiles.open(file_path, mode) as f:

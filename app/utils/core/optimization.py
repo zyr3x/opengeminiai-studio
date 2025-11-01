@@ -15,10 +15,8 @@ from urllib3.util.retry import Retry
 _tool_output_cache = {}
 _cache_lock = threading.Lock()
 from app.utils.core.optimization_utils import get_cache_key
-
 CACHE_TTL = 300
 CACHE_MAX_SIZE = 100
-
 def clean_cache():
     global _tool_output_cache
     with _cache_lock:
@@ -37,28 +35,20 @@ def clean_cache():
                 key=lambda x: x[1][1]
             )
             _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
-
 def get_cached_tool_output(function_name: str, tool_args: dict) -> Optional[str]:
     clean_cache()
-
     cache_key = get_cache_key(function_name, tool_args)
     with _cache_lock:
         if cache_key in _tool_output_cache:
             output, timestamp = _tool_output_cache[cache_key]
             if time.time() - timestamp < CACHE_TTL:
                 return output
-
     return None
-
 def cache_tool_output(function_name: str, tool_args: dict, output: str):
     with _cache_lock:
         cache_key = get_cache_key(function_name, tool_args)
         _tool_output_cache[cache_key] = (output, time.time())
-
-
 _token_stats_lock = threading.Lock()
-
-
 def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_tokens: int):
     if not api_key or not model_name:
         return
@@ -91,8 +81,6 @@ def record_token_usage(api_key: str, model_name: str, input_tokens: int, output_
         finally:
             if conn:
                 conn.close()
-
-
 def get_key_token_stats() -> List[Dict]:
     stats = {}
     conn = None
@@ -135,9 +123,7 @@ def get_key_token_stats() -> List[Dict]:
         finally:
             if conn:
                 conn.close()
-
     return list(stats.values())
-
 def reset_token_stats():
     conn = None
     with _token_stats_lock:
@@ -150,7 +136,6 @@ def reset_token_stats():
         finally:
             if conn:
                 conn.close()
-
 _metrics_lock = threading.Lock()
 _metrics = {
     'cache_hits': 0,
@@ -160,29 +145,23 @@ _metrics = {
     'tool_calls_total': 0,
     'tool_calls_external': 0,
 }
-
 def record_tool_call(is_builtin: bool = True):
     with _metrics_lock:
         _metrics['tool_calls_total'] += 1
         if not is_builtin:
             _metrics['tool_calls_external'] += 1
-
 def record_cache_hit():
     with _metrics_lock:
         _metrics['cache_hits'] += 1
-
 def record_cache_miss():
     with _metrics_lock:
         _metrics['cache_misses'] += 1
-
 def record_tokens_saved(count: int):
     with _metrics_lock:
         _metrics['tokens_saved'] += count
-
 def record_optimization():
     with _metrics_lock:
         _metrics['requests_optimized'] += 1
-
 def get_metrics() -> dict:
     with _metrics_lock:
         total_cache_requests = _metrics['cache_hits'] + _metrics['cache_misses']
@@ -192,14 +171,11 @@ def get_metrics() -> dict:
 
     with _cache_lock:
         cache_size = len(_tool_output_cache)
-
-
     return {
         **metrics_copy,
         'cache_hit_rate': f"{cache_hit_rate:.1f}%",
         'cache_size': cache_size
     }
-
 def reset_metrics():
     global _metrics
     with _metrics_lock:
@@ -213,16 +189,12 @@ def reset_metrics():
         }
 
     reset_token_stats()
-
     with _cache_lock:
         _tool_output_cache.clear()
-
 _http_session = None
 _session_lock = threading.Lock()
-
 def get_http_session() -> requests.Session:
     global _http_session
-
     if _http_session is None:
         with _session_lock:
             if _http_session is None:
@@ -245,17 +217,13 @@ def get_http_session() -> requests.Session:
 
                 session.mount("http://", adapter)
                 session.mount("https://", adapter)
-
                 _http_session = session
-
     return _http_session
-
 def close_http_session():
     global _http_session
     if _http_session is not None:
         _http_session.close()
         _http_session = None
-
 class RateLimiter:
     def __init__(self, max_calls: int, period: int):
         self.max_calls = max_calls
@@ -268,10 +236,8 @@ class RateLimiter:
         def wrapper(*args, **kwargs):
             with self.lock:
                 now = time.time()
-
                 while self.calls and now - self.calls[0] >= self.period:
                     self.calls.popleft()
-
                 if len(self.calls) >= self.max_calls:
                     sleep_time = self.period - (now - self.calls[0]) + 0.01
                     if sleep_time > 0:
@@ -279,39 +245,28 @@ class RateLimiter:
                         now = time.time()
                         while self.calls and now - self.calls[0] >= self.period:
                             self.calls.popleft()
-
                 self.calls.append(time.time())
-
             return func(*args, **kwargs)
-
         return wrapper
-
     def wait_if_needed(self):
         with self.lock:
             now = time.time()
-
             while self.calls and now - self.calls[0] >= self.period:
                 self.calls.popleft()
-
             if len(self.calls) >= self.max_calls:
                 sleep_time = self.period - (now - self.calls[0]) + 0.01
                 if sleep_time > 0:
                     time.sleep(sleep_time)
-
 _gemini_rate_limiter = None
-
 def get_rate_limiter(max_calls: int = 60, period: int = 60) -> RateLimiter:
     global _gemini_rate_limiter
     if _gemini_rate_limiter is None:
         _gemini_rate_limiter = RateLimiter(max_calls, period)
     return _gemini_rate_limiter
-
 _tool_executor = None
 _executor_lock = threading.Lock()
-
 def get_tool_executor(max_workers: int = 5) -> ThreadPoolExecutor:
     global _tool_executor
-
     if _tool_executor is None:
         with _executor_lock:
             if _tool_executor is None:
@@ -319,18 +274,14 @@ def get_tool_executor(max_workers: int = 5) -> ThreadPoolExecutor:
                     max_workers=max_workers,
                     thread_name_prefix="tool_executor"
                 )
-
     return _tool_executor
-
 def shutdown_tool_executor():
     global _tool_executor
     if _tool_executor is not None:
         _tool_executor.shutdown(wait=True)
         _tool_executor = None
-
 _cached_contexts = {}
 _context_cache_lock = threading.Lock()
-
 class CachedContext:
     def __init__(self, cache_id: str, created_at: float, ttl: int = 3600):
         self.cache_id = cache_id
@@ -340,10 +291,8 @@ class CachedContext:
 
     def is_expired(self) -> bool:
         return time.time() - self.created_at > self.ttl
-
     def touch(self):
         self.last_used = time.time()
-
 def create_cached_context(
     api_key: str,
     upstream_url: str,
@@ -353,7 +302,6 @@ def create_cached_context(
 ) -> Optional[str]:
     try:
         cache_key = hashlib.md5(f"{model}:{system_instruction}".encode()).hexdigest()
-
         with _context_cache_lock:
             if cache_key in _cached_contexts:
                 cached = _cached_contexts[cache_key]
@@ -362,11 +310,8 @@ def create_cached_context(
                     return cached.cache_id
                 else:
                     del _cached_contexts[cache_key]
-
         session = get_http_session()
-
         ttl_seconds = max(60, ttl_minutes * 60)
-
         response = session.post(
             f"{upstream_url}/v1beta/cachedContents",
             headers={
@@ -384,7 +329,6 @@ def create_cached_context(
         if response.status_code == 200:
             cache_data = response.json()
             cache_id = cache_data.get("name")
-
             if cache_id:
                 with _context_cache_lock:
                     _cached_contexts[cache_key] = CachedContext(
@@ -392,7 +336,6 @@ def create_cached_context(
                         time.time(),
                         ttl_seconds
                     )
-
                 return cache_id
         else:
             print(f"Failed to create cached context: {response.status_code} {response.text}")
@@ -401,7 +344,6 @@ def create_cached_context(
     except Exception as e:
         print(f"Error creating cached context: {e}")
         return None
-
 def get_cached_context_id(
     api_key: str,
     upstream_url: str,
@@ -409,7 +351,6 @@ def get_cached_context_id(
     system_instruction: str
 ) -> Optional[str]:
     cache_key = hashlib.md5(f"{model}:{system_instruction}".encode()).hexdigest()
-
     with _context_cache_lock:
         if cache_key in _cached_contexts:
             cached = _cached_contexts[cache_key]
@@ -418,9 +359,7 @@ def get_cached_context_id(
                 return cached.cache_id
             else:
                 del _cached_contexts[cache_key]
-
     return create_cached_context(api_key, upstream_url, model, system_instruction)
-
 def clear_expired_contexts():
     with _context_cache_lock:
         expired = [
@@ -429,7 +368,6 @@ def clear_expired_contexts():
         ]
         for key in expired:
             del _cached_contexts[key]
-
 def cleanup_resources():
     close_http_session()
     shutdown_tool_executor()

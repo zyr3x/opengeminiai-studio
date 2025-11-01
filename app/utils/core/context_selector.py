@@ -13,22 +13,14 @@ MIN_KEYWORD_LENGTH = 3
 MAX_KEYWORDS = 20
 
 CONTEXT_SELECTOR_STOPWORDS_PATH = 'etc/context/selector/stop_words.json'
-
 def load_stop_words() -> list:
     return load_json_file(CONTEXT_SELECTOR_STOPWORDS_PATH, default=[])
-
-
 STOP_WORDS = load_stop_words()
-
-
 def extract_keywords(text: str) -> List[str]:
     if not text:
         return []
-
     text_lower = text.lower()
-
     tokens = re.findall(r'\b[a-zа-яё_][a-zа-яё0-9_]*\b', text_lower)
-
     filtered_tokens = [
         token for token in tokens
         if len(token) >= MIN_KEYWORD_LENGTH
@@ -38,21 +30,14 @@ def extract_keywords(text: str) -> List[str]:
 
     if not filtered_tokens:
         return []
-
     word_freq = Counter(filtered_tokens)
-
     top_keywords = [word for word, _ in word_freq.most_common(MAX_KEYWORDS)]
-
     return top_keywords
-
-
 def calculate_relevance(message: dict, keywords: List[str]) -> float:
     if not keywords:
         return 0.0
-
     parts = message.get('parts', [])
     text_parts = []
-
     for part in parts:
         if 'text' in part:
             text_parts.append(part['text'])
@@ -65,15 +50,11 @@ def calculate_relevance(message: dict, keywords: List[str]) -> float:
 
     if not text_parts:
         return 0.0
-
     full_text = ' '.join(text_parts).lower()
-
     if not full_text:
         return 0.0
-
     matches = 0
     total_keyword_occurrences = 0
-
     for keyword in keywords:
         pattern = r'\b' + re.escape(keyword) + r'\b'
         occurrences = len(re.findall(pattern, full_text))
@@ -83,16 +64,10 @@ def calculate_relevance(message: dict, keywords: List[str]) -> float:
 
     if matches == 0:
         return 0.0
-
     keyword_coverage = matches / len(keywords)
-
     density = min(total_keyword_occurrences / 5.0, 1.0)
-
     relevance_score = (keyword_coverage * 0.7) + (density * 0.3)
-
     return min(relevance_score, 1.0)
-
-
 def select_relevant_messages(
     messages: List[dict],
     current_query: str,
@@ -102,7 +77,6 @@ def select_relevant_messages(
 ) -> List[dict]:
     if len(messages) <= keep_recent + 1:
         return messages
-
     total_tokens = estimate_token_count(messages)
     if total_tokens <= max_tokens * 0.8:
         return messages
@@ -111,30 +85,22 @@ def select_relevant_messages(
 
     if not keywords:
         return messages[:1] + messages[-keep_recent:]
-
     result = [messages[0]]
-
     recent_messages = messages[-keep_recent:]
-
     middle_messages = messages[1:-keep_recent]
     
     if not middle_messages:
         return result + recent_messages
-
     scored_messages: List[Tuple[float, int, dict]] = []
-    
     for idx, msg in enumerate(middle_messages, start=1):
         score = calculate_relevance(msg, keywords)
         if score >= min_relevance:
             scored_messages.append((score, idx, msg))
 
     scored_messages.sort(reverse=True, key=lambda x: x[0])
-
     current_tokens = estimate_token_count(result + recent_messages)
     target_tokens = max_tokens * 0.8
-    
     selected_middle = []
-    
     for score, original_idx, msg in scored_messages:
         msg_tokens = estimate_token_count([msg])
         
@@ -148,10 +114,7 @@ def select_relevant_messages(
 
     result.extend([msg for _, msg in selected_middle])
     result.extend(recent_messages)
-    
     return result
-
-
 def smart_context_window(
     messages: List[dict],
     current_query: str,
@@ -160,10 +123,8 @@ def smart_context_window(
 ) -> List[dict]:
     if not enabled:
         return messages
-    
     if len(messages) <= 1:
         return messages
-    
     # Apply selective context
     selected = select_relevant_messages(
         messages=messages,
@@ -193,15 +154,12 @@ _stats = {
     'messages_filtered': 0,
     'tokens_saved': 0
 }
-
 def record_selective_context_stats(original_tokens: int, selected_tokens: int):
     global _stats
     _stats['total_calls'] += 1
     _stats['tokens_saved'] += (original_tokens - selected_tokens)
-
 def get_selective_context_stats() -> dict:
     return _stats.copy()
-
 def reset_selective_context_stats():
     global _stats
     _stats = {

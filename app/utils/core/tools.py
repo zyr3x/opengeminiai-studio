@@ -10,19 +10,13 @@ from urllib3.util import url
 from app.db import get_db_connection, UPLOAD_FOLDER
 from app.utils.core.logging import log, debug, set_verbose_logging, set_debug_client_logging
 from app.utils.core.config_loader import load_json_file, load_text_file_lines
-
-
 PROMPT_OVERRIDES_FILE = 'var/config/prompt.json'
 prompt_overrides = {}
-
 SYSTEM_PROMPTS_FILE = 'var/config/system_prompts.json'
 system_prompts = {}
-
 cached_models_response = None
 model_info_cache = {}
 TOKEN_ESTIMATE_SAFETY_MARGIN = 0.95
-
-
 def load_prompt_config():
     global prompt_overrides
     if os.path.exists(PROMPT_OVERRIDES_FILE):
@@ -49,7 +43,6 @@ def load_prompt_config():
             prompt_overrides = {}
     else:
         prompt_overrides = {}
-
 def load_system_prompt_config():
     global system_prompts
     if os.path.exists(SYSTEM_PROMPTS_FILE):
@@ -75,7 +68,6 @@ def load_system_prompt_config():
             system_prompts = {}
     else:
         system_prompts = {}
-
 def _process_image_url(image_url: dict) -> dict | None:
     url = image_url.get("url")
     if not url:
@@ -115,7 +107,6 @@ def _process_image_url(image_url: dict) -> dict | None:
     except Exception as e:
         log(f"Error processing image URL {url}: {e}")
         return None
-
 def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> int:
     if model_name in model_info_cache:
         return model_info_cache[model_name].get("inputTokenLimit", 8192)
@@ -134,14 +125,12 @@ def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> i
         return 8192
 
 from app.utils.core.optimization_utils import estimate_tokens, estimate_token_count
-
 def truncate_contents(contents: list, limit: int, current_query: str = None) -> list:
     estimated_tokens = estimate_token_count(contents)
     if estimated_tokens <= limit:
         return contents
 
     log(f"Estimated token count ({estimated_tokens}) exceeds limit ({limit}). Truncating...")
-
     from app import config as app_config
     if current_query and app_config.config.SELECTIVE_CONTEXT_ENABLED:
         try:
@@ -162,7 +151,6 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
                 log(f"⚠ Selective Context result still exceeds limit, falling back...")
         except Exception as e:
             log(f"Selective Context failed, falling back: {e}")
-
     truncated_contents = contents
     try:
         from app.utils.core import optimization_utils
@@ -177,15 +165,11 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
         while estimate_token_count(final_truncated) > limit and len(final_truncated) > 1:
             final_truncated.pop(1)
         truncated_contents = final_truncated
-
-
     final_tokens = estimate_token_count(truncated_contents)
     log(f"Truncation complete. Final estimated token count: {final_tokens}")
     return truncated_contents
-
 def pretty_json(data):
     return json.dumps(data, indent=2, ensure_ascii=False, default=str)
-
 def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bool = False, timeout: int = 300) -> requests.Response:
     from app.utils.flask import optimization
     session = optimization.get_http_session()
@@ -206,8 +190,6 @@ def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bo
     except requests.exceptions.RequestException as e:
         log(f"Request failed after retries: {e}")
         raise
-
-
 def save_config_to_file(config_str: str, file_path: str, config_name: str):
     if not config_str.strip():
         if os.path.exists(file_path):
@@ -224,16 +206,10 @@ def save_config_to_file(config_str: str, file_path: str, config_name: str):
     with open(file_path, 'w') as f:
         f.write(config_str.strip())
     log(f"{config_name} updated and saved to {file_path}.")
-
-
 DEFAULT_IGNORE_PATTERNS_PATH = 'etc/code_ignore_patterns.txt'
-
 def _load_default_ignore_patterns(path: str) -> list[str]:
     return load_text_file_lines(path, default=[])
-
-
 DEFAULT_CODE_IGNORE_PATTERNS: list[str] = _load_default_ignore_patterns(DEFAULT_IGNORE_PATTERNS_PATH)
-
 def load_code_ignore_patterns(project_root: str, filename: str = '.aiignore') -> list[str]:
         ignore_patterns = DEFAULT_CODE_IGNORE_PATTERNS[:]
         ignore_file_path = os.path.join(project_root, filename)
@@ -258,28 +234,17 @@ def load_code_ignore_patterns(project_root: str, filename: str = '.aiignore') ->
             if p not in seen:
                 unique_patterns.append(p)
                 seen.add(p)
-
         return unique_patterns
-
 EXTENSION_MAP_PATH = 'etc/extension_map.json'
-
 def _load_extension_map(path: str) -> dict[str, str]:
     return load_json_file(path, default={})
-
-
 EXTENSION_TO_LANGUAGE_MAP: dict[str, str] = _load_extension_map(EXTENSION_MAP_PATH)
-
-
 def get_code_language_from_filename(filename: str) -> str:
     if not filename:
         return 'text'
 
     _, ext = os.path.splitext(filename.lower())
-
     return EXTENSION_TO_LANGUAGE_MAP.get(ext, 'text')
-
-
-
 def format_tool_output_for_display(tool_parts: list, use_html_tags: bool = True) -> str | None:
     formatted_tool_outputs = []
     for tool_part in tool_parts:
@@ -320,9 +285,7 @@ def format_tool_output_for_display(tool_parts: list, use_html_tags: bool = True)
 
     if formatted_tool_outputs:
         return "".join(formatted_tool_outputs)
-
     return ""
-
 def add_message_to_db(chat_id: int, role: str, parts: list):
     conn = get_db_connection()
     cursor = conn.execute('INSERT INTO messages (chat_id, role, parts) VALUES (?, ?, ?)',
@@ -331,7 +294,6 @@ def add_message_to_db(chat_id: int, role: str, parts: list):
     conn.commit()
     conn.close()
     return message_id
-
 def format_message_parts_for_ui(db_parts_json: str, use_html_tags: bool = True) -> dict:
     message_data = {'content': '', 'files': []}
     try:
@@ -361,7 +323,6 @@ def format_message_parts_for_ui(db_parts_json: str, use_html_tags: bool = True) 
         logging.log(f"Error parsing message parts for UI: {e}. Raw parts: {db_parts_json}")
         message_data['content'] = f"Error displaying message: {e}"
     return message_data
-
 def prepare_message_parts_for_gemini(db_parts_json: str) -> list:
     reconstructed_parts = []
     try:

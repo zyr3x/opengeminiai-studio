@@ -9,11 +9,8 @@ from app.utils.core import tools as utils, logging
 
 MAX_MULTIMODAL_FILE_SIZE_MB = 12
 MAX_MULTIMODAL_FILE_SIZE = MAX_MULTIMODAL_FILE_SIZE_MB * 1024 * 1024
-
 AGENT_PROMPTS = {}
 AGENT_PROMPTS_PATH = 'etc/prompt/agent/default.json'
-
-
 def _load_agent_prompts():
     global AGENT_PROMPTS
     if not AGENT_PROMPTS:
@@ -21,12 +18,8 @@ def _load_agent_prompts():
         AGENT_PROMPTS = load_json_file(AGENT_PROMPTS_PATH, default={})
         if AGENT_PROMPTS:
             logging.log(f"Agent prompts loaded from {AGENT_PROMPTS_PATH}")
-
-
-
 def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
     command_end = current_match.end()
-
     next_match_start = len(content) if (i + 1 >= len(all_matches)) else all_matches[i + 1].start()
     search_region = content[command_end:next_match_start]
 
@@ -46,7 +39,6 @@ def _parse_ignore_patterns(content, current_match, all_matches, i) -> int:
         command_end += last_param_end
 
     return command_end
-
 def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, None, None] | tuple[
     list[Any], Any | None, str | None]:
     if not isinstance(content, str):
@@ -54,7 +46,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
 
     path_pattern = re.compile(r'(image|pdf|audio|code|project)_path=("[^"]+"|\'[^\']+\'|[^\s,;)]+)')
     matches = list(path_pattern.finditer(content))
-
     if not matches:
         return content, None, None
 
@@ -62,7 +53,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
     last_end = 0
     project_path_found = None
     system_context_text = None
-
     for i, match in enumerate(matches):
         start, end = match.span()
         if start > last_end:
@@ -85,10 +75,8 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
             last_end = command_end
             continue
         processed_paths.add(expanded_path)
-
         if file_type == 'project':
             project_path_found = expanded_path
-
             project_mode = 'feature'
             search_area = content[match.end():command_end]
             mode_match = re.search(r'\s+project_mode=([^\s]+)', search_area)
@@ -102,15 +90,12 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                 logging.log(f"Warning: project_mode '{project_mode}' not found. Defaulting to 'feature'.")
                 project_mode = 'feature'
                 prompt_data = AGENT_PROMPTS.get(project_mode)
-
             if prompt_data and prompt_data.get('prompt'):
                 prompt_template = prompt_data['prompt']
                 system_context_text = prompt_template.format(project_root=file_path_str)
             else:
                 logging.log(f"Warning: Could not load prompt for mode '{project_mode}'. No system context will be injected.")
                 system_context_text = None
-
-
             if not os.path.isdir(expanded_path):
                 project_path_found = None
                 system_context_text = None
@@ -119,7 +104,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
 
             last_end = command_end
             continue
-
         if file_type == 'code':
             if not os.path.exists(expanded_path):
                 logging.log(f"Code path not found: {expanded_path}")
@@ -129,13 +113,10 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                 })
                 last_end = command_end
                 continue
-
             code_files = []
             total_size = 0
             MAX_CODE_SIZE = config.MAX_CODE_INJECTION_SIZE_KB * 1024
-
             ignore_patterns = utils.DEFAULT_CODE_IGNORE_PATTERNS
-
             param_pattern = re.compile(r'\s+(ignore_type|ignore_file|ignore_dir)=([^\s]+)')
             search_region = content[end:command_end]
             for param_match in param_pattern.finditer(search_region):
@@ -147,7 +128,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                     ignore_patterns.extend([f"*.{p}" for p in patterns])
                 else:
                     ignore_patterns.extend(patterns)
-
             if os.path.isfile(expanded_path):
                 try:
                     size = os.path.getsize(expanded_path)
@@ -158,10 +138,8 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                         total_size = size
                 except Exception as e:
                     logging.log(f"Error reading code file {expanded_path}: {e}")
-
             elif os.path.isdir(expanded_path):
                 import fnmatch
-
                 for root, dirs, files in os.walk(expanded_path):
                     dirs[:] = [d for d in dirs if not any(
                         fnmatch.fnmatch(d, p) for p in ignore_patterns
@@ -170,10 +148,8 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                     for filename in files:
                         if filename.startswith('.'):
                             continue
-
                         filepath = os.path.join(root, filename)
                         rel_path = os.path.relpath(filepath, expanded_path)
-
                         if any(fnmatch.fnmatch(rel_path, p) or fnmatch.fnmatch(filename, p) 
                                for p in ignore_patterns):
                             continue
@@ -183,10 +159,8 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                             if total_size + size > MAX_CODE_SIZE:
                                 logging.log(f"Code injection size limit ({config.MAX_CODE_INJECTION_SIZE_KB} KB) reached. Stopping file collection.")
                                 break
-
                             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                                 content_data = f.read()
-                            
                             code_files.append((rel_path, content_data))
                             total_size += size
 
@@ -196,7 +170,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
 
                     if total_size > MAX_CODE_SIZE:
                         break
-
             if code_files:
                 code_parts = []
                 code_parts.append(
@@ -225,7 +198,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
 
             last_end = command_end
             continue
-
         if not os.path.exists(expanded_path):
             logging.log(f"Local file not found: {expanded_path}")
             new_content_parts.append({"type": "text", "text": content[start:command_end]})
@@ -245,7 +217,6 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                         mime_type = 'application/octet-stream'
                         if expanded_path.lower().endswith('.pdf'):
                             mime_type = 'application/pdf'
-
                     with open(expanded_path, 'rb') as f:
                         file_bytes = f.read()
                     encoded_data = base64.b64encode(file_bytes).decode('utf-8')
@@ -269,10 +240,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
                 logging.log(f"Error processing local file {expanded_path}: {e}")
                 new_content_parts.append(
                     {"type": "text", "text": content[start:command_end]})
-
         last_end = command_end
-
     if last_end < len(content):
         new_content_parts.append({"type": "text", "text": content[last_end:]})
-
     return new_content_parts, project_path_found, system_context_text
