@@ -3,12 +3,10 @@ import json
 import requests
 import base64
 import re
-import time
-import random
-from urllib3.util import url
 
 from app.db import get_db_connection, UPLOAD_FOLDER
-from app.utils.core.logging import log, debug, set_verbose_logging, set_debug_client_logging
+from app.utils.core import logging
+from app.utils.core.logging import log
 from app.utils.core.config_loader import load_json_file, load_text_file_lines
 
 
