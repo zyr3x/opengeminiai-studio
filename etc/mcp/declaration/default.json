@@ -289,5 +289,98 @@
             "type": "OBJECT",
             "properties": {}
         }
+    },
+    {
+        "name": "read_file_lines",
+        "description": "Reads specific lines from a file (inclusive range). More efficient than reading entire large files when you only need a section. Lines are shown with numbers.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["path"],
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Path to the file."
+                },
+                "start_line": {
+                    "type": "INTEGER",
+                    "description": "Starting line number (1-based, default: 1)."
+                },
+                "end_line": {
+                    "type": "INTEGER",
+                    "description": "Ending line number (inclusive, default: end of file)."
+                }
+            }
+        }
+    },
+    {
+        "name": "find_references",
+        "description": "Finds all references to a symbol (function, class, variable) across the codebase. Shows every file and line where the symbol appears. More comprehensive than find_symbol.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["symbol"],
+            "properties": {
+                "symbol": {
+                    "type": "STRING",
+                    "description": "Symbol name to search for (e.g., 'myFunction', 'MyClass', 'CONSTANT')."
+                },
+                "file_types": {
+                    "type": "STRING",
+                    "description": "Optional comma-separated file extensions to search (e.g., '.py,.js'). If omitted, searches all code files."
+                }
+            }
+        }
+    },
+    {
+        "name": "run_tests",
+        "description": "Automatically detects and runs tests using common frameworks (pytest, jest, go test, cargo test, npm test). Returns test results with pass/fail status.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "test_path": {
+                    "type": "STRING",
+                    "description": "Optional specific test file or directory to run (e.g., 'tests/test_auth.py')."
+                },
+                "pattern": {
+                    "type": "STRING",
+                    "description": "Optional test name pattern to filter tests (e.g., 'test_login*')."
+                },
+                "verbose": {
+                    "type": "BOOLEAN",
+                    "description": "If true, shows verbose test output with details for each test."
+                }
+            }
+        }
+    },
+    {
+        "name": "compare_files",
+        "description": "Compares two files and shows differences in unified diff format. Useful for understanding changes between versions or similar files.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["path1", "path2"],
+            "properties": {
+                "path1": {
+                    "type": "STRING",
+                    "description": "Path to first file."
+                },
+                "path2": {
+                    "type": "STRING",
+                    "description": "Path to second file."
+                }
+            }
+        }
+    },
+    {
+        "name": "get_file_outline",
+        "description": "Generates a structured outline/table of contents for a file showing all top-level definitions (functions, classes, methods) with line numbers. Python files show full AST analysis.",
+        "parameters": {
+            "type": "OBJECT",
+            "required": ["path"],
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Path to the file to outline."
+                }
+            }
+        }
     }
 ]

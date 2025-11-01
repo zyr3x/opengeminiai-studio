@@ -856,6 +856,334 @@ def get_dependencies() -> str:
         return "\n".join(results)
     except Exception as e:
         return f"Error getting dependencies: {e}"
+
+def read_file_lines(path: str, start_line: int = 1, end_line: int = None) -> str:
+    """Read specific lines from a file (inclusive range)"""
+    resolved_path = _safe_path_resolve(path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        return f"Error: File '{path}' not found or inaccessible."
+    if not os.path.isfile(resolved_path):
+        return f"Error: Path '{path}' is not a file."
+    
+    try:
+        start_line = max(1, int(start_line))
+        with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+        
+        total_lines = len(lines)
+        if end_line is None:
+            end_line = total_lines
+        else:
+            end_line = min(int(end_line), total_lines)
+        
+        if start_line > total_lines:
+            return f"Error: Start line {start_line} exceeds file length ({total_lines} lines)."
+        
+        selected_lines = lines[start_line-1:end_line]
+        _, extension = os.path.splitext(resolved_path)
+        lang = extension.lstrip('.') if extension else ''
+        
+        result = [
+            f"File: {path} (lines {start_line}-{end_line} of {total_lines})",
+            "=" * 60,
+            f"```{lang}"
+        ]
+        
+        for i, line in enumerate(selected_lines, start=start_line):
+            result.append(f"{i:4d} | {line.rstrip()}")
+        
+        result.append("```")
+        return "\n".join(result)
+    except Exception as e:
+        return f"Error reading file lines: {e}"
+
+def find_references(symbol: str, file_types: str = None) -> str:
+    """Find all references to a symbol (function, class, variable) across the codebase"""
+    try:
+        project_root = get_project_root()
+        ignore_patterns = get_code_ignore_patterns()
+        
+        if file_types:
+            allowed_extensions = [ext.strip() for ext in file_types.split(',')]
+        else:
+            allowed_extensions = ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.rb', '.php', '.kt', '.swift', '.jsx', '.tsx']
+        
+        results = []
+        results.append(f"🔍 Finding references to: '{symbol}'\n")
+        
+        found_items = []
+        for root, dirs, files in os.walk(project_root):
+            dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, p) for p in ignore_patterns)]
+            
+            for file in files:
+                ext = os.path.splitext(file)[1]
+                if ext not in allowed_extensions:
+                    continue
+                
+                filepath = os.path.join(root, file)
+                rel_path = os.path.relpath(filepath, project_root)
+                
+                if any(fnmatch.fnmatch(rel_path, p) for p in ignore_patterns):
+                    continue
+                
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = f.readlines()
+                        for line_num, line in enumerate(lines, 1):
+                            if symbol in line:
+                                found_items.append({
+                                    'file': rel_path,
+                                    'line': line_num,
+                                    'content': line.strip()
+                                })
+                except:
+                    pass
+        
+        if not found_items:
+            return f"❌ No references to '{symbol}' found in the project."
+        
+        from collections import defaultdict
+        by_file = defaultdict(list)
+        for item in found_items:
+            by_file[item['file']].append(item)
+        
+        results.append(f"✅ Found {len(found_items)} references in {len(by_file)} files:\n")
+        
+        for file, items in sorted(by_file.items())[:20]:
+            results.append(f"📄 {file} ({len(items)} references):")
+            for item in items[:3]:
+                results.append(f"  Line {item['line']}: {item['content'][:80]}")
+            if len(items) > 3:
+                results.append(f"  ... and {len(items) - 3} more in this file")
+            results.append("")
+        
+        if len(by_file) > 20:
+            results.append(f"... and {len(by_file) - 20} more files")
+        
+        return "\n".join(results)
+    except Exception as e:
+        return f"Error finding references: {e}"
+
+def run_tests(test_path: str = None, pattern: str = None, verbose: bool = False) -> str:
+    """Run tests using common test frameworks (pytest, jest, go test, cargo test, etc.)"""
+    try:
+        project_root = get_project_root()
+        
+        # Detect test framework
+        if os.path.exists(os.path.join(project_root, 'pytest.ini')) or \
+           os.path.exists(os.path.join(project_root, 'setup.py')) or \
+           os.path.exists(os.path.join(project_root, 'pyproject.toml')):
+            # Python pytest
+            cmd = ['pytest']
+            if verbose:
+                cmd.append('-v')
+            if test_path:
+                cmd.append(test_path)
+            if pattern:
+                cmd.extend(['-k', pattern])
+            framework = 'pytest'
+        
+        elif os.path.exists(os.path.join(project_root, 'package.json')):
+            # Node.js jest or npm test
+            try:
+                with open(os.path.join(project_root, 'package.json'), 'r') as f:
+                    pkg = json.load(f)
+                    if 'jest' in pkg.get('devDependencies', {}) or 'jest' in pkg.get('dependencies', {}):
+                        cmd = ['npm', 'run', 'test']
+                        framework = 'jest'
+                    else:
+                        cmd = ['npm', 'test']
+                        framework = 'npm test'
+            except:
+                cmd = ['npm', 'test']
+                framework = 'npm test'
+        
+        elif os.path.exists(os.path.join(project_root, 'go.mod')):
+            # Go tests
+            cmd = ['go', 'test']
+            if verbose:
+                cmd.append('-v')
+            if test_path:
+                cmd.append(test_path)
+            else:
+                cmd.append('./...')
+            framework = 'go test'
+        
+        elif os.path.exists(os.path.join(project_root, 'Cargo.toml')):
+            # Rust cargo test
+            cmd = ['cargo', 'test']
+            if verbose:
+                cmd.append('--verbose')
+            if pattern:
+                cmd.append(pattern)
+            framework = 'cargo test'
+        
+        else:
+            return "❌ No recognized test framework found (pytest, jest, go test, cargo test, etc.)"
+        
+        log(f"Running tests with {framework}: {' '.join(cmd)}")
+        
+        result = subprocess.run(
+            cmd,
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minutes timeout
+        )
+        
+        output_parts = [f"🧪 Test Results ({framework})", "=" * 60, ""]
+        
+        if result.returncode == 0:
+            output_parts.append("✅ All tests passed!")
+        else:
+            output_parts.append(f"❌ Tests failed (exit code: {result.returncode})")
+        
+        output_parts.append("")
+        
+        if result.stdout:
+            output_parts.append("STDOUT:")
+            output_parts.append(result.stdout)
+        
+        if result.stderr:
+            output_parts.append("\nSTDERR:")
+            output_parts.append(result.stderr)
+        
+        return "\n".join(output_parts)
+    
+    except subprocess.TimeoutExpired:
+        return f"❌ Tests timed out after 300 seconds"
+    except FileNotFoundError as e:
+        return f"❌ Test command not found: {e}. Please ensure the test framework is installed."
+    except Exception as e:
+        return f"Error running tests: {e}"
+
+def compare_files(path1: str, path2: str) -> str:
+    """Compare two files and show differences"""
+    resolved_path1 = _safe_path_resolve(path1)
+    resolved_path2 = _safe_path_resolve(path2)
+    
+    if not resolved_path1 or not os.path.exists(resolved_path1):
+        return f"Error: File '{path1}' not found or inaccessible."
+    if not resolved_path2 or not os.path.exists(resolved_path2):
+        return f"Error: File '{path2}' not found or inaccessible."
+    
+    try:
+        with open(resolved_path1, 'r', encoding='utf-8', errors='ignore') as f:
+            lines1 = f.readlines()
+        with open(resolved_path2, 'r', encoding='utf-8', errors='ignore') as f:
+            lines2 = f.readlines()
+        
+        import difflib
+        diff = difflib.unified_diff(
+            lines1, lines2,
+            fromfile=path1,
+            tofile=path2,
+            lineterm=''
+        )
+        
+        diff_text = '\n'.join(diff)
+        
+        if not diff_text:
+            return f"✅ Files are identical:\n  {path1}\n  {path2}"
+        
+        return f"📊 File Comparison:\n```diff\n{diff_text}\n```"
+    
+    except Exception as e:
+        return f"Error comparing files: {e}"
+
+def get_file_outline(path: str) -> str:
+    """Get a structured outline/table of contents for a file showing all top-level definitions"""
+    resolved_path = _safe_path_resolve(path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        return f"Error: File '{path}' not found or inaccessible."
+    if not os.path.isfile(resolved_path):
+        return f"Error: Path '{path}' is not a file."
+    
+    try:
+        _, ext = os.path.splitext(resolved_path)
+        
+        if ext == '.py':
+            # Python outline
+            with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            tree = ast.parse(content)
+            outline = []
+            outline.append(f"📋 File Outline: {path}")
+            outline.append("=" * 60)
+            outline.append("")
+            
+            for node in tree.body:
+                if isinstance(node, ast.FunctionDef):
+                    args = ", ".join(arg.arg for arg in node.args.args)
+                    decorators = ""
+                    if node.decorator_list:
+                        dec_names = [d.id if isinstance(d, ast.Name) else ast.unparse(d) for d in node.decorator_list]
+                        decorators = f"@{', @'.join(dec_names)} "
+                    outline.append(f"  📌 {decorators}def {node.name}({args})  [Line {node.lineno}]")
+                    docstring = ast.get_docstring(node)
+                    if docstring:
+                        first_line = docstring.split('\n')[0][:60]
+                        outline.append(f"     💬 {first_line}")
+                
+                elif isinstance(node, ast.ClassDef):
+                    bases = ", ".join(ast.unparse(base) for base in node.bases) if node.bases else ""
+                    outline.append(f"  🏗️  class {node.name}({bases})  [Line {node.lineno}]")
+                    docstring = ast.get_docstring(node)
+                    if docstring:
+                        first_line = docstring.split('\n')[0][:60]
+                        outline.append(f"     💬 {first_line}")
+                    
+                    # Show methods
+                    methods = [n for n in node.body if isinstance(n, ast.FunctionDef)]
+                    for method in methods[:10]:
+                        args = ", ".join(arg.arg for arg in method.args.args)
+                        outline.append(f"       • {method.name}({args})  [Line {method.lineno}]")
+                    if len(methods) > 10:
+                        outline.append(f"       ... and {len(methods) - 10} more methods")
+                
+                elif isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            outline.append(f"  📝 {target.id} = ...  [Line {node.lineno}]")
+            
+            return "\n".join(outline)
+        
+        else:
+            # Generic outline for other languages
+            with open(resolved_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+            
+            outline = []
+            outline.append(f"📋 File Outline: {path}")
+            outline.append("=" * 60)
+            outline.append("")
+            
+            patterns = [
+                (r'^\s*def\s+(\w+)', '  📌 def'),
+                (r'^\s*function\s+(\w+)', '  📌 function'),
+                (r'^\s*class\s+(\w+)', '  🏗️  class'),
+                (r'^\s*const\s+(\w+)', '  📝 const'),
+                (r'^\s*let\s+(\w+)', '  📝 let'),
+                (r'^\s*var\s+(\w+)', '  📝 var'),
+            ]
+            
+            for line_num, line in enumerate(lines, 1):
+                for pattern, prefix in patterns:
+                    match = re.match(pattern, line)
+                    if match:
+                        name = match.group(1)
+                        outline.append(f"{prefix} {name}  [Line {line_num}]")
+            
+            if len(outline) == 3:
+                outline.append("  (No recognizable structure found)")
+            
+            return "\n".join(outline)
+    
+    except SyntaxError as e:
+        return f"Error: File has syntax errors.\nLine {e.lineno}: {e.msg}"
+    except Exception as e:
+        return f"Error generating outline: {e}"
 BUILTIN_FUNCTIONS = {
     "list_files": list_files,
     "get_file_content": get_file_content,
@@ -875,7 +1203,12 @@ BUILTIN_FUNCTIONS = {
     "git_blame": git_blame,
     "list_recent_changes": list_recent_changes,
     "analyze_file_structure": analyze_file_structure,
-    "get_file_stats": get_file_stats
+    "get_file_stats": get_file_stats,
+    "read_file_lines": read_file_lines,
+    "find_references": find_references,
+    "run_tests": run_tests,
+    "compare_files": compare_files,
+    "get_file_outline": get_file_outline
 }
 BUILTIN_DECLARATIONS_PATH = 'etc/mcp/declaration/default.json'
 def load_builtin_declarations() -> list:
@@ -1369,6 +1702,41 @@ def execute_mcp_tool(function_name, tool_args, project_root_override: str | None
                         raise TypeError("Path argument is required.")
                     func_args['path'] = path
                 elif function_name == 'get_file_stats':
+                    path = normalized_args.get('path')
+                    if not path:
+                        raise TypeError("Path argument is required.")
+                    func_args['path'] = path
+                elif function_name == 'read_file_lines':
+                    path = normalized_args.get('path')
+                    if not path:
+                        raise TypeError("Path argument is required.")
+                    func_args['path'] = path
+                    if 'start_line' in normalized_args:
+                        func_args['start_line'] = normalized_args.get('start_line')
+                    if 'end_line' in normalized_args:
+                        func_args['end_line'] = normalized_args.get('end_line')
+                elif function_name == 'find_references':
+                    symbol = normalized_args.get('symbol')
+                    if not symbol:
+                        raise TypeError("Symbol argument is required.")
+                    func_args['symbol'] = symbol
+                    if 'file_types' in normalized_args:
+                        func_args['file_types'] = normalized_args.get('file_types')
+                elif function_name == 'run_tests':
+                    if 'test_path' in normalized_args:
+                        func_args['test_path'] = normalized_args.get('test_path')
+                    if 'pattern' in normalized_args:
+                        func_args['pattern'] = normalized_args.get('pattern')
+                    if 'verbose' in normalized_args:
+                        func_args['verbose'] = bool(normalized_args.get('verbose'))
+                elif function_name == 'compare_files':
+                    path1 = normalized_args.get('path1')
+                    path2 = normalized_args.get('path2')
+                    if not path1 or not path2:
+                        raise TypeError("Both path1 and path2 arguments are required.")
+                    func_args['path1'] = path1
+                    func_args['path2'] = path2
+                elif function_name == 'get_file_outline':
                     path = normalized_args.get('path')
                     if not path:
                         raise TypeError("Path argument is required.")

@@ -26,7 +26,17 @@ In a world of AI coding assistants, OpenGeminiAI Studio stands out by combining 
 Version 2.3 transforms OpenGeminiAI Studio into a powerful **AI-driven software developer**. With an expanded toolkit and deeper project understanding, it can now take on complex development tasks autonomously.
 
 -   **🤖 Full Agentic Capabilities**: With `project_path=`, the AI can now **write, modify, and create files** (`apply_patch`, `create_file`, `write_file`), **execute shell commands** (`execute_command` for tests, builds, and scripts), and perform **full git operations** (`git_diff`, `git_status`, etc.). It's not just a code assistant; it's an active development partner.
--   **🔬 Advanced Code Analysis**: New tools like `analyze_project_structure`, `find_symbol`, and `get_dependencies` give the AI a comprehensive understanding of your entire codebase, enabling more accurate and context-aware responses.
+-   **🎭 9 Specialized Agent Modes**: Choose the right AI persona for your task:
+    - `feature` - New feature development with strict planning workflow
+    - `fix` - Methodical bug hunting and fixing
+    - `refactor` - Code quality improvements while preserving functionality
+    - `review` - Comprehensive code review with security and performance analysis
+    - `test` - TDD/BDD test creation with framework auto-detection
+    - `optimize` - Data-driven performance optimization
+    - `research` - Codebase analysis and documentation (read-only)
+    - `documentation` - Technical documentation generation
+    - `feature_continue` - Resume work on existing features
+-   **🔬 Advanced Code Analysis**: 25 built-in tools including `find_references`, `get_file_outline`, `compare_files`, `run_tests`, and `read_file_lines` for surgical code inspection and manipulation.
 -   **✍️ Better Streaming & UI**: Text streaming is now more robust, preventing broken words and improving readability in the chat UI.
 -   **🔐 Enhanced Security & Control**: The `ALLOWED_CODE_PATHS` setting allows you to sandbox the AI's file system access to specific project directories, providing crucial security for your development environment.
 -   **🐛 Stability Fixes**: Resolved several async compatibility issues, improved session management, and streamlined tool execution logic for a more reliable experience.
@@ -58,11 +68,11 @@ Version 2.3 transforms OpenGeminiAI Studio into a powerful **AI-driven software 
     -   Both modes support custom ignore patterns: `ignore_dir=`, `ignore_file=`, `ignore_type=`
     -   See **[PATH_SYNTAX_GUIDE.md](PATH_SYNTAX_GUIDE.md)** for complete guide and examples.
 -   **Local File Injection:** Automatically embed local images, PDFs, and audio files in your prompts using syntax like `image_path=...`, `pdf_path=...`, `audio_path=...`.
--   **Built-in Development Tools (19 tools):** When using `project_path=`, AI gets access to a comprehensive toolkit:
-    -   **Navigation**: `list_files`, `get_file_content`, `get_code_snippet`, `search_codebase`
-    -   **Analysis**: `analyze_file_structure`, `analyze_project_structure`, `get_file_stats`, `find_symbol`, `get_dependencies`
+-   **Built-in Development Tools (25 tools):** When using `project_path=`, AI gets access to a comprehensive toolkit:
+    -   **Navigation**: `list_files`, `get_file_content`, `read_file_lines`, `get_code_snippet`, `search_codebase`, `get_file_outline`
+    -   **Analysis**: `analyze_file_structure`, `analyze_project_structure`, `get_file_stats`, `find_symbol`, `find_references`, `get_dependencies`, `compare_files`
     -   **Modification**: `apply_patch`, `create_file`, `write_file`
-    -   **Execution**: `execute_command` (run tests, builds, awk/sed/grep, any shell command with 5-min timeout)
+    -   **Execution**: `execute_command`, `run_tests`
     -   **Git Operations**: `git_status`, `git_log`, `git_diff`, `git_show`, `git_blame`, `list_recent_changes`
 -   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling. **Tools/functions can be explicitly selected or disabled via System Prompt and Prompt Override profiles.**
 -   **Native Google Tools:** Enable built-in Google tools like Search directly within your prompts for enhanced, real-time data retrieval.
