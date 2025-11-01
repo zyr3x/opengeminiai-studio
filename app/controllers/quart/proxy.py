@@ -37,6 +37,7 @@ async def async_chat_completions():
 
         project_context_tools_requested = False
         project_context_root = None
+        project_system_context_text = None
         full_prompt_text = ""
 
         if messages:
@@ -70,13 +71,14 @@ async def async_chat_completions():
                                 content = content.replace(find, replace)
 
                     if not disable_mcp_tools:
-                        processed_content, project_path_found = file_processing_utils.process_message_for_paths(
+                        processed_content, project_path_found, project_system_context = file_processing_utils.process_message_for_paths(
                             content, processed_code_paths
                         )
                         message['content'] = processed_content
                         if project_path_found:
                             project_context_tools_requested = True
                             if isinstance(project_path_found, str):
+                                project_system_context_text = project_system_context
                                 project_context_root = project_path_found
 
                 processed_messages.append(message)
@@ -88,7 +90,11 @@ async def async_chat_completions():
 
         gemini_contents = []
         if messages:
-            if messages[0].get("role") == "system" or 'JetBrains' in messages[0].get("content"):
+            if project_system_context_text:
+                system_instruction = {"parts": [{"text": project_system_context_text}]}
+                if 'JetBrains' in messages[0].get("content"):
+                    messages = messages[1:]
+            elif messages[0].get("role") == "system" or 'JetBrains' in messages[0].get("content"):
                 system_instruction = {"parts": [{"text": messages[0].get("content", "")}]}
                 messages = messages[1:]
 

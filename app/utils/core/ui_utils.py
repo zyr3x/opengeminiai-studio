@@ -78,6 +78,8 @@ def get_index_context():
         'min_context_caching_tokens': config.MIN_CONTEXT_CACHING_TOKENS,
         'allowed_code_paths': ','.join(config.ALLOWED_CODE_PATHS) if config.ALLOWED_CODE_PATHS else '',
         'max_code_injection_size_kb': config.MAX_CODE_INJECTION_SIZE_KB,
+        'agent_aux_model_enabled': config.AGENT_AUX_MODEL_ENABLED,
+        'agent_aux_model_name': config.AGENT_AUX_MODEL_NAME,
         'current_max_function_declarations': mcp_config_data.get("maxFunctionDeclarations",
                                                                  mcp_handler.max_function_declarations_limit),
         'current_disable_all_mcp_tools': mcp_handler.disable_all_mcp_tools,

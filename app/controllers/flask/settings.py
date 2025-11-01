@@ -37,3 +37,7 @@ def set_streaming_settings():
 def set_security_settings():
     settings_logic.handle_set_security_settings(request.form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
+@settings_bp.route('/set_agent_settings', methods=['POST'])
+def set_agent_settings():
+    settings_logic.handle_set_agent_settings(request.form)
+    return redirect(url_for('web_ui.index', _anchor='configuration'))

@@ -64,3 +64,10 @@ async def set_security_settings():
     form = await request.form
     settings_logic.handle_set_security_settings(form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
+
+
+@settings_bp.route('/set_agent_settings', methods=['POST'])
+async def set_agent_settings():
+    form = await request.form
+    settings_logic.handle_set_agent_settings(form)
+    return redirect(url_for('web_ui.index', _anchor='configuration'))

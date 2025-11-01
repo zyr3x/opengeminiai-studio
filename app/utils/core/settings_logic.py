@@ -141,3 +141,16 @@ def handle_set_system_prompt_config(form):
     except ValueError as e:
         utils.log(f"Error: {e}")
         return e
+
+
+def handle_set_agent_settings(form):
+    agent_aux_model_enabled = form.get('agent_aux_model_enabled') == 'on'
+    agent_aux_model_name = form.get('agent_aux_model_name', 'gemini-flash-latest')
+
+    env_file = '.env'
+    set_key(env_file, 'AGENT_AUX_MODEL_ENABLED', 'true' if agent_aux_model_enabled else 'false')
+    set_key(env_file, 'AGENT_AUX_MODEL_NAME', agent_aux_model_name)
+
+    config.AGENT_AUX_MODEL_ENABLED = agent_aux_model_enabled
+    config.AGENT_AUX_MODEL_NAME = agent_aux_model_name
+    utils.log(f"Agent settings updated: aux_model_enabled={agent_aux_model_enabled}, aux_model_name={agent_aux_model_name}")
