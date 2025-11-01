@@ -6,3 +6,4 @@
 /docs/ai/
 *.log
 .opengemini/
+.claude/
