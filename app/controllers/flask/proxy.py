@@ -1,6 +1,3 @@
-"""
-Flask routes for the OpenAI-compatible proxy endpoints.
-"""
 import json
 import os
 import time
@@ -12,7 +9,7 @@ from app.config import config
 from app.utils.flask import optimization
 from app.utils.core import mcp_handler, tools as utils
 from app.utils.core import tool_config_utils
-from app.utils.flask.optimization import record_token_usage # Import token usage tracking
+from app.utils.flask.optimization import record_token_usage
 from app.utils.core.optimization_utils import can_execute_parallel
 
 import traceback
@@ -22,9 +19,6 @@ proxy_bp = Blueprint('proxy', __name__)
 
 @proxy_bp.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
-    """
-    Handles chat completion requests, including tool calls for MCP servers.
-    """
     if not config.API_KEY:
         return jsonify({"error": {"message": "API key not configured. Please set it on the root page.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:
@@ -32,56 +26,47 @@ def chat_completions():
         utils.debug(f"Incoming Request: {utils.pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
 
-        # --- Prompt Engineering & Tool Control ---
         disable_mcp_tools = False
         enable_native_tools = False
         project_system_context_text = None
-        profile_selected_mcp_tools = [] # to store tools explicitly selected by profile
+        profile_selected_mcp_tools = []
 
-        # Global setting to disable all MCP tools takes highest precedence
         if mcp_handler.disable_all_mcp_tools:
             utils.log("All MCP tools globally disabled via general settings.")
             disable_mcp_tools = True
-            profile_selected_mcp_tools = [] # Clear any profile-selected tools
+            profile_selected_mcp_tools = []
 
         if messages:
-            # Identify prompt profile by checking for triggers in the combined text of all messages
             full_prompt_text = " ".join(
                 [m.get('content') for m in messages if isinstance(m.get('content'), str)]
             )
 
-            # Apply Prompt Engineering & Tool Control Overrides
             override_config = tool_config_utils.get_prompt_override_config(full_prompt_text)
             active_overrides = override_config['active_overrides']
 
-            # Apply profile flags
             if override_config['disable_mcp_tools_by_profile']:
                 disable_mcp_tools = True
 
             if override_config['enable_native_tools_by_profile']:
                 enable_native_tools = True
 
-            # The get_prompt_override_config function ensures this list is empty if disable_tools was true for the profile.
             if override_config['profile_selected_mcp_tools']:
                 profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
 
-            # Process all messages: apply overrides
             project_context_tools_requested = False
-            project_context_root = None  # Store the project root path for the entire request
+            project_context_root = None
             processed_messages = []
-            processed_code_paths = set()  # Track processed paths across all messages
+            processed_code_paths = set()
 
             for message in messages:
                 content = message.get('content')
 
                 if isinstance(content, str):
-                    # Apply overrides from the matched profile
                     if active_overrides:
                         for find, replace in active_overrides.items():
                             if find in content:
                                 content = content.replace(find, replace)
 
-                    # --- Handle local file paths like image_path=... and pdf_path=... ---
                     if not disable_mcp_tools:
                         processed_content, project_path_found, project_system_context = file_processing_utils.process_message_for_paths(
                             content, processed_code_paths
@@ -89,7 +74,6 @@ def chat_completions():
                         message['content'] = processed_content
                         if project_path_found:
                             project_context_tools_requested = True
-                            # If project_path_found is a string (path), save it for the entire request
                             if isinstance(project_path_found, str):
                                 project_system_context_text = project_system_context
                                 project_context_root = project_path_found
@@ -99,33 +83,28 @@ def chat_completions():
             messages = processed_messages
         else:
             full_prompt_text = ""
-        # --- End Prompt Engineering ---
 
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
         system_instruction = None
 
-        # Transform messages to Gemini format, merging consecutive messages of the same role
         gemini_contents = []
         if messages:
-            # Separate system instruction from other messages
             if project_system_context_text:
                 system_instruction = {"parts": [{"text": project_system_context_text}]}
                 if 'JetBrains' in messages[0].get("content"):
                     messages = messages[1:]
             elif messages[0].get("role") == "system" or 'JetBrains' in messages[0].get("content"):
                 system_instruction = {"parts": [{"text": messages[0].get("content", "")}]}
-                messages = messages[1:]  # Remove system message from list
+                messages = messages[1:]
 
-            # Map OpenAI roles to Gemini roles ('assistant' -> 'model', others -> 'user')
             mapped_messages = []
             for message in messages:
                 role = "model" if message.get("role") == "assistant" else "user"
                 content = message.get("content")
 
                 gemini_parts = []
-                # Content can be a string or a list of parts (for multimodal)
                 if isinstance(content, str):
-                    if content:  # Don't add empty messages
+                    if content:
                         gemini_parts.append({"text": content})
                 elif isinstance(content, list):
                     text_parts = []
@@ -133,7 +112,6 @@ def chat_completions():
                         if part.get("type") == "text":
                             text_parts.append(part.get("text", ""))
                         elif part.get("type") == "image_url":
-                            # If there is preceding text, add it as a single part before the image
                             if text_parts:
                                 gemini_parts.append({"text": "\n".join(text_parts)})
                                 text_parts = []
@@ -153,31 +131,26 @@ def chat_completions():
                                 }
                             })
 
-                    # Add any trailing text parts
                     if text_parts:
                         gemini_parts.append({"text": "\n".join(text_parts)})
 
                 if gemini_parts:
                     mapped_messages.append({"role": role, "parts": gemini_parts})
 
-            # Merge consecutive messages with the same role, as Gemini requires alternating roles
             if mapped_messages:
                 gemini_contents.append(mapped_messages[0])
                 for i in range(1, len(mapped_messages)):
                     if mapped_messages[i]['role'] == gemini_contents[-1]['role']:
-                        # Append parts instead of just text to handle images correctly
                         gemini_contents[-1]['parts'].extend(mapped_messages[i]['parts'])
                     else:
                         gemini_contents.append(mapped_messages[i])
 
-            # Post-process to merge consecutive text parts within each message for efficiency
             for content in gemini_contents:
                 original_parts = content.get('parts', [])
                 if len(original_parts) > 1:
                     merged_parts = []
                     text_buffer = []
                     for part in original_parts:
-                        # A part is a text part if it only contains the 'text' key.
                         is_text_part = 'text' in part and len(part) == 1
                         if is_text_part:
                             text_buffer.append(part['text'])
@@ -192,24 +165,18 @@ def chat_completions():
 
                     content['parts'] = merged_parts
 
-        # --- Token Management ---
-        # Get the token limit for the requested model
         token_limit = utils.get_model_input_limit(COMPLETION_MODEL, config.API_KEY, config.UPSTREAM_URL)
         safe_limit = int(token_limit * utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
 
-        # Use a generator function to handle the streaming response and tool calls
         def generate():
             current_contents = gemini_contents.copy()
             final_usage_metadata = {}
 
-            while True:  # Loop to handle sequential tool calls
-                # Truncate messages before each call to ensure they fit within the token limit
+            while True:
                 original_message_count = len(current_contents)
-                
-                # PHASE 3: Extract current query for selective context
+
                 current_query = ""
                 if current_contents:
-                    # Get the last user message
                     for msg in reversed(current_contents):
                         if msg.get('role') == 'user':
                             parts = msg.get('parts', [])
@@ -219,7 +186,7 @@ def chat_completions():
                                     break
                             if current_query:
                                 break
-                
+
                 current_contents = utils.truncate_contents(current_contents, safe_limit, current_query=current_query)
                 if len(current_contents) < original_message_count:
                     utils.log(f"Truncated conversation from {original_message_count} to {len(current_contents)} messages to fit context window.")
@@ -227,19 +194,14 @@ def chat_completions():
                 request_data = {
                     "contents": current_contents
                 }
-                
-                # --- OPTIMIZATION: Prompt Caching ---
-                # Attempt to use the cached context for the system instruction
+
                 cached_context_id = None
                 if system_instruction:
-                    # Extract system instruction text
                     system_text = ""
                     for part in system_instruction.get("parts", []):
                         if "text" in part:
                             system_text += part["text"]
 
-                    # Attempt to retrieve/create cached context, only for prompts that meet the minimum token count
-                    # This avoids API errors for prompts that are too short to be cached.
                     if system_text and utils.estimate_token_count([system_instruction]) >= config.MIN_CONTEXT_CACHING_TOKENS:
                         try:
                             cached_context_id = optimization.get_cached_context_id(
@@ -252,41 +214,33 @@ def chat_completions():
                                 utils.log(f"✓ Using cached context: {cached_context_id}")
                                 request_data["cachedContent"] = cached_context_id
                             else:
-                                # If caching fails (e.g., API error), use the normal instruction
                                 request_data["systemInstruction"] = system_instruction
                         except Exception as e:
                             utils.log(f"Failed to use cached context, falling back to normal: {e}")
                             request_data["systemInstruction"] = system_instruction
                     else:
-                        # If prompt is too short or empty, use the normal instruction
                         request_data["systemInstruction"] = system_instruction
 
-                # --- Tool Configuration ---
                 final_tools = []
                 mcp_declarations_to_use = None
 
-                # Built-in tools list (only function names)
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
-                # Priority for MCP tools:
                 if project_context_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
-                    # 1. If project_path= was used, force-enable built-in tools only.
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
                     utils.log(f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tool_names}")
                 elif not disable_mcp_tools and profile_selected_mcp_tools:
-                    # 2. If not disabled, check for profile-defined selected tools.
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
                     utils.log(f"Using MCP tools defined by prompt override profile: {profile_selected_mcp_tools}")
                 elif disable_mcp_tools:
                     utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
-                else:  # MCP tools are enabled, and no specific tools were selected. Use context-aware selection.
+                else:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
                     utils.log(f"MCP tools enabled. Using context-aware selection based on prompt.")
 
                 if mcp_declarations_to_use:
                     final_tools.extend(mcp_declarations_to_use)
 
-                # Add native Google tools if enabled
                 if enable_native_tools:
                     final_tools.append({"google_search": {}})
                     final_tools.append({"url_context": {}})
@@ -333,7 +287,6 @@ def chat_completions():
                     yield "data: [DONE]\n\n"
                     return
 
-                # Process the successful streaming response
                 buffer = ""
                 tool_calls = []
                 model_response_parts = []
@@ -366,7 +319,6 @@ def chat_completions():
                                 yield "data: [DONE]\n\n"
                                 return
 
-                            # Check for and record usage metadata (usually in the final chunk)
                             if 'usageMetadata' in json_data:
                                 final_usage_metadata.update(json_data['usageMetadata'])
 
@@ -396,8 +348,6 @@ def chat_completions():
                         except json.JSONDecodeError:
                             if len(buffer) > 65536: buffer = buffer[-32768:]
                             break
-                # If the model is silent after a tool call, construct a response from the tool's output
-                # to avoid an empty message and ensure the user sees the result.
                 is_after_tool_call = current_contents and current_contents[-1].get('role') == 'tool'
                 has_text_in_model_response = any('text' in p for p in model_response_parts)
 
@@ -407,7 +357,6 @@ def chat_completions():
 
                     if final_text:
                         model_response_parts = [{'text': final_text}]
-                        # Stream the generated tool output to the client as an OpenAI chunk
                         tool_output_chunk = {
                             "id": f"chatcmpl-{os.urandom(12).hex()}",
                             "object": "chat.completion.chunk",
@@ -428,13 +377,10 @@ def chat_completions():
                 })
 
                 tool_response_parts = []
-                
-                # --- OPTIMIZATION: Parallel tool execution ---
-                # Check if tools can be executed in parallel
+
                 if can_execute_parallel(tool_calls):
                     utils.log(f"✓ Executing {len(tool_calls)} tools in parallel")
 
-                    # Prepare tool calls for parallel execution
                     parallel_calls = []
                     for tool_call in tool_calls:
                         parallel_calls.append({
@@ -442,13 +388,11 @@ def chat_completions():
                             'args': tool_call.get("args")
                         })
 
-                    # Pass project root to the async handler, which will ensure it is set correctly
                     results = optimization.execute_tools_parallel(parallel_calls, project_context_root)
 
-                    # Process results
                     for tool_call_data, output in results:
                         function_name = tool_call_data['name']
-                        
+
                         response_payload = {}
                         if output is not None:
                             try:
@@ -457,42 +401,35 @@ def chat_completions():
                                 response_payload = {"content": str(output)}
                         else:
                             response_payload = {}
-                        
+
                         tool_response_parts.append({
                             "functionResponse": {
                                 "name": function_name,
                                 "response": response_payload
                             }
                         })
-                
+
                 else:
-                    # Sequential execution (original logic)
                     utils.log(f"✓ Executing {len(tool_calls)} tools sequentially")
-                    
+
                     for tool_call in tool_calls:
                         function_name = tool_call.get("name")
                         tool_args = tool_call.get("args")
 
-                        # --- User Feedback for Tool Call ---
                         args_str = json.dumps(tool_args)
                         feedback_message = f"🔍 Assistant is using tool: {function_name}({args_str})"
                         utils.log(feedback_message)
-                        # --- End User Feedback ---
 
-                        # The project root context is now managed inside execute_mcp_tool,
-                        # but we still need to pass the explicit override path if one was detected.
                         output = mcp_handler.execute_mcp_tool(function_name, tool_args, project_context_root)
 
                         response_payload = {}
                         if output is not None:
                             try:
-                                # If tool returns a JSON string, parse it into a JSON object for the API
                                 response_payload = json.loads(output)
                             except (json.JSONDecodeError, TypeError):
-                                # Otherwise, treat it as plain text and wrap it in a standard 'content' object
                                 response_payload = {"content": str(output)}
                         else:
-                            response_payload = {} # If there's no output, provide an empty object
+                            response_payload = {}
 
                         tool_response_parts.append({
                             "functionResponse": {
@@ -506,17 +443,14 @@ def chat_completions():
                     "parts": tool_response_parts
                 })
 
-            # --- Record Token Usage (Streaming) ---
             api_key_header = headers.get('X-goog-api-key') or config.API_KEY
-            model_name = COMPLETION_MODEL # Model is set globally in this context
+            model_name = COMPLETION_MODEL
 
-            # The last chunk usually contains usage metadata in Gemini API responses
             usage_metadata = final_usage_metadata
             input_tokens = usage_metadata.get('promptTokenCount', 0)
             output_tokens = usage_metadata.get('candidatesTokenCount', 0)
 
             record_token_usage(api_key_header, model_name, input_tokens, output_tokens)
-            # --- End Record Token Usage ---
 
             final_chunk = {
                 "id": f"chatcmpl-{os.urandom(12).hex()}",
@@ -539,9 +473,6 @@ def chat_completions():
 
 @proxy_bp.route('/v1/models', methods=['GET'])
 def list_models():
-    """
-    Fetches the list of available models from the Gemini API and caches the response.
-    """
     if not config.API_KEY:
         return jsonify({"error": {"message": "API key not configured.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:

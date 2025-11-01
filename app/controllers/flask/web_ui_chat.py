@@ -1,7 +1,3 @@
-"""
-Flask routes for the web chat UI, including the main page and direct chat API.
-Compatible with both Flask and Quart.
-"""
 import json
 import os
 from flask import Blueprint, request, jsonify, Response, send_from_directory
@@ -15,7 +11,6 @@ from app.utils.core import chat_web_logic
 web_ui_chat_bp = Blueprint('web_ui_chat', __name__)
 
 
-# --- Chat Management API Routes ---
 @web_ui_chat_bp.route('/api/chats', methods=['GET'])
 def get_chats():
     chats = chat_db_utils.get_all_chats()

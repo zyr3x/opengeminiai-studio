@@ -1,6 +1,3 @@
-"""
-Async Quart routes for the OpenAI-compatible proxy endpoints.
-"""
 import json
 import os
 import time
@@ -17,9 +14,6 @@ async_proxy_bp = Blueprint('proxy', __name__)
 
 @async_proxy_bp.route('/v1/chat/completions', methods=['POST'])
 async def async_chat_completions():
-    """
-    Async version: Handles chat completion requests with improved concurrency.
-    """
     if not config.API_KEY:
         return jsonify({
             "error": {
@@ -28,13 +22,12 @@ async def async_chat_completions():
                 "code": "api_key_not_set"
             }
         }), 401
-    
+
     try:
         openai_request = await request.json
         utils.debug(f"Incoming Request: {utils.pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
 
-        # --- Prompt Engineering & Tool Control ---
         disable_mcp_tools = False
         enable_native_tools = False
         profile_selected_mcp_tools = []
@@ -49,12 +42,10 @@ async def async_chat_completions():
         full_prompt_text = ""
 
         if messages:
-            # Identify prompt profile
             full_prompt_text = " ".join(
                 [m.get('content') for m in messages if isinstance(m.get('content'), str)]
             )
 
-            # Apply Prompt Engineering & Tool Control Overrides
             override_config = tool_config_utils.get_prompt_override_config(full_prompt_text)
             active_overrides = override_config['active_overrides']
 
@@ -67,22 +58,19 @@ async def async_chat_completions():
             if override_config['profile_selected_mcp_tools']:
                 profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
 
-            # Process messages - file processing
             from app.utils.core import file_processing_utils
             processed_messages = []
-            processed_code_paths = set()  # Track processed paths across all messages
+            processed_code_paths = set()
 
             for message in messages:
                 content = message.get('content')
 
                 if isinstance(content, str):
-                    # Apply overrides
                     if active_overrides:
                         for find, replace in active_overrides.items():
                             if find in content:
                                 content = content.replace(find, replace)
 
-                    # Handle local file paths
                     if not disable_mcp_tools:
                         processed_content, project_path_found = file_processing_utils.process_message_for_paths(
                             content, processed_code_paths
@@ -100,15 +88,12 @@ async def async_chat_completions():
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
         system_instruction = None
 
-        # Transform messages to Gemini format
         gemini_contents = []
         if messages:
-            # Separate system instruction
             if messages[0].get("role") == "system" or 'JetBrains' in messages[0].get("content"):
                 system_instruction = {"parts": [{"text": messages[0].get("content", "")}]}
                 messages = messages[1:]
 
-            # Map roles and merge consecutive messages
             mapped_messages = []
             for message in messages:
                 role = "model" if message.get("role") == "assistant" else "user"
@@ -128,7 +113,6 @@ async def async_chat_completions():
                                 gemini_parts.append({"text": "\n".join(text_parts)})
                                 text_parts = []
 
-                            # Use async image processing
                             image_part = await utils.process_image_url_async(
                                 part.get("image_url", {})
                             )
@@ -152,7 +136,6 @@ async def async_chat_completions():
                 if gemini_parts:
                     mapped_messages.append({"role": role, "parts": gemini_parts})
 
-            # Merge consecutive messages with same role
             if mapped_messages:
                 gemini_contents.append(mapped_messages[0])
                 for i in range(1, len(mapped_messages)):
@@ -161,7 +144,6 @@ async def async_chat_completions():
                     else:
                         gemini_contents.append(mapped_messages[i])
 
-            # Merge consecutive text parts
             for content in gemini_contents:
                 original_parts = content.get('parts', [])
                 if len(original_parts) > 1:
@@ -182,22 +164,18 @@ async def async_chat_completions():
 
                     content['parts'] = merged_parts
 
-        # --- Token Management ---
         token_limit = await utils.get_model_input_limit_async(
             COMPLETION_MODEL, config.API_KEY, config.UPSTREAM_URL
         )
         safe_limit = int(token_limit * utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
 
-        # Use async generator for streaming response
         async def generate() -> AsyncGenerator[str, None]:
             current_contents = gemini_contents.copy()
             final_usage_metadata = {}
 
-            while True:  # Loop for sequential tool calls
-                # Truncate messages
+            while True:
                 original_message_count = len(current_contents)
-                
-                # Extract current query for selective context
+
                 current_query = ""
                 if current_contents:
                     for msg in reversed(current_contents):
@@ -209,11 +187,11 @@ async def async_chat_completions():
                                     break
                             if current_query:
                                 break
-                
+
                 current_contents = await utils.truncate_contents_async(
                     current_contents, safe_limit, current_query=current_query
                 )
-                
+
                 if len(current_contents) < original_message_count:
                     utils.log(
                         f"Truncated conversation from {original_message_count} to "
@@ -223,17 +201,14 @@ async def async_chat_completions():
                 request_data = {
                     "contents": current_contents
                 }
-                
-                # --- Prompt Caching ---
+
                 cached_context_id = None
                 if system_instruction:
                     system_text = ""
                     for part in system_instruction.get("parts", []):
                         if "text" in part:
                             system_text += part["text"]
-                    
-                    # Attempt to retrieve/create cached context, only for prompts that meet the minimum token count
-                    # This avoids API errors for prompts that are too short to be cached.
+
                     if system_text and utils.estimate_token_count([system_instruction]) >= config.MIN_CONTEXT_CACHING_TOKENS:
                         try:
                             cached_context_id = await optimization.get_cached_context_id_async(
@@ -246,16 +221,13 @@ async def async_chat_completions():
                                 utils.log(f"✓ Using cached context: {cached_context_id}")
                                 request_data["cachedContent"] = cached_context_id
                             else:
-                                # If caching fails (e.g., API error), use the normal instruction
                                 request_data["systemInstruction"] = system_instruction
                         except Exception as e:
                             utils.log(f"Failed to use cached context, falling back to normal: {e}")
                             request_data["systemInstruction"] = system_instruction
                     else:
-                        # If prompt is too short or empty, use the normal instruction
                         request_data["systemInstruction"] = system_instruction
 
-                # --- Tool Configuration ---
                 final_tools = []
                 mcp_declarations_to_use = None
 
@@ -309,11 +281,9 @@ async def async_chat_completions():
                 utils.debug(f"Outgoing Gemini Request URL: {GEMINI_STREAMING_URL}")
                 utils.debug(f"Outgoing Gemini Request Data: {utils.pretty_json(request_data)}")
 
-                # Apply rate limiting
                 rate_limiter = await optimization.get_rate_limiter()
                 await rate_limiter.wait_if_needed()
 
-                # Make async request
                 try:
                     response = await utils.make_request_with_retry_async(
                         url=GEMINI_STREAMING_URL,
@@ -340,7 +310,6 @@ async def async_chat_completions():
                     yield "data: [DONE]\n\n"
                     return
 
-                # Process streaming response
                 buffer = ""
                 tool_calls = []
                 model_response_parts = []
@@ -349,7 +318,7 @@ async def async_chat_completions():
                 async for chunk in response.content.iter_any():
                     chunk_text = chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk
                     buffer += chunk_text
-                    
+
                     while True:
                         start_index = buffer.find('{')
                         if start_index == -1:
@@ -357,11 +326,11 @@ async def async_chat_completions():
                                 buffer = buffer[-32768:]
                             break
                         buffer = buffer[start_index:]
-                        
+
                         try:
                             json_data, end_index = decoder.raw_decode(buffer)
                             buffer = buffer[end_index:]
-                            
+
                             if not isinstance(json_data, dict):
                                 continue
 
@@ -383,7 +352,6 @@ async def async_chat_completions():
                                 yield "data: [DONE]\n\n"
                                 return
 
-                            # Check usage metadata
                             if 'usageMetadata' in json_data:
                                 final_usage_metadata.update(json_data['usageMetadata'])
 
@@ -413,13 +381,12 @@ async def async_chat_completions():
                                         }]
                                     }
                                     yield f"data: {json.dumps(chunk_response)}\n\n"
-                                    
+
                         except json.JSONDecodeError:
                             if len(buffer) > 65536:
                                 buffer = buffer[-32768:]
                             break
 
-                # Handle silent model after tool call
                 is_after_tool_call = current_contents and current_contents[-1].get('role') == 'tool'
                 has_text_in_model_response = any('text' in p for p in model_response_parts)
 
@@ -451,14 +418,11 @@ async def async_chat_completions():
                     "parts": model_response_parts
                 })
 
-                # Execute tools async (parallel when possible)
                 tool_calls_list = [
                     {'name': tc.get('name'), 'args': tc.get('args')}
                     for tc in tool_calls
                 ]
 
-                # Pass project root to the async handler, which will ensure it is set correctly
-                # within the executor thread before running built-in tools.
                 tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(
                     tool_calls_list,
                     project_root_override=project_context_root
@@ -469,7 +433,6 @@ async def async_chat_completions():
                     "parts": tool_response_parts
                 })
 
-            # Record token usage
             await optimization.record_token_usage_async(
                 config.API_KEY,
                 COMPLETION_MODEL,
@@ -477,7 +440,6 @@ async def async_chat_completions():
                 final_usage_metadata.get('candidatesTokenCount', 0)
             )
 
-            # Send final chunk
             final_chunk = {
                 "id": f"chatcmpl-{os.urandom(12).hex()}",
                 "object": "chat.completion.chunk",
@@ -503,9 +465,6 @@ async def async_chat_completions():
 
 @async_proxy_bp.route('/v1/models', methods=['GET'])
 async def async_list_models():
-    """
-    Async version: Fetches the list of available models from Gemini API.
-    """
     if not config.API_KEY:
         return jsonify({
             "error": {
@@ -514,9 +473,8 @@ async def async_list_models():
                 "code": "api_key_not_set"
             }
         }), 401
-    
+
     try:
-        # Check cache first
         if utils.cached_models_response:
             return jsonify(utils.cached_models_response)
 

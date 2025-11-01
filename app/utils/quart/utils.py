@@ -16,21 +16,16 @@ _async_session: Optional[aiohttp.ClientSession] = None
 _session_lock = asyncio.Lock()
 
 async def get_async_session() -> aiohttp.ClientSession:
-    """
-    Gets or creates a shared aiohttp ClientSession with connection pooling.
-    This session should be reused for all HTTP requests for better performance.
-    """
     global _async_session
 
     if _async_session is None or _async_session.closed:
         async with _session_lock:
             if _async_session is None or _async_session.closed:
-                # Configure connection pooling and timeouts
                 timeout = aiohttp.ClientTimeout(total=300, connect=30)
                 connector = aiohttp.TCPConnector(
-                    limit=100,  # Max connections
-                    limit_per_host=30,  # Max connections per host
-                    ttl_dns_cache=300,  # DNS cache TTL
+                    limit=100,
+                    limit_per_host=30,
+                    ttl_dns_cache=300,
                     keepalive_timeout=60
                 )
                 _async_session = aiohttp.ClientSession(
@@ -41,17 +36,12 @@ async def get_async_session() -> aiohttp.ClientSession:
     return _async_session
 
 async def close_async_session():
-    """Closes the shared aiohttp session."""
     global _async_session
     if _async_session and not _async_session.closed:
         await _async_session.close()
         _async_session = None
 
 async def process_image_url_async(image_url: dict) -> Optional[dict]:
-    """
-    Async version: Processes an OpenAI image_url object and converts it to Gemini inline_data part.
-    Supports both web URLs and Base64 data URIs.
-    """
     url = image_url.get("url")
     if not url:
         return None
@@ -93,9 +83,6 @@ async def process_image_url_async(image_url: dict) -> Optional[dict]:
         return None
 
 async def get_model_input_limit_async(model_name: str, api_key: str, upstream_url: str) -> int:
-    """
-    Async version: Fetches the input token limit for a given model from the Gemini API and caches it.
-    """
     if model_name in model_info_cache:
         return model_info_cache[model_name].get("inputTokenLimit", 8192)
 
@@ -103,7 +90,7 @@ async def get_model_input_limit_async(model_name: str, api_key: str, upstream_ur
         log(f"Cache miss for {model_name}. Fetching model details from API...")
         GEMINI_MODEL_INFO_URL = f"{upstream_url}/v1beta/models/{model_name}"
         params = {"key": api_key}
-        
+
         session = await get_async_session()
         async with session.get(GEMINI_MODEL_INFO_URL, params=params) as response:
             response.raise_for_status()
@@ -121,10 +108,6 @@ async def make_request_with_retry_async(
     stream: bool = False,
     timeout: int = 300
 ) -> aiohttp.ClientResponse:
-    """
-    Async version: Makes a POST request with retry logic for 429 and connection errors.
-    Uses connection pooling for better performance.
-    """
     retries = 2
     backoff_factor = 1.0
 
@@ -165,7 +148,7 @@ async def make_request_with_retry_async(
                 error_text = await response.text()
                 log(f"HTTP Error {status_code}: {error_text}")
                 response.raise_for_status()
-                
+
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             if i < retries - 1:
                 wait_time = backoff_factor * (2 ** i) + random.uniform(0, 0.5)
@@ -175,16 +158,11 @@ async def make_request_with_retry_async(
             else:
                 log(f"Connection/Timeout Error after final retry: {e}")
                 raise
-    
+
     raise aiohttp.ClientError(f"All {retries} retries failed.")
 
 
 async def truncate_contents_async(contents: list, limit: int, current_query: str = None) -> list:
-    """
-    Async version: Truncates the 'contents' list by removing older messages
-    until the estimated token count is within the specified limit.
-    Uses smart truncation with summarization when available.
-    """
     estimated_tokens = estimate_token_count(contents)
     if estimated_tokens <= limit:
         return contents
@@ -213,10 +191,8 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
             log(f"Selective Context failed, falling back: {e}")
 
     from app.utils.core import optimization_utils
-    # This function is not I/O bound, so running it synchronously is fine.
     truncated_contents = optimization_utils.smart_truncate_contents(contents, limit, keep_recent=5)
 
-    # Always run simple truncation if smart truncation wasn't enough
     if estimate_token_count(truncated_contents) > limit:
         log("Content still over limit after smart truncation, applying simple truncation...")
         final_truncated = truncated_contents.copy()
@@ -230,12 +206,10 @@ async def truncate_contents_async(contents: list, limit: int, current_query: str
     return truncated_contents
 
 async def read_file_async(file_path: str, mode: str = 'r') -> str:
-    """Async file reading."""
     async with aiofiles.open(file_path, mode) as f:
         return await f.read()
 
 async def write_file_async(file_path: str, content: str, mode: str = 'w'):
-    """Async file writing."""
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     async with aiofiles.open(file_path, mode) as f:
         await f.write(content)
