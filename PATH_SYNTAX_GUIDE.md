@@ -2,7 +2,7 @@
 
 ## Overview
 
-OpenGeminiAI Studio V2.2 supports two modes for working with code projects:
+OpenGeminiAI Studio V3.0 supports two modes for working with code projects:
 
 1. **`code_path=`** - Simple recursive code loading
 2. **`project_path=`** - Full AI agent mode with tools

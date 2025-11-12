@@ -1,4 +1,4 @@
-# OpenGeminiAI Studio V2.3 (Async Edition)
+# OpenGeminiAI Studio V3.0
 
 <!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
@@ -21,9 +21,9 @@ In a world of AI coding assistants, OpenGeminiAI Studio stands out by combining 
 -   **Extensible & Open:** Built with a modular MCP architecture, you can easily add your own custom tools to extend its capabilities. The project is open and transparent.
 -   **Cost-Effective:** Leverage powerful optimization features like selective context, prompt caching, and tool output summarization to significantly reduce token usage and lower your API costs.
 
-## 🚀 What's New in V2.3 - The Agentic Developer Update
+## 🚀 What's New in V3.0 - The Agentic Developer Update
 
-Version 2.3 transforms OpenGeminiAI Studio into a powerful **AI-driven software developer**. With an expanded toolkit and deeper project understanding, it can now take on complex development tasks autonomously.
+Version 3.0 transforms OpenGeminiAI Studio into a powerful **AI-driven software developer**. With an expanded toolkit and deeper project understanding, it can now take on complex development tasks autonomously.
 
 -   **🤖 Full Agentic Capabilities**: With `project_path=`, the AI can now **write, modify, and create files** (`apply_patch`, `create_file`, `write_file`), **execute shell commands** (`execute_command` for tests, builds, and scripts), and perform **full git operations** (`git_diff`, `git_status`, etc.). It's not just a code assistant; it's an active development partner.
 -   **🎭 9 Specialized Agent Modes**: Choose the right AI persona for your task:
@@ -41,7 +41,7 @@ Version 2.3 transforms OpenGeminiAI Studio into a powerful **AI-driven software 
 -   **🔐 Enhanced Security & Control**: The `ALLOWED_CODE_PATHS` setting allows you to sandbox the AI's file system access to specific project directories, providing crucial security for your development environment.
 -   **🐛 Stability Fixes**: Resolved several async compatibility issues, improved session management, and streamlined tool execution logic for a more reliable experience.
 
-## ⚡ What's New in V2.2
+## ⚡ What's New in V2.5
 
 **Major Performance Upgrade:**
 - ✨ **Async/Await Architecture**: 3-5x faster for concurrent requests
@@ -182,7 +182,7 @@ The IDE will automatically fetch the model list and route AI Assistant features 
 
 ## 🎯 Dual Path Mode: Two Ways to Work with Code
 
-OpenGeminiAI Studio V2.2 introduces two distinct modes for working with code projects:
+OpenGeminiAI Studio V3.0 introduces two distinct modes for working with code projects:
 
 ### 🔷 Mode 1: `code_path=` - Code Context Loading
 

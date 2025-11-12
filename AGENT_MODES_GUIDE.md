@@ -1,8 +1,8 @@
-# 🎭 Agent Modes Guide - OpenGeminiAI Studio V2.3
+# 🎭 Agent Modes Guide - OpenGeminiAI Studio V3.0
 
 ## Overview
 
-OpenGeminiAI Studio V2.3 introduces **9 specialized agent modes** that transform the AI into different expert personas, each optimized for specific development tasks. Each mode has its own workflow, tools emphasis, and safety guardrails.
+OpenGeminiAI Studio V3.0 introduces **9 specialized agent modes** that transform the AI into different expert personas, each optimized for specific development tasks. Each mode has its own workflow, tools emphasis, and safety guardrails.
 
 ## 🚀 Quick Start
 
