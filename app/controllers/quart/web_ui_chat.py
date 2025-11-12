@@ -2,7 +2,7 @@ import json
 import os
 from quart import Blueprint, request, jsonify, Response, send_from_directory
 from app.config import config
-from app.utils.quart import mcp_handler
+from app.utils.core import mcp_handler
 from app.utils.core import tools, chat_db_utils
 from app.db import UPLOAD_FOLDER
 from app.utils.quart.optimization import record_token_usage_async

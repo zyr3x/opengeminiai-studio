@@ -71,3 +71,39 @@ async def set_agent_settings():
     form = await request.form
     settings_logic.handle_set_agent_settings(form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
+
+
+@settings_bp.route('/set_agent_intelligence_settings', methods=['POST'])
+async def set_agent_intelligence_settings():
+    form = await request.form
+    settings_logic.handle_set_agent_intelligence_settings(form)
+    return redirect(url_for('web_ui.index', _anchor='configuration'))
+
+
+@settings_bp.route('/set_aux_model_enhanced_settings', methods=['POST'])
+async def set_aux_model_enhanced_settings():
+    form = await request.form
+    settings_logic.handle_set_aux_model_enhanced_settings(form)
+    return redirect(url_for('web_ui.index', _anchor='configuration'))
+
+
+@settings_bp.route('/get_agent_stats', methods=['GET'])
+async def get_agent_stats():
+    """Get agent intelligence and aux model statistics"""
+    try:
+        from app.utils.core.agent_integration import get_intelligence_stats
+        stats = get_intelligence_stats()
+        return jsonify(stats), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/reset_agent_session', methods=['POST'])
+async def reset_agent_session():
+    """Reset agent intelligence session"""
+    try:
+        from app.utils.core.agent_integration import reset_agent_session
+        reset_agent_session()
+        return jsonify({'message': 'Agent session reset successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

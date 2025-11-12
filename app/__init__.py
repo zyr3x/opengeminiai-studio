@@ -50,7 +50,7 @@ async def create_quart_app(app: Quart):
     from app.controllers.quart.prompt_settings import prompt_settings_bp
     from app.controllers.quart.web_ui import web_ui_bp
     from app.controllers.quart.web_ui_chat import web_ui_chat_bp
-    from app.controllers.flask.metrics import metrics_bp
+    from app.controllers.quart.metrics import metrics_bp
     app.register_blueprint(async_proxy_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(mcp_settings_bp)

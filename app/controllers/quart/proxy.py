@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 from app.config import config
 from app.utils.core import tools as utils
 from app.utils.core import tool_config_utils
-from app.utils.quart import optimization, utils, mcp_handler as async_mcp_handler
+from app.utils.quart import optimization, utils as quart_utils, mcp_handler as async_mcp_handler
 from app.utils.core import mcp_handler
 import traceback
 async_proxy_bp = Blueprint('proxy', __name__)
@@ -117,7 +117,7 @@ async def async_chat_completions():
                                 gemini_parts.append({"text": "\n".join(text_parts)})
                                 text_parts = []
 
-                            image_part = await utils.process_image_url_async(
+                            image_part = await quart_utils.process_image_url_async(
                                 part.get("image_url", {})
                             )
                             if image_part:
@@ -168,7 +168,7 @@ async def async_chat_completions():
 
                     content['parts'] = merged_parts
 
-        token_limit = await utils.get_model_input_limit_async(
+        token_limit = await quart_utils.get_model_input_limit_async(
             COMPLETION_MODEL, config.API_KEY, config.UPSTREAM_URL
         )
         safe_limit = int(token_limit * utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
@@ -192,7 +192,7 @@ async def async_chat_completions():
                             if current_query:
                                 break
 
-                current_contents = await utils.truncate_contents_async(
+                current_contents = await quart_utils.truncate_contents_async(
                     current_contents, safe_limit, current_query=current_query
                 )
 
@@ -289,7 +289,7 @@ async def async_chat_completions():
                 await rate_limiter.wait_if_needed()
 
                 try:
-                    response = await utils.make_request_with_retry_async(
+                    response = await quart_utils.make_request_with_retry_async(
                         url=GEMINI_STREAMING_URL,
                         headers=headers,
                         json_data=request_data,
@@ -484,7 +484,7 @@ async def async_list_models():
         params = {"key": config.API_KEY}
         GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
         
-        session = await utils.get_async_session()
+        session = await quart_utils.get_async_session()
         async with session.get(GEMINI_MODELS_URL, params=params) as response:
             response.raise_for_status()
             gemini_models_data = await response.json()

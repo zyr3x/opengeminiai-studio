@@ -1241,47 +1241,12 @@ def set_disable_all_mcp_tools(status: bool):
 
 
 def _parse_headers_from_args(args: list[str]) -> dict:
-        headers = {}
-        for arg in args:
-            if ':' in arg:
-                key, value = arg.split(':', 1)
-                headers[key.strip()] = value.strip()
-        return headers
-
-
-def _fetch_raw_mcp_tools_http(tool_name: str, tool_info: dict) -> tuple[list | None, str | None]:
-        url = tool_info.get("url")
-        headers = tool_info.get("headers", {})
-        headers['Content-Type'] = 'application/json'
-
-        try:
-            from app.utils.core.tools import make_request_with_retry
-            log(f"Fetching schema/tool list via HTTP for tool '{tool_name}' from {url}...")
-
-            tools_list_request = {
-                "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}
-            }
-
-            response = make_request_with_retry(
-                url=url,
-                headers=headers,
-                json_data=tools_list_request,
-                stream=False,
-                timeout=30
-            )
-            response_data = response.json()
-
-            if "result" in response_data and "tools" in response_data["result"]:
-                return response_data["result"]["tools"], None
-
-            error_details = f"Did not receive a valid tools/list response for tool '{tool_name}' from {url}."
-            if response_data:
-                error_details += f"\nResponse: {json.dumps(response_data)}"
-            return None, error_details
-        except Exception as e:
-            return None, f"An unexpected error occurred while fetching schema for tool '{tool_name}' via HTTP: {e}"
-
-
+    headers = {}
+    for arg in args:
+        if ':' in arg:
+            key, value = arg.split(':', 1)
+            headers[key.strip()] = value.strip()
+    return headers
 
 
 def _fetch_raw_mcp_tools_http(tool_name: str, tool_info: dict) -> tuple[list | None, str | None]:
@@ -1589,56 +1554,56 @@ def _parse_kwargs_string(s: str) -> dict:
     return result
 
 
-    def _execute_mcp_tool_http(function_name: str, tool_args: dict, tool_name: str, tool_info: dict):
-        url = tool_info.get("url")
-        headers = tool_info.get("headers", {})
-        headers['Content-Type'] = 'application/json'
+def _execute_mcp_tool_http(function_name: str, tool_args: dict, tool_name: str, tool_info: dict):
+    url = tool_info.get("url")
+    headers = tool_info.get("headers", {})
+    headers['Content-Type'] = 'application/json'
 
-        global mcp_request_id_counter
-        with mcp_request_id_lock:
-            call_id = mcp_request_id_counter
-            mcp_request_id_counter += 1
+    global mcp_request_id_counter
+    with mcp_request_id_lock:
+        call_id = mcp_request_id_counter
+        mcp_request_id_counter += 1
 
-        normalized_args = _normalize_mcp_args(tool_args)
-        input_schema = mcp_function_input_schema_map.get(function_name) or {}
-        arguments_for_call = _coerce_args_to_schema(normalized_args, input_schema)
+    normalized_args = _normalize_mcp_args(tool_args)
+    input_schema = mcp_function_input_schema_map.get(function_name) or {}
+    arguments_for_call = _coerce_args_to_schema(normalized_args, input_schema)
 
-        mcp_call_request = {
-            "jsonrpc": "2.0",
-            "id": call_id,
-            "method": "tools/call",
-            "params": {
-                "name": function_name,
-                "arguments": arguments_for_call
-            }
+    mcp_call_request = {
+        "jsonrpc": "2.0",
+        "id": call_id,
+        "method": "tools/call",
+        "params": {
+            "name": function_name,
+            "arguments": arguments_for_call
         }
+    }
 
-        try:
-            from app.utils.core.tools import make_request_with_retry
-            response = make_request_with_retry(
-                url=url,
-                headers=headers,
-                json_data=mcp_call_request,
-                stream=False,
-                timeout=120
-            )
-            response_data = response.json()
+    try:
+        from app.utils.core.tools import make_request_with_retry
+        response = make_request_with_retry(
+            url=url,
+            headers=headers,
+            json_data=mcp_call_request,
+            stream=False,
+            timeout=120
+        )
+        response_data = response.json()
 
-            if "result" in response_data:
-                content = response_data["result"].get("content", [])
-                is_all_text = content and all(item.get("type") == "text" for item in content)
-                if is_all_text:
-                    result_text = "".join(item.get("text", "") for item in content)
-                    return result_text
-                return json.dumps(response_data["result"])
-            elif "error" in response_data:
-                return f"MCP Error: {response_data['error'].get('message', 'Unknown error')}"
-            return "Tool returned a response with no result or error."
+        if "result" in response_data:
+            content = response_data["result"].get("content", [])
+            is_all_text = content and all(item.get("type") == "text" for item in content)
+            if is_all_text:
+                result_text = "".join(item.get("text", "") for item in content)
+                return result_text
+            return json.dumps(response_data["result"])
+        elif "error" in response_data:
+            return f"MCP Error: {response_data['error'].get('message', 'Unknown error')}"
+        return "Tool returned a response with no result or error."
 
-        except Exception as e:
-            error_message = f"An unexpected error occurred while executing function '{function_name}' via HTTP: {e}"
-            print(error_message)
-            return error_message
+    except Exception as e:
+        error_message = f"An unexpected error occurred while executing function '{function_name}' via HTTP: {e}"
+        print(error_message)
+        return error_message
 
 
 def _normalize_mcp_args(args) -> dict:
@@ -1716,58 +1681,6 @@ def _coerce_args_to_schema(normalized_args: dict, input_schema: dict) -> dict:
         else:
             result["args"] = []
     return result
-
-
-def _execute_mcp_tool_http(function_name: str, tool_args: dict, tool_name: str, tool_info: dict):
-    url = tool_info.get("url")
-    headers = tool_info.get("headers", {})
-    headers['Content-Type'] = 'application/json'
-
-    global mcp_request_id_counter
-    with mcp_request_id_lock:
-        call_id = mcp_request_id_counter
-        mcp_request_id_counter += 1
-
-    normalized_args = _normalize_mcp_args(tool_args)
-    input_schema = mcp_function_input_schema_map.get(function_name) or {}
-    arguments_for_call = _coerce_args_to_schema(normalized_args, input_schema)
-
-    mcp_call_request = {
-        "jsonrpc": "2.0",
-        "id": call_id,
-        "method": "tools/call",
-        "params": {
-            "name": function_name,
-            "arguments": arguments_for_call
-        }
-    }
-
-    try:
-        from app.utils.core.tools import make_request_with_retry
-        response = make_request_with_retry(
-            url=url,
-            headers=headers,
-            json_data=mcp_call_request,
-            stream=False,
-            timeout=120
-        )
-        response_data = response.json()
-
-        if "result" in response_data:
-            content = response_data["result"].get("content", [])
-            is_all_text = content and all(item.get("type") == "text" for item in content)
-            if is_all_text:
-                result_text = "".join(item.get("text", "") for item in content)
-                return result_text
-            return json.dumps(response_data["result"])
-        elif "error" in response_data:
-            return f"MCP Error: {response_data['error'].get('message', 'Unknown error')}"
-        return "Tool returned a response with no result or error."
-
-    except Exception as e:
-        error_message = f"An unexpected error occurred while executing function '{function_name}' via HTTP: {e}"
-        print(error_message)
-        return error_message
 
 
 def execute_mcp_tool(function_name, tool_args, project_root_override: str | None = None):
