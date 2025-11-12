@@ -1,19 +1,23 @@
 <!-- Documentation Section -->
 <div id="documentation" class="content-section">
     <h1 class="my-4">📚 Documentation</h1>
-    <p class="lead">Dive into the details of OpenGeminiAI Studio v3.0 (Agent Mode Edition): learn how to set up, configure, and maximize the utility of this high-performance proxy for Google's Gemini API.</p>
+    <p class="lead">Dive into the details of OpenGeminiAI Studio v3.0: learn how to set up, configure, and maximize the utility of this high-performance, AI-driven software development agent and proxy for Google's Gemini API.</p>
 
-        <div class="alert alert-info">
-        <h5><i class="material-icons">rocket_launch</i> The Agent Mode Upgrade!</h5>
-        <p class="mb-0">
-            Version 3.0 transforms OpenGeminiAI Studio into a powerful <strong>AI-driven software developer</strong>. With an expanded toolkit and deeper project understanding, it can now take on complex development tasks autonomously.
-        </p>
-    </div>
+    <h2 class="mt-4">🚀 What's New in V3.0 - The Agentic Developer Update</h2>
+    <p>Version 3.0 transforms OpenGeminiAI Studio into a powerful <strong>AI-driven software developer</strong>. With an expanded toolkit, deeper project understanding, and new cognitive abilities, it can now take on complex development tasks with greater autonomy and intelligence.</p>
+    <ul>
+        <li><strong>🧠 Agent Intelligence & Self-Reflection:</strong> The agent can now create multi-step plans, validate its actions, learn from errors, and suggest recovery options, making it a more reliable and autonomous developer.</li>
+        <li><strong>🤖 Enhanced Auxiliary Model:</strong> Instead of simple truncation, a secondary AI model analyzes, summarizes, and extracts key information from large tool outputs, providing cleaner context to the main model and saving on token costs.</li>
+        <li><strong>🛠️ Full Agentic Capabilities:</strong> The AI can now write, modify, and create files, execute shell commands (for tests, builds, scripts), and perform full git operations.</li>
+        <li><strong>🎭 9 Specialized Agent Modes:</strong> Choose the right AI persona for your task, from `feature` development and `fix` for bugs to `review`, `test`, and `documentation`.</li>
+        <li><strong>🔬 Advanced Code Analysis:</strong> The toolkit has been expanded to 24 built-in tools for surgical code inspection and manipulation.</li>
+        <li><strong>🔐 Enhanced Security & Control:</strong> The <code>ALLOWED_CODE_PATHS</code> setting allows you to sandbox the AI's file system access to specific project directories.</li>
+    </ul>
 
     <div class="alert alert-info">
-        <h5><i class="material-icons">rocket_launch</i> Performance Upgrade!</h5>
+        <h5><i class="material-icons">bolt</i> Performance Upgrade (v2.5)</h5>
         <p class="mb-0">
-            Version 2.5 introduces <strong>async/await architecture</strong> for 3-5x performance improvements on concurrent workloads.
+            The proxy features an <strong>async/await architecture</strong> for 3-5x performance improvements on concurrent workloads.
             Enable with <code>ASYNC_MODE=true</code> in your .env file or run <code>python run.py</code>.
         </p>
     </div>
@@ -26,11 +30,11 @@
         <li><b>🆕 Dual Path Mode (NEW):</b> Two distinct modes for working with code:
             <ul>
                 <li><b><code>code_path=</code></b> - Recursively loads all code files as text context (up to 4MB) for review and analysis. No tools, just pure code context.</li>
-                <li><b><code>project_path=</code></b> - Activates full AI agent mode with 19 built-in development tools for navigation, analysis, modification, execution, and git operations. Perfect for actual development work.</li>
+                <li><b><code>project_path=</code></b> - Activates full AI agent mode with 24 built-in development tools for navigation, analysis, modification, execution, and git operations. Perfect for actual development work.</li>
             </ul>
         </li>
         <li><b>Multimodal Support:</b> Supports image, audio, and PDF file embedding directly from local paths (e.g., <code>image_path=...</code>, <code>pdf_path=...</code>, <code>audio_path=...</code>).</li>
-        <li><b>Built-in Development Tools:</b> 19 tools including file operations, code search, patch application, command execution (pytest, awk, sed, grep, npm), and full git integration.</li>
+        <li><b>Built-in Development Tools:</b> 24 tools including file operations, code search, patch application, command execution (pytest, awk, sed, grep, npm), and full git integration.</li>
         <li><b>Function Calling:</b> Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling. <b>Tool selection is highly configurable:</b> profiles (System Prompts/Overrides) can explicitly select or disable specific MCP functions/tools, overriding the default context-aware selection logic. Native Google tools (Search, URL Context) can also be enabled via profiles.</li>
         <li><b>Image Generation:</b> Includes a dedicated UI and API endpoint for generating images with compatible models.</li>
         <li><b>Advanced Prompt Control:</b> Lets you define and apply both system-level prompts and dynamic prompt overrides based on keywords.</li>
@@ -88,7 +92,7 @@
     <img src="/static/img/placeholder_jetbrains_config.png" class="img-fluid rounded shadow-sm" alt="JetBrains AI Assistant Configuration">
 
     <h3 class="mt-4">3. Dual Path Mode: Two Ways to Work with Code 🆕</h3>
-    <p>Version 2.2 introduces two distinct modes for working with code projects. Choose the right mode for your workflow!</p>
+    <p>Version 3.0 introduces two distinct modes for working with code projects. Choose the right mode for your workflow!</p>
 
     <div class="row mt-4">
         <div class="col-md-6">
@@ -105,7 +109,7 @@
                         <li>✅ Formats with markdown</li>
                         <li>✅ Supports ignore patterns</li>
                         <li>❌ NO tools activated</li>
-                        <li>📦 Up to 512 KB limit (configurable)</li>
+                        <li>📦 Up to 4 MB limit (configurable)</li>
                     </ul>
                     <p><strong>Usage:</strong></p>
                     <pre><code class="language-bash">"Review this code for bugs: code_path=~/myproject/src"</code></pre>
@@ -119,7 +123,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-6">
             <div class="card border-success">
                 <div class="card-header bg-success text-white">
@@ -127,11 +131,11 @@
                     <small>AI Agent Mode (Full Development)</small>
                 </div>
                 <div class="card-body">
-                    <p><strong>Purpose:</strong> Activates AI agent with 19 development tools for comprehensive project work.</p>
+                    <p><strong>Purpose:</strong> Activates AI agent with 24 development tools for comprehensive project work.</p>
                     <p><strong>Features:</strong></p>
                     <ul class="mb-2">
                         <li>✅ Shows project structure</li>
-                        <li>✅ 19 built-in dev tools</li>
+                        <li>✅ 24 built-in dev tools</li>
                         <li>✅ Can read files on-demand</li>
                         <li>✅ Can modify/create files</li>
                         <li>✅ Can execute commands</li>
@@ -167,7 +171,7 @@
                 <tr>
                     <td>Loads code files</td>
                     <td>✅ All at once</td>
-                    <td>❌ On-demand</td>
+                    <td>❌ On-demand via tools</td>
                 </tr>
                 <tr>
                     <td>In prompt context</td>
@@ -177,7 +181,7 @@
                 <tr>
                     <td>Activates tools</td>
                     <td>❌ No</td>
-                    <td>✅ Yes (19 tools)</td>
+                    <td>✅ Yes (24 tools)</td>
                 </tr>
                 <tr>
                     <td>Can modify files</td>
@@ -191,7 +195,7 @@
                 </tr>
                 <tr>
                     <td>Size limit</td>
-                    <td>512 KB</td>
+                    <td>4 MB</td>
                     <td>Unlimited</td>
                 </tr>
                 <tr>
@@ -203,25 +207,35 @@
         </table>
     </div>
 
-    <h4 class="mt-4">🔧 19 Built-in Development Tools (with <code>project_path=</code>)</h4>
+    <h4 class="mt-4">🔧 24 Built-in Development Tools (with <code>project_path=</code>)</h4>
     <p>When you use <code>project_path=</code>, the AI gets access to a comprehensive development toolkit:</p>
     <div class="row">
         <div class="col-md-6">
-            <h6>🗂️ Navigation & Search</h6>
+            <h6>🗂️ Navigation</h6>
             <ul class="small">
                 <li><code>list_files</code> - Browse directory contents</li>
                 <li><code>get_file_content</code> - Read any file</li>
+                <li><code>read_file_lines</code> - Read specific lines from a file</li>
                 <li><code>get_code_snippet</code> - Extract specific lines</li>
                 <li><code>search_codebase</code> - grep-like search</li>
+                <li><code>get_file_outline</code> - Get outline of a file (classes, functions)</li>
             </ul>
-            
+
             <h6>📊 Analysis</h6>
             <ul class="small">
                 <li><code>analyze_file_structure</code> - File structure (classes, functions)</li>
                 <li><code>analyze_project_structure</code> - Project tree</li>
                 <li><code>get_file_stats</code> - File stats (size, lines, lang, git info)</li>
                 <li><code>find_symbol</code> - Find functions/classes</li>
+                <li><code>find_references</code> - Find references to a symbol</li>
                 <li><code>get_dependencies</code> - Analyze imports</li>
+                <li><code>compare_files</code> - Compare two files</li>
+            </ul>
+
+            <h6>⚙️ Execution</h6>
+            <ul class="small">
+                <li><code>execute_command</code> - Run any shell command (pytest, awk, sed, grep, npm, etc.)</li>
+                <li><code>run_tests</code> - Run tests for the project</li>
             </ul>
         </div>
         <div class="col-md-6">
@@ -230,11 +244,6 @@
                 <li><code>apply_patch</code> - Apply unified diffs</li>
                 <li><code>create_file</code> - Create new files</li>
                 <li><code>write_file</code> - Overwrite files</li>
-            </ul>
-            
-            <h6>⚙️ Execution</h6>
-            <ul class="small">
-                <li><code>execute_command</code> - Run any shell command (pytest, awk, sed, grep, npm, etc.)</li>
             </ul>
             
             <h6>🔀 Git Operations</h6>
@@ -288,6 +297,20 @@
             <p><strong>Result:</strong> First loads all code for context, then activates tools for modifications</p>
         </div>
     </div>
+
+    <h4 class="mt-4">🎭 9 Specialized Agent Modes</h4>
+    <p>To guide the AI's approach, you can invoke one of nine specialized agent modes. Each mode provides a specific system prompt and workflow tailored to the task.</p>
+    <ul class="small">
+        <li><code>feature</code> - New feature development with strict planning workflow</li>
+        <li><code>fix</code> - Methodical bug hunting and fixing</li>
+        <li><code>refactor</code> - Code quality improvements while preserving functionality</li>
+        <li><code>review</code> - Comprehensive code review with security and performance analysis</li>
+        <li><code>test</code> - TDD/BDD test creation with framework auto-detection</li>
+        <li><code>optimize</code> - Data-driven performance optimization</li>
+        <li><code>research</code> - Codebase analysis and documentation (read-only)</li>
+        <li><code>documentation</code> - Technical documentation generation</li>
+        <li><code>feature_continue</code> - Resume work on existing features</li>
+    </ul>
 
     <h4 class="mt-4">🎯 Ignore Patterns (Both Modes)</h4>
     <p>Both <code>code_path=</code> and <code>project_path=</code> support custom ignore patterns:</p>
@@ -394,17 +417,78 @@ project_path=. ignore_type=cache</code></pre>
                 </tr>
                 <tr>
                     <td><code>MAX_CODE_INJECTION_SIZE_KB</code></td>
-                    <td><code>512</code></td>
+                    <td><code>4096</code></td>
                     <td>
-                        Maximum total size in kilobytes for files loaded via <code>code_path=</code>. This prevents excessive token usage from very large codebases or directories. Can be configured on the main page.
+                        Maximum total size in kilobytes for files loaded via <code>code_path=</code> (default is 4MB). This prevents excessive token usage from very large codebases or directories. Can be configured on the main page.
                     </td>
                 </tr>
             </tbody>
         </table>
     </div>
-    
+
     <div class="alert alert-warning">
-        <strong>⚠️ Important:</strong> This setting affects all 19 builtin development tools. When <code>project_path=</code> or <code>code_path=</code> is used, tools will only access files within the configured allowed directories. This provides an additional security layer beyond the standard project root restriction.
+        <strong>⚠️ Important:</strong> This setting affects all 24 builtin development tools. When <code>project_path=</code> or <code>code_path=</code> is used, tools will only access files within the configured allowed directories. This provides an additional security layer beyond the standard project root restriction.
+    </div>
+
+    <h3 class="mt-3">🤖 Agent Intelligence & Enhanced Aux Model Settings</h3>
+    <p>Fine-tune the agent's cognitive and optimization capabilities. These are all configurable via the Web UI.</p>
+    <div class="table-responsive">
+        <table class="table table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Setting</th>
+                    <th>Default</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>AGENT_INTELLIGENCE_ENABLED</code></td>
+                    <td><code>true</code></td>
+                    <td>Enables advanced features like planning, memory, and self-reflection.</td>
+                </tr>
+                <tr>
+                    <td><code>AGENT_MEMORY_SIZE</code></td>
+                    <td><code>100</code></td>
+                    <td>The number of historical tool calls the agent remembers.</td>
+                </tr>
+                <tr>
+                    <td><code>AGENT_PLAN_VALIDATION</code></td>
+                    <td><code>true</code></td>
+                    <td>Validates agent-created plans for safety and logic before execution.</td>
+                </tr>
+                <tr>
+                    <td><code>AGENT_REFLECTION_ENABLED</code></td>
+                    <td><code>true</code></td>
+                    <td>Allows the agent to validate tool outputs and assess its own progress.</td>
+                </tr>
+                <tr>
+                    <td><code>AGENT_AUX_MODEL_ENABLED</code></td>
+                    <td><code>false</code></td>
+                    <td>Enables the enhanced auxiliary model for intelligent processing of large tool outputs.</td>
+                </tr>
+                <tr>
+                    <td><code>AGENT_AUX_MODEL_NAME</code></td>
+                    <td><code>gemini-flash-latest</code></td>
+                    <td>The model to use for auxiliary tasks.</td>
+                </tr>
+                <tr>
+                    <td><code>AUX_MODEL_CACHE_SIZE</code></td>
+                    <td><code>100</code></td>
+                    <td>Number of auxiliary model results to cache.</td>
+                </tr>
+                <tr>
+                    <td><code>AUX_MODEL_MIN_TOKENS</code></td>
+                    <td><code>200</code></td>
+                    <td>Minimum token count in a tool output to trigger the auxiliary model.</td>
+                </tr>
+                <tr>
+                    <td><code>AUX_MODEL_MAX_TOKENS</code></td>
+                    <td><code>1000</code></td>
+                    <td>Maximum tokens for the auxiliary model's output.</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 
     <h2 class="mt-4">📡 Available Endpoints</h2>
