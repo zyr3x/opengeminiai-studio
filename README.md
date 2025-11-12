@@ -76,7 +76,7 @@ Version 3.0 transforms OpenGeminiAI Studio into a powerful **AI-driven software 
     -   **Modification**: `apply_patch`, `create_file`, `write_file`
     -   **Execution**: `execute_command`, `run_tests`
     -   **Git Operations**: `git_status`, `git_log`, `git_diff`, `git_show`, `git_blame`, `list_recent_changes`
--   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling. **Tools/functions can be explicitly selected or disabled via System Prompt and Prompt Override profiles.**
+-   **MCP Tools Support:** Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling. MCP tools can be either **local command-line executables** or **remote HTTP/HTTPS endpoints**, providing maximum flexibility. **Tools/functions can be explicitly selected or disabled via System Prompt and Prompt Override profiles.**
 -   **Native Google Tools:** Enable built-in Google tools like Search directly within your prompts for enhanced, real-time data retrieval.
 -   **Integrated Developer Toolkit:** The container comes with a pre-configured development environment, including **Node.js 22+** and the **Docker CLI**. This allows you to run `npx mcp-tools` directly and manage host Docker containers from within the proxy, streamlining development and automation tasks.
 -   **Easy Deployment:** Get up and running in minutes with Docker or standard Python setup.
