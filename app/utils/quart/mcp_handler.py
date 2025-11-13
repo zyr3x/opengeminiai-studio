@@ -10,10 +10,10 @@ from app.utils.core.mcp_handler import (
 )
 
 from app.utils.core.logging import log
+from app.utils.core.optimization_utils import should_cache_tool
 from .optimization import (
     get_cached_tool_output,
-    cache_tool_output,
-    should_cache_tool
+    cache_tool_output
 )
 _async_context = threading.local()
 

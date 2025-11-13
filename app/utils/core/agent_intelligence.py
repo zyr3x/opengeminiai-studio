@@ -6,6 +6,7 @@ for the AI agent when working in project_path mode.
 """
 
 import json
+import threading
 from typing import List, Dict, Optional, Tuple
 from app.utils.core.logging import log
 from app.utils.core.optimization_utils import estimate_tokens
@@ -338,15 +339,19 @@ class AgentOrchestrator:
 
 # Global orchestrator instance
 _orchestrator: Optional[AgentOrchestrator] = None
+_orchestrator_lock = threading.Lock()
 
 def get_agent_orchestrator() -> AgentOrchestrator:
-    """Get or create global agent orchestrator"""
+    """Get or create global agent orchestrator (thread-safe)"""
     global _orchestrator
     if _orchestrator is None:
-        _orchestrator = AgentOrchestrator()
+        with _orchestrator_lock:
+            if _orchestrator is None:  # Double-check locking
+                _orchestrator = AgentOrchestrator()
     return _orchestrator
 
 def reset_agent_orchestrator():
     """Reset the orchestrator (e.g., for new sessions)"""
     global _orchestrator
-    _orchestrator = None
+    with _orchestrator_lock:
+        _orchestrator = None

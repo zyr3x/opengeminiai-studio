@@ -11,30 +11,35 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from app.utils.core.logging import log
 
 _tool_output_cache = {}
 _cache_lock = threading.Lock()
 from app.utils.core.optimization_utils import get_cache_key
 CACHE_TTL = 300
 CACHE_MAX_SIZE = 100
+CACHE_CLEANUP_THRESHOLD = 120  # Cleanup when exceeding 120% of max size
+
 def clean_cache():
     global _tool_output_cache
     with _cache_lock:
         now = time.time()
         expired_keys = [
             key for key, (_, timestamp) in _tool_output_cache.items()
-        if now - timestamp > CACHE_TTL
-    ]
+            if now - timestamp > CACHE_TTL
+        ]
         for key in expired_keys:
             if key in _tool_output_cache:
                 del _tool_output_cache[key]
 
-        if len(_tool_output_cache) > CACHE_MAX_SIZE:
+        # More aggressive cleanup if cache grows too large
+        if len(_tool_output_cache) > CACHE_CLEANUP_THRESHOLD:
             sorted_items = sorted(
                 _tool_output_cache.items(),
                 key=lambda x: x[1][1]
             )
             _tool_output_cache = dict(sorted_items[-CACHE_MAX_SIZE:])
+            log(f"⚠️  Cache cleanup: reduced from {len(sorted_items)} to {CACHE_MAX_SIZE} items")
 def get_cached_tool_output(function_name: str, tool_args: dict) -> Optional[str]:
     clean_cache()
     cache_key = get_cache_key(function_name, tool_args)

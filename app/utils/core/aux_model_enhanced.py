@@ -289,11 +289,18 @@ class AuxModelEnhanced:
             raise ValueError(f"Google API Error: {error_details.get('message', 'Unknown error')}")
 
         try:
-            # Safely navigate the response structure
+            # Safely navigate the response structure with defensive checks
+            if 'candidates' not in response_data or not response_data['candidates']:
+                # Check for prompt feedback blocks
+                if response_data.get('promptFeedback', {}).get('blockReason'):
+                    reason = response_data['promptFeedback']['blockReason']
+                    raise ValueError(f"Request blocked by Google API. Reason: {reason}")
+                raise ValueError(f"No candidates in API response. Response: {json.dumps(response_data, indent=2)}")
+
             candidate = response_data['candidates'][0]
 
             # The model can return a candidate but no content, e.g. due to safety filters.
-            if 'content' not in candidate or not candidate['content'].get('parts'):
+            if 'content' not in candidate or not candidate.get('content') or not candidate['content'].get('parts'):
                 finish_reason = candidate.get('finishReason', 'UNKNOWN')
                 if finish_reason == 'SAFETY':
                     safety_ratings = candidate.get('safetyRatings')
@@ -305,7 +312,11 @@ class AuxModelEnhanced:
 
                 raise ValueError(f"No valid content in API response. Finish reason: {finish_reason}")
 
-            return candidate['content']['parts'][0]['text']
+            parts = candidate['content'].get('parts', [])
+            if not parts or 'text' not in parts[0]:
+                raise ValueError(f"No text in response parts. Parts: {parts}")
+
+            return parts[0]['text']
 
         except (KeyError, IndexError) as e:
             log(f"🔍 Aux model response parsing failed. Error: {e}. Full response: {json.dumps(response_data, indent=2)}")
