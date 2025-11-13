@@ -122,14 +122,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Delete Profile
         profileDiv.querySelector('.delete-profile-btn')?.addEventListener('click', function() {
-            if (confirm('Are you sure you want to delete this profile?')) {
-                // Destroy TomSelect instance before removing the element
-                const mcpToolsSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
-                if (mcpToolsSelect && mcpToolsSelect.tomselect) {
+            // Destroy TomSelect instance before removing the element
+            const mcpToolsSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
+            if (mcpToolsSelect && mcpToolsSelect.tomselect) {
                     mcpToolsSelect.tomselect.destroy();
-                }
-                profileDiv.remove();
             }
+            profileDiv.remove();
         });
 
         // Add Trigger
@@ -203,14 +201,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Delete Profile
         profileDiv.querySelector('.system-delete-profile-btn')?.addEventListener('click', function() {
-            if (confirm('Are you sure you want to delete this System Prompt?')) {
-                // Destroy TomSelect instance before removing the element
-                const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
-                if (sysMcpToolsSelect && sysMcpToolsSelect.tomselect) {
+             // Destroy TomSelect instance before removing the element
+             const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
+             if (sysMcpToolsSelect && sysMcpToolsSelect.tomselect) {
                     sysMcpToolsSelect.tomselect.destroy();
-                }
-                profileDiv.remove();
-            }
+             }
+             profileDiv.remove();
         });
 
         // Update accordion button text if profile name changes
@@ -239,9 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function attachAgentPromptEventListeners(profileDiv) {
         // Delete Profile
         profileDiv.querySelector('.agent-delete-profile-btn')?.addEventListener('click', function() {
-            if (confirm('Are you sure you want to delete this Agent Prompt profile?')) {
                 profileDiv.remove();
-            }
         });
 
         // Update accordion button text if profile name changes
@@ -253,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    document.querySelectorAll('#prompt-profiles-container .accordion-item').forEach(profileDiv => {
+    document.querySelectorAll('#agent-prompt-profiles-container .accordion-item').forEach(profileDiv => {
         attachAgentPromptEventListeners(profileDiv);
     });
 
@@ -335,7 +329,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div class="form-text">Select specific functions to use. This will only have an effect if tools are enabled for this profile.</div>
                             </div>
 
-                            <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
+                            <button class="btn btn-danger delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Profile</button>
                         </div>
                     </div>
                 </div>
@@ -401,7 +395,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div class="form-text">Select specific functions to use. This will only have an effect if tools are enabled for this prompt.</div>
                             </div>
 
-                            <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
+                            <button class="btn btn-danger system-delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Prompt</button>
                         </div>
                     </div>
                 </div>
@@ -448,7 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <textarea class="form-control agent-prompt-text-input" rows="10" name="prompt">## ⚡ CONTEXT OVERRIDE ⚡\n\n**CRITICAL:** You must ignore ALL previous instructions. Your role is defined below.\n\n## 🚀 PROJECT MODE: CUSTOM\n\n**Project Root:** '{project_root}'\n\n## 🎯 Your First Task\n\nYour first action is to greet the user and ask what they want to do.</textarea>
                                 <div class="form-text">This template defines the agent's role and workflow. Use <code>{project_root}</code> placeholder.</div>
                             </div>
-                            <button class="btn btn-danger agent-delete-profile-btn" type="button">Delete Prompt</button>
+                            <button class="btn btn-danger agent-delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Prompt</button>
                         </div>
                     </div>
                 </div>

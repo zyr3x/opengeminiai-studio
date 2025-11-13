@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const mcpArgTemplate = `
         <div class="input-group mb-2">
             <input type="text" class="form-control mcp-arg-input" value="">
-            <button class="btn btn-outline-danger mcp-remove-item-btn" type="button">✖</button>
+            <button class="btn btn-outline-danger mcp-remove-item-btn" type="button"><span class="material-icons">close</span></button>
         </div>`;
 
     const mcpEnvTemplate = `
@@ -51,20 +51,24 @@ document.addEventListener('DOMContentLoaded', function () {
             <input type="text" class="form-control mcp-env-key-input" placeholder="Key" value="">
             <span class="input-group-text">=</span>
             <input type="text" class="form-control mcp-env-value-input" placeholder="Value" value="">
-            <button class="btn btn-outline-danger mcp-remove-item-btn" type="button">✖</button>
+            <button class="btn btn-outline-danger mcp-remove-item-btn" type="button"><span class="material-icons">close</span></button>
         </div>`;
 
     mcpContainer.addEventListener('click', async function(e) {
+        const addArgBtn = e.target.closest('.mcp-add-arg-btn');
+        const addEnvBtn = e.target.closest('.mcp-add-env-btn');
+        const removeItemBtn = e.target.closest('.mcp-remove-item-btn');
+        const deleteServerBtn = e.target.closest('.mcp-delete-server-btn');
         const checkBtn = e.target.closest('.mcp-check-commands-btn');
 
-        if (e.target.classList.contains('mcp-add-arg-btn')) {
-            e.target.previousElementSibling.insertAdjacentHTML('beforeend', mcpArgTemplate);
-        } else if (e.target.classList.contains('mcp-add-env-btn')) {
-            e.target.previousElementSibling.insertAdjacentHTML('beforeend', mcpEnvTemplate);
-        } else if (e.target.classList.contains('mcp-remove-item-btn')) {
-            e.target.closest('.input-group').remove();
-        } else if (e.target.classList.contains('mcp-delete-server-btn')) {
-            e.target.closest('.accordion-item').remove();
+        if (addArgBtn) {
+            addArgBtn.previousElementSibling.insertAdjacentHTML('beforeend', mcpArgTemplate);
+        } else if (addEnvBtn) {
+            addEnvBtn.previousElementSibling.insertAdjacentHTML('beforeend', mcpEnvTemplate);
+        } else if (removeItemBtn) {
+            removeItemBtn.closest('.input-group').remove();
+        } else if (deleteServerBtn) {
+            deleteServerBtn.closest('.accordion-item').remove();
         } else if (checkBtn) {
             const accordionItem = checkBtn.closest('.accordion-item');
             const infoContainer = accordionItem.querySelector('.mcp-commands-info-container');
@@ -138,7 +142,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     const addServerBtn = document.getElementById('mcp-add-server-btn');
-    if (addServerBtn) {
+    if (addServerBtn && !addServerBtn.dataset.listenerAttached) {
+        addServerBtn.dataset.listenerAttached = 'true';
         addServerBtn.addEventListener('click', function() {
             mcpServerCounter++;
             const newServerTemplate = `
@@ -185,7 +190,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <!-- Populated by JS -->
                             </div>
                             <hr>
-                            <button class="btn btn-danger mcp-delete-server-btn" type="button">Delete Server</button>
+                            <button class="btn btn-danger mcp-delete-server-btn" type="button"><span class="material-icons fs-6 me-1" style="vertical-align: text-bottom;">delete</span>Delete Server</button>
                         </div>
                     </div>
                 </div>`;

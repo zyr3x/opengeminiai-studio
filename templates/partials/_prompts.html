@@ -68,7 +68,7 @@
                                 {% endif %}
                             </div>
 
-                            <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
+                            <button class="btn btn-danger system-delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Prompt</button>
                         </div>
                     </div>
                 </div>
@@ -126,7 +126,7 @@
                                 <div class="form-text">This template defines the agent's role and workflow. Use <code>{project_root}</code> placeholder.</div>
                             </div>
 
-                            <button class="btn btn-danger agent-delete-profile-btn" type="button">Delete Prompt</button>
+                            <button class="btn btn-danger agent-delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Prompt</button>
                         </div>
                     </div>
                 </div>
@@ -236,7 +236,7 @@
                                 {% endif %}
                             </div>
 
-                            <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
+                            <button class="btn btn-danger delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Profile</button>
                         </div>
                     </div>
                 </div>
@@ -259,4 +259,3 @@
     // Make the list of MCP functions available to the prompt editor script
     window.mcpFunctionsByTool = {{ mcp_functions_by_tool | tojson }};
 </script>
-<script src="{{ url_for('static', filename='js/prompt_editor.js') }}" defer></script>
