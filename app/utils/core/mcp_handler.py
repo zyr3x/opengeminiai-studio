@@ -231,12 +231,12 @@ def apply_patch(patch_content: str) -> str:
     patch_content = patch_content.strip()
     if patch_content.startswith("```"):
         lines = patch_content.split('\n')
-        lines = lines[1:]
+        if lines[0].strip().startswith("```"):
+            lines = lines[1:]
         if lines and lines[-1].strip() == "```":
             lines = lines[:-1]
         patch_content = '\n'.join(lines)
         log(f"Cleaned markdown formatting from patch")
-    patch_content = patch_content.replace('```', '')
     patch_content = patch_content.strip()
     if not patch_content:
         return "Error: Patch content is empty after cleanup."
@@ -306,9 +306,13 @@ def git_status() -> str:
         return error
     if result.returncode != 0:
         return f"Error: Not a git repository or git command failed.\n{result.stderr}"
-    if not result.stdout.strip():
+    output = result.stdout.strip()
+    if not output:
         return "Working tree is clean (no changes)."
-    return f"Git Status:\n```\n{result.stdout.strip()}\n```"
+    lines = output.split('\n')
+    if len(lines) == 1 and lines[0].startswith("##"):
+        return "Working tree is clean (no changes)."
+    return f"Git Status:\n```\n{output}\n```"
 def git_log(max_count: int = 10, path: str = None) -> str:
     try:
         max_count = int(max_count) if max_count else 10

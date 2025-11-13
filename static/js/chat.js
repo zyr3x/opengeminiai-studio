@@ -594,15 +594,36 @@ document.addEventListener('DOMContentLoaded', function () {
     function createFilePreview(file) {
         const wrapper = document.createElement('div');
         wrapper.className = 'file-preview-wrapper';
+
         if (file.type.startsWith('image/')) {
             const img = document.createElement('img');
+            img.className = 'preview-image';
             img.src = URL.createObjectURL(file);
+            img.onload = () => URL.revokeObjectURL(img.src); // Good practice to release memory
             wrapper.appendChild(img);
-        } else if (file.type.startsWith('audio/')) {
-            wrapper.innerHTML = `<span class="material-icons">audiotrack</span>`;
         } else {
-            wrapper.innerHTML = `<span class="material-icons">description</span>`;
+            // For non-image files, use the generic preview style
+            const genericPreview = document.createElement('div');
+            genericPreview.className = 'generic-preview';
+
+            const icon = document.createElement('span');
+            icon.className = 'material-icons';
+            if (file.type.startsWith('audio/')) {
+                icon.textContent = 'audiotrack';
+            } else if (file.type.startsWith('video/')) {
+                icon.textContent = 'videocam';
+            } else {
+                icon.textContent = 'description'; // Default icon
+            }
+
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.textContent = file.name;
+
+            genericPreview.appendChild(icon);
+            genericPreview.appendChild(fileNameSpan);
+            wrapper.appendChild(genericPreview);
         }
+
         const removeBtn = document.createElement('button');
         removeBtn.className = 'btn btn-sm btn-danger remove-file-btn';
         removeBtn.innerHTML = '&times;';
