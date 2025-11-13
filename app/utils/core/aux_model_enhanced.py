@@ -74,12 +74,6 @@ class AuxModelStrategy:
     def choose_strategy(cls, tool_name: str, content: str, task_context: str = None) -> str:
         """Intelligently choose the best strategy based on tool and content"""
         
-        tokens = estimate_tokens(content)
-        
-        # Don't use aux for short outputs
-        if tokens < cls.MIN_TOKENS_THRESHOLD:
-            return None
-        
         # Tool-specific strategies
         if tool_name in ['list_files', 'search_codebase', 'find_references']:
             # These produce lists - structure them
