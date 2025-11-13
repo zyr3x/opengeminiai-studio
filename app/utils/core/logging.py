@@ -1,4 +1,4 @@
-import app.config as config
+from app.config import config
 def log(message: str):
     if config.VERBOSE_LOGGING:
         print(message)

@@ -2,7 +2,6 @@ from flask import Flask
 from .config import config
 import os
 from quart import Quart
-from app.config import config
 from hypercorn.asyncio import serve
 from pathlib import Path
 from hypercorn.config import Config as HypercornConfig

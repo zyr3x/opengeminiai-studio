@@ -36,7 +36,7 @@ def get_prompt_override_config(full_prompt_text: str) -> dict:
 
     return {
         'active_overrides': active_overrides,
-        'disable_mcp_tools_by_profile': True,
+        'disable_mcp_tools_by_profile': False,
         'enable_native_tools_by_profile': False,
         'profile_selected_mcp_tools': []
     }

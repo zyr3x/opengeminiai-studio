@@ -195,7 +195,7 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
 def pretty_json(data):
     return json.dumps(data, indent=2, ensure_ascii=False, default=str)
 def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bool = False, timeout: int = 300) -> requests.Response:
-    from app.utils.flask import optimization
+    from app.utils.core import optimization
     session = optimization.get_http_session()
     rate_limiter = optimization.get_rate_limiter()
 

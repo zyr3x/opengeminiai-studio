@@ -16,6 +16,23 @@ from .optimization import (
     should_cache_tool
 )
 _async_context = threading.local()
+
+# Synchronous worker function to execute tool and perform synchronous summarization if needed
+def _sync_tool_executor_with_summarization(function_name: str, tool_args: dict, project_root_override: str | None) -> str:
+    output = sync_execute_mcp_tool(function_name, tool_args, project_root_override)
+
+    # Apply synchronous summarization using core tools if required by agent mode
+    from app.config import config
+    from app.utils.core.optimization_utils import estimate_tokens, MAX_TOOL_OUTPUT_TOKENS
+    from app.utils.core import tools as core_tools
+
+    is_agent_mode = project_root_override is not None
+    if is_agent_mode and config.AGENT_AUX_MODEL_ENABLED and isinstance(output, str) and estimate_tokens(output) > MAX_TOOL_OUTPUT_TOKENS:
+        # We must call the core synchronous summarizer, which uses the internal caching/strategy/sync requests
+        output = core_tools.summarize_with_aux_model(output, function_name)
+
+    return output
+
 async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_root_override: str | None = None) -> str:
     log(f"🔧 Executing tool (async): {function_name} with args: {tool_args}")
 
@@ -28,18 +45,11 @@ async def execute_mcp_tool_async(function_name: str, tool_args: dict, project_ro
         loop = asyncio.get_event_loop()
         output = await loop.run_in_executor(
             None,
-            sync_execute_mcp_tool,
+            _sync_tool_executor_with_summarization,
             function_name,
             tool_args,
             project_root_override
         )
-
-        from app.config import config
-        from app.utils.core.optimization_utils import estimate_tokens, MAX_TOOL_OUTPUT_TOKENS
-        from . import utils as quart_utils
-        is_agent_mode = project_root_override is not None
-        if is_agent_mode and config.AGENT_AUX_MODEL_ENABLED and isinstance(output, str) and estimate_tokens(output) > MAX_TOOL_OUTPUT_TOKENS:
-            output = await quart_utils.summarize_with_aux_model_async(output, function_name)
 
         if should_cache_tool(function_name):
             await cache_tool_output(function_name, tool_args, output)
