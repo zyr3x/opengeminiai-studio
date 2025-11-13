@@ -15,12 +15,6 @@ from app.utils.core.optimization_utils import estimate_tokens
 class AuxModelStrategy:
     """Defines different strategies for using the aux model"""
     
-    # Maximum tokens before invoking aux model
-    MAX_TOKENS_THRESHOLD = 1000
-    
-    # Minimum tokens worth summarizing (too short isn't worth it)
-    MIN_TOKENS_THRESHOLD = 200
-    
     STRATEGIES = {
         'summarize': {
             'temperature': 0.2,
@@ -162,28 +156,28 @@ class AuxModelEnhanced:
     """Enhanced auxiliary model with intelligent processing"""
     
     def __init__(self):
-        self.cache = AuxModelCache()
+        self.cache = AuxModelCache(max_size=config.AUX_MODEL_CACHE_SIZE)
         self.total_calls = 0
         self.total_tokens_saved = 0
-        
+
     def should_use_aux(self, tool_name: str, content: str) -> bool:
         """Decide if aux model should be used"""
         if not config.AGENT_AUX_MODEL_ENABLED:
             return False
-        
+
         tokens = estimate_tokens(content)
-        
+
         # Don't use for very short content
-        if tokens < AuxModelStrategy.MIN_TOKENS_THRESHOLD:
+        if tokens < config.AUX_MODEL_MIN_TOKENS:
             return False
-        
+
         # Use for content exceeding threshold
-        if tokens > AuxModelStrategy.MAX_TOKENS_THRESHOLD:
+        if tokens > config.AUX_MODEL_MAX_TOKENS:
             return True
-        
+
         # For specific tools, always use even if not too long
         always_process = ['analyze_project_structure', 'run_tests', 'git_log']
-        if tool_name in always_process and tokens > 500:
+        if tool_name in always_process and tokens > config.AUX_MODEL_MIN_TOKENS * 2:
             return True
         
         return False

@@ -382,7 +382,8 @@ def summarize_with_aux_model(content: str, tool_name: str, task_context: str = N
     from app.config import config
     
     if not config.AGENT_AUX_MODEL_ENABLED:
-        return content
+        from app.utils.core.optimization_utils import optimize_tool_output
+        return optimize_tool_output(content, tool_name)
     
     # Try using enhanced aux model if available
     try:
