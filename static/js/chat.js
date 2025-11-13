@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const mobileChatSelect = document.getElementById('mobile-chat-select'); // Mobile chat dropdown
     const newChatBtnMobile = document.getElementById('new-chat-btn-mobile'); // Mobile new chat button
     const deleteChatBtnUniversal = document.getElementById('delete-chat-btn-universal'); // Universal delete chat button
+    const renameChatBtn = document.getElementById('rename-chat-btn');
     const generationTypeSelect = document.getElementById('generation-type-select');
     const el = document.querySelector('#mcp-tools-select');
     const chatSidebar = document.getElementById('chat-sidebar');
@@ -43,7 +44,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (el) {
        new TomSelect(el, {
           plugins: ['remove_button'],
-          placeholder: 'Select MCP Tools (optional)...',
+          placeholder: 'Select MCP Functions (optional)...',
+          dropdownParent: 'body', // Fixes dropdown being clipped by parent elements
+           onChange: function(value) {
+                if (Array.isArray(value) && value.includes('*') && value.length > 1) {
+                    this.setValue('*', true); // silent update
+                }
+            }
        });
     }
 
@@ -66,7 +73,7 @@ document.addEventListener('DOMContentLoaded', function () {
         filePreviewsContainer.style.display = 'none';
     }
 
-    function addMessageToHistory(role, content, files = []) {
+    function addMessageToHistory(role, content, files = [], messageId = null) {
         const messageDiv = document.createElement('div');
         const isUser = role === 'user';
         messageDiv.classList.add('message', isUser ? 'user-message' : 'bot-message');
@@ -158,11 +165,73 @@ document.addEventListener('DOMContentLoaded', function () {
 
         contentDiv.innerHTML = textContent + filesHtml;
         if (window.renderMathInElement) renderMathInElement(contentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
+        addCopyButtonsToCodeBlocks(contentDiv);
+        renderMermaidDiagrams(contentDiv);
 
         messageDiv.appendChild(avatarDiv);
         messageDiv.appendChild(contentDiv);
+
+        // Add message actions (e.g., delete)
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'message-actions';
+
+        if (messageId) {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-sm btn-outline-danger p-0 px-1 delete-message-btn';
+            deleteBtn.innerHTML = '<span class="material-icons fs-6">delete</span>';
+            deleteBtn.title = 'Delete Message';
+            deleteBtn.dataset.messageId = messageId;
+            actionsDiv.appendChild(deleteBtn);
+        }
+        messageDiv.appendChild(actionsDiv);
+
         chatHistory.appendChild(messageDiv);
         chatHistory.scrollTop = chatHistory.scrollHeight;
+        return messageDiv;
+    }
+
+    function addCopyButtonsToCodeBlocks(container) {
+        const codeBlocks = container.querySelectorAll('pre:not(:has(code.language-mermaid))');
+        codeBlocks.forEach(pre => {
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'btn btn-sm btn-outline-primary copy-code-btn';
+            copyBtn.innerHTML = '<span class="material-icons fs-6">content_copy</span> Copy';
+            pre.style.position = 'relative';
+            pre.appendChild(copyBtn);
+
+            copyBtn.addEventListener('click', () => {
+                const code = pre.querySelector('code').innerText;
+                navigator.clipboard.writeText(code).then(() => {
+                    copyBtn.innerHTML = '<span class="material-icons fs-6">done</span> Copied!';
+                    setTimeout(() => {
+                         copyBtn.innerHTML = '<span class="material-icons fs-6">content_copy</span> Copy';
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                    copyBtn.textContent = 'Error';
+                });
+            });
+        });
+    }
+
+    function renderMermaidDiagrams(container) {
+        if (window.mermaid) {
+            const codeBlocks = container.querySelectorAll('pre code.language-mermaid');
+            codeBlocks.forEach(block => {
+                const pre = block.parentElement;
+                const mermaidContainer = document.createElement('div');
+                mermaidContainer.className = 'mermaid';
+                mermaidContainer.textContent = block.textContent;
+                pre.parentNode.replaceChild(mermaidContainer, pre);
+            });
+            try {
+                window.mermaid.run({
+                    nodes: container.querySelectorAll('.mermaid')
+                });
+            } catch(e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
     }
 
     function showTypingIndicator() {
@@ -357,7 +426,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="message-content"><p>This is a new chat. Ask me anything!</p></div>
                     </div>`;
             } else {
-                messages.forEach(msg => addMessageToHistory(msg.role, msg.content, msg.files || []));
+                messages.forEach(msg => addMessageToHistory(msg.role, msg.content, msg.files || [], msg.id));
             }
         } catch (error) {
             console.error(`Error loading chat ${chatId}:`, error);
@@ -452,6 +521,32 @@ document.addEventListener('DOMContentLoaded', function () {
         toggleSidebarBtn.addEventListener('click', toggleSidebar);
     }
 
+    if (renameChatBtn) {
+        renameChatBtn.addEventListener('click', async () => {
+            if (!currentChatId) return;
+            const currentTitle = chatTitle.textContent;
+            const newTitle = prompt("Enter a new name for the chat:", currentTitle);
+
+            if (newTitle && newTitle.trim() !== '' && newTitle !== currentTitle) {
+                try {
+                    const response = await fetch(`/api/chats/${currentChatId}/title`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: newTitle.trim() })
+                    });
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error || 'Failed to rename chat.');
+                    }
+                    await loadChats(); // Reload all chats to reflect the change everywhere
+                } catch (error) {
+                    console.error('Error renaming chat:', error);
+                    alert(`Could not rename chat: ${error.message}`);
+                }
+            }
+        });
+    }
+
     chatInput.addEventListener('input', adjustTextareaHeight);
     chatInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -499,15 +594,36 @@ document.addEventListener('DOMContentLoaded', function () {
     function createFilePreview(file) {
         const wrapper = document.createElement('div');
         wrapper.className = 'file-preview-wrapper';
+
         if (file.type.startsWith('image/')) {
             const img = document.createElement('img');
+            img.className = 'preview-image';
             img.src = URL.createObjectURL(file);
+            img.onload = () => URL.revokeObjectURL(img.src); // Good practice to release memory
             wrapper.appendChild(img);
-        } else if (file.type.startsWith('audio/')) {
-            wrapper.innerHTML = `<span class="material-icons">audiotrack</span>`;
         } else {
-            wrapper.innerHTML = `<span class="material-icons">description</span>`;
+            // For non-image files, use the generic preview style
+            const genericPreview = document.createElement('div');
+            genericPreview.className = 'generic-preview';
+
+            const icon = document.createElement('span');
+            icon.className = 'material-icons';
+            if (file.type.startsWith('audio/')) {
+                icon.textContent = 'audiotrack';
+            } else if (file.type.startsWith('video/')) {
+                icon.textContent = 'videocam';
+            } else {
+                icon.textContent = 'description'; // Default icon
+            }
+
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.textContent = file.name;
+
+            genericPreview.appendChild(icon);
+            genericPreview.appendChild(fileNameSpan);
+            wrapper.appendChild(genericPreview);
         }
+
         const removeBtn = document.createElement('button');
         removeBtn.className = 'btn btn-sm btn-danger remove-file-btn';
         removeBtn.innerHTML = '&times;';
@@ -520,162 +636,225 @@ document.addEventListener('DOMContentLoaded', function () {
         filePreviewsContainer.appendChild(wrapper);
     }
 
-    chatForm.addEventListener('submit', async function(event) {
-        event.preventDefault();
-        const userInput = chatInput.value.trim();
-        const generationType = generationTypeSelect.value;
+    chatHistory.addEventListener('click', async function(e) {
+        const deleteBtn = e.target.closest('.delete-message-btn');
+        if (deleteBtn) {
+            const messageId = deleteBtn.dataset.messageId;
+            const messageDiv = deleteBtn.closest('.message');
 
-        if (generationType === 'image') {
-            if (!userInput) {
-                alert("Please enter a prompt to generate an image.");
-                return;
-            }
-
-            addMessageToHistory('user', userInput);
-            chatInput.value = '';
-            adjustTextareaHeight();
-            clearFiles(); // Ensure no files are lingering from chat mode
-
-            showTypingIndicator();
-            sendBtn.disabled = true;
-
-            const formData = new FormData();
-            formData.append('chat_id', currentChatId);
-            formData.append('model', modelSelect.value);
-            formData.append('prompt', userInput);
-
-            try {
-                const response = await fetch('/api/generate_image', { method: 'POST', body: formData });
-                removeTypingIndicator();
-
-                if (!response.ok) {
-                    const err = await response.json();
-                    addMessageToHistory('bot', `Error: ${err.error || 'Unknown error during image generation'}`);
-                    return;
+            if (confirm('Are you sure you want to delete this message?')) {
+                try {
+                    const response = await fetch(`/api/messages/${messageId}`, { method: 'DELETE' });
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.error || 'Failed to delete message from server.');
+                    }
+                    messageDiv.remove();
+                } catch (error) {
+                    console.error('Error deleting message:', error);
+                    alert(`Could not delete message: ${error.message}`);
                 }
-
-                const data = await response.json();
-                addMessageToHistory('assistant', data.content); // Let marked render the markdown image link
-
-            } catch (error) {
-                removeTypingIndicator();
-                addMessageToHistory('bot', `Network error: ${error.message}`);
-            } finally {
-                sendBtn.disabled = false;
-                chatInput.focus();
-            }
-        } else { // 'text'
-            if (!userInput && attachedFiles.length === 0) return;
-
-            addMessageToHistory('user', userInput, [...attachedFiles]);
-            const filesToSend = [...attachedFiles];
-            chatInput.value = '';
-            adjustTextareaHeight();
-            clearFiles();
-
-            showTypingIndicator();
-            sendBtn.disabled = true;
-
-            const formData = new FormData();
-            formData.append('chat_id', currentChatId);
-            formData.append('model', modelSelect.value);
-            formData.append('system_prompt_name', systemPromptSelect ? systemPromptSelect.value : '');
-            formData.append('message', userInput);
-            filesToSend.forEach(file => formData.append('file', file));
-
-            try {
-                const response = await fetch('/chat_api', { method: 'POST', body: formData });
-                removeTypingIndicator();
-
-                if (!response.ok) {
-                    const err = await response.json();
-                    addMessageToHistory('bot', `Error: ${err.error || 'Unknown error'}`);
-                    return;
-                }
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let botMessageContent = '';
-                const botMessageDiv = document.createElement('div');
-                botMessageDiv.className = 'message bot-message';
-
-                const avatarDiv = document.createElement('div');
-                avatarDiv.className = 'avatar';
-                const avatarIcon = document.createElement('span');
-                avatarIcon.className = 'material-icons';
-                avatarIcon.textContent = 'smart_toy';
-                avatarDiv.appendChild(avatarIcon);
-                botMessageDiv.appendChild(avatarDiv);
-
-                const botContentDiv = document.createElement('div');
-                botContentDiv.className = 'message-content';
-                botMessageDiv.appendChild(botContentDiv);
-                chatHistory.appendChild(botMessageDiv);
-
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    botMessageContent += decoder.decode(value, { stream: true });
-
-                    // HACK: `df -h` on macOS can add a trailing \ to mount points.
-                    botMessageContent = botMessageContent.replace(/\\"/g, '"').replace("/\\\n","\n").replaceAll("\\\n","\n");
-                    let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = html;
-
-                    const replaceWithImage = (element, url) => {
-                        try {
-                            // URLs from pollinations sometimes have spaces, encode them.
-                            const encodedUrl = encodeURI(url);
-                            new URL(encodedUrl); // Basic validation
-                            const img = document.createElement('img');
-                            img.src = encodedUrl;
-                            img.alt = "Generated image";
-                            img.style.maxWidth = "100%";
-                            img.style.borderRadius = "0.5rem";
-                            img.style.marginTop = "0.5rem";
-                            element.parentNode.replaceChild(img, element);
-                        } catch (e) { /* Ignore, URL might be incomplete during streaming */ }
-                    };
-
-                    // Case 1: <a> tags
-                    tempDiv.querySelectorAll('a[href*="image.pollinations.ai"]').forEach(a => {
-                        if (a.textContent.trim() === a.href) {
-                            replaceWithImage(a, a.href);
-                        }
-                    });
-
-                    // Case 2: <p> or <code> tags
-                    tempDiv.querySelectorAll('p, code').forEach(el => {
-                        const text = el.textContent.trim();
-                        if (text.startsWith('https://image.pollinations.ai') || text.startsWith('http://image.pollinations.ai')) {
-                            // Ensure the element only contains this URL and nothing else.
-                            if (el.childNodes.length === 1 && el.childNodes[0].nodeType === Node.TEXT_NODE) {
-                                replaceWithImage(el, text);
-                            }
-                        }
-                    });
-
-                    botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, {ADD_TAGS: ['details', 'summary']});
-                    if (window.renderMathInElement) renderMathInElement(botContentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
-                    chatHistory.scrollTop = chatHistory.scrollHeight;
-                }
-
-                if (userInput) { // Only reload chats if there was text, to update title
-                    await loadChats();
-                }
-
-            } catch (error) {
-                removeTypingIndicator();
-                addMessageToHistory('bot', `Network error: ${error.message}`);
-            } finally {
-                sendBtn.disabled = false;
-                chatInput.focus();
             }
         }
     });
 
+
+    async function sendMessage(userInput, filesToSend, generationType, userMessageElement = null) {
+        // If this is a new message (not a retry), create the element.
+        if (!userMessageElement) {
+            userMessageElement = addMessageToHistory('user', userInput, filesToSend);
+        } else {
+            // If it's a retry, remove old error messages.
+            const existingError = userMessageElement.querySelector('.message-error-container');
+            if (existingError) existingError.remove();
+        }
+
+        // Clear input fields for new messages
+        chatInput.value = '';
+        adjustTextareaHeight();
+        clearFiles();
+
+        showTypingIndicator();
+
+        // Disable form elements
+        sendBtn.disabled = true;
+        chatInput.disabled = true;
+        attachFileBtn.disabled = true;
+        recordBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('chat_id', currentChatId);
+        formData.append('model', modelSelect.value);
+        if (generationType === 'image') {
+            formData.append('prompt', userInput);
+        } else {
+            formData.append('system_prompt_name', systemPromptSelect ? systemPromptSelect.value : '');
+            formData.append('message', userInput);
+            filesToSend.forEach(file => formData.append('file', file));
+
+            if (el && el.tomselect) {
+                const selectedTools = el.tomselect.getValue();
+                if (selectedTools && Array.isArray(selectedTools)) {
+                    selectedTools.forEach(tool => formData.append('mcp_tools', tool));
+                }
+            }
+        }
+
+        const apiUrl = generationType === 'image' ? '/api/generate_image' : '/chat_api';
+
+        try {
+            const response = await fetch(apiUrl, { method: 'POST', body: formData });
+            removeTypingIndicator();
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'API request failed');
+            }
+
+            if (generationType === 'image') {
+                const data = await response.json();
+                addMessageToHistory('assistant', data.content, [], data.message_id);
+            } else {
+                 const reader = response.body.getReader();
+                 const decoder = new TextDecoder();
+                 let botMessageContent = '';
+
+                 // Create a new bot message element to stream content into
+                 const botMessageDiv = addMessageToHistory('assistant', '', []);
+
+                 const botContentDiv = botMessageDiv.querySelector('.message-content');
+                 botContentDiv.innerHTML = ''; // Clear initial content
+
+                // Smart scroll check: only auto-scroll if user is already at the bottom
+                const isScrolledToBottom = chatHistory.scrollHeight - chatHistory.clientHeight <= chatHistory.scrollTop + 1;
+
+                 try {
+                     while (true) {
+                         const { value, done } = await reader.read();
+                         if (done) break;
+
+                         const chunk = decoder.decode(value, { stream: true });
+
+                         // Check for special events from the backend
+                         if (chunk.startsWith('__LLM_EVENT__')) {
+                             try {
+                                 const eventData = JSON.parse(chunk.replace('__LLM_EVENT__', ''));
+                                 if (eventData.type === 'message_id' && eventData.id) {
+                                     const actionsDiv = botMessageDiv.querySelector('.message-actions');
+                                     if (actionsDiv && !actionsDiv.querySelector('.delete-message-btn')) {
+                                         const deleteBtn = document.createElement('button');
+                                         deleteBtn.className = 'btn btn-sm btn-outline-danger p-0 px-1 delete-message-btn';
+                                         deleteBtn.innerHTML = '<span class="material-icons fs-6">delete</span>';
+                                         deleteBtn.title = 'Delete Message';
+                                         deleteBtn.dataset.messageId = eventData.id;
+                                         actionsDiv.appendChild(deleteBtn);
+                                     }
+                                 }
+                             } catch (e) {
+                                 console.error("Failed to parse LLM event:", e);
+                             }
+                             continue; // Skip processing this chunk as text
+                         }
+
+
+                         botMessageContent += chunk;
+                        // Clean up escape sequences
+                        botMessageContent = botMessageContent.replace(/\\"/g, '"').replace(/\\\n/g, "\n");
+                        
+                        // Parse markdown - marked.parse is safe with partial content
+                        let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
+
+                         const tempDiv = document.createElement('div');
+                         tempDiv.innerHTML = html;
+                         // Image replacement logic (same as before) ...
+                         botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, { ADD_TAGS: ['details', 'summary'] });
+
+                         if (isScrolledToBottom) {
+                            chatHistory.scrollTop = chatHistory.scrollHeight;
+                         }
+                     }
+                     // After the stream is complete, apply post-processing for code blocks, math, and diagrams
+                     if (window.renderMathInElement) renderMathInElement(botContentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
+                     addCopyButtonsToCodeBlocks(botContentDiv);
+                     renderMermaidDiagrams(botContentDiv);
+                 } catch (streamError) {
+                     console.error("Streaming error:", streamError);
+                     botContentDiv.innerHTML += `<p class="text-danger small mt-2"><strong>Error:</strong> The connection was interrupted during the response.</p>`;
+                     chatHistory.scrollTop = chatHistory.scrollHeight;
+                 }
+            }
+
+            // Success: reload chats to get new IDs and titles
+            if (userInput) {
+                await loadChats();
+            }
+
+        } catch (error) {
+            removeTypingIndicator();
+            const errorContainer = document.createElement('div');
+            errorContainer.className = 'message-error-container text-danger small mt-2';
+            errorContainer.innerHTML = `<p class="mb-1"><strong>Error:</strong> ${escapeHtml(error.message)}</p>`;
+
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'btn btn-sm btn-outline-secondary';
+            retryBtn.innerHTML = '<span class="material-icons fs-6" style="vertical-align: sub;">refresh</span> Retry';
+            retryBtn.onclick = () => {
+                sendMessage(userInput, filesToSend, generationType, userMessageElement);
+            };
+
+            errorContainer.appendChild(retryBtn);
+            userMessageElement.querySelector('.message-content').appendChild(errorContainer);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        } finally {
+            // Re-enable form elements
+            sendBtn.disabled = false;
+            chatInput.disabled = false;
+            attachFileBtn.disabled = false;
+            recordBtn.disabled = false;
+            chatInput.focus();
+        }
+    }
+
+
+    chatForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const userInput = chatInput.value.trim();
+        const generationType = generationTypeSelect.value;
+        const files = [...attachedFiles];
+
+        if (generationType === 'image' && !userInput) {
+             alert("Please enter a prompt to generate an image.");
+             return;
+        }
+        if (generationType === 'text' && !userInput && files.length === 0) {
+            return;
+        }
+
+        sendMessage(userInput, files, generationType);
+    });
+
     // --- Initialization ---
+
+    function updateChatUIForGenerationType() {
+        const generationType = generationTypeSelect.value;
+        const textOnlyControls = [
+            attachFileBtn,
+            recordBtn,
+            systemPromptSelect.parentElement, // Select the wrapping div to hide the label as well
+            el ? el.parentElement : null // The TomSelect wrapper div
+        ].filter(Boolean); // Filter out null elements
+
+        if (generationType === 'image') {
+            textOnlyControls.forEach(control => control.style.display = 'none');
+            chatInput.placeholder = 'Enter a prompt to generate an image...';
+        } else { // 'text'
+            textOnlyControls.forEach(control => control.style.display = ''); // Reset to default display
+             if (systemPromptSelect.parentElement) systemPromptSelect.parentElement.style.display = 'flex';
+             if (el && el.parentElement) el.parentElement.style.display = 'flex';
+            chatInput.placeholder = 'Type a message or a prompt...';
+        }
+    }
+
     async function loadModels() {
         try {
             const response = await fetch('/v1/models');
@@ -696,7 +875,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    if (generationTypeSelect) {
+        generationTypeSelect.addEventListener('change', updateChatUIForGenerationType);
+    }
+
     initializeSidebar();
     loadModels();
     loadChats();
+    updateChatUIForGenerationType(); // Set initial state
 });

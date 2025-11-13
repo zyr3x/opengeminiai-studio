@@ -3,4 +3,7 @@
 /venv/
 /.venv/
 /var/
+/docs/ai/
 *.log
+.opengemini/
+.claude/

@@ -17,6 +17,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (darkModeIcon) { // Ensure icon exists before trying to set its content
             darkModeIcon.textContent = (theme === 'dark') ? 'dark_mode' : 'light_mode';
         }
+        // Re-initialize and re-render mermaid diagrams with the new theme
+        if (window.mermaid) {
+            window.mermaid.initialize({ startOnLoad: false, theme: theme });
+            // This will re-render all diagrams on the page with the new theme.
+             try {
+                window.mermaid.run({
+                    nodes: document.querySelectorAll('.mermaid')
+                });
+            } catch(e) {
+                console.error("Failed to re-render mermaid diagrams on theme change:", e);
+            }
+        }
     }
 
     // Function to show/hide content sections based on hash
@@ -69,14 +81,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Initializations ---
 
-    // 1. Check for saved theme preference or system preference
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        setTheme(savedTheme);
-    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        setTheme('dark');
-    } else {
-        setTheme('light');
+     // The theme is now initialized by an inline script in layout.html to prevent flickering.
+    // We only need to set the toggle state based on the current theme attribute.
+    if (darkModeToggle) {
+        darkModeToggle.checked = (htmlElement.getAttribute('data-bs-theme') === 'dark');
+    }
+    if (darkModeIcon) {
+        darkModeIcon.textContent = (htmlElement.getAttribute('data-bs-theme') === 'dark') ? 'dark_mode' : 'light_mode';
     }
 
     // 2. Display the correct content section on load
@@ -117,4 +128,198 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 3. Re-run section display logic on hash change (e.g., if user navigates using browser back/forward)
     window.addEventListener('hashchange', showSectionBasedOnHash);
+
+    // --- API Key Management ---
+
+    const keyManagerForm = document.getElementById('key-manager-form');
+    const setActiveKeyBtn = document.getElementById('set-active-key-btn');
+    const apiKeyListBody = document.getElementById('api-key-list-body');
+
+    function maskApiKey(key) {
+        if (key && key.length > 8) {
+            return key.substring(0, 4) + '...' + key.substring(key.length - 4);
+        }
+        return '...';
+    }
+
+    async function loadApiKeys() {
+        try {
+            const response = await fetch('/get_api_key_data');
+            if (!response.ok) throw new Error('Failed to fetch API keys.');
+
+            const data = await response.json();
+            const { keys, active_key_id } = data;
+            const select = document.getElementById('active-key-select');
+
+            select.innerHTML = '';
+            apiKeyListBody.innerHTML = '';
+
+            if (!keys || Object.keys(keys).length === 0) {
+                apiKeyListBody.innerHTML = '<tr><td colspan="4" class="text-center">No API keys stored.</td></tr>';
+                select.innerHTML = '<option disabled selected>No keys available</option>';
+            } else {
+                for (const keyId in keys) {
+                    const option = document.createElement('option');
+                    option.value = keyId;
+                    option.textContent = keyId;
+                    if (keyId === active_key_id) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+
+                    const isActive = keyId === active_key_id;
+                    const statusBadge = isActive ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>';
+                    const row = `
+                        <tr>
+                            <td>${keyId}</td>
+                            <td>${maskApiKey(keys[keyId])}</td>
+                            <td>${statusBadge}</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm delete-key-btn" data-key-id="${keyId}">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                    apiKeyListBody.insertAdjacentHTML('beforeend', row);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading API keys:', error);
+            apiKeyListBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading keys.</td></tr>';
+        }
+    }
+
+    async function handleApiResponse(response) {
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'An unknown error occurred.');
+        }
+        return data;
+    }
+
+    // --- Initializations ---
+
+    // 1. Initialize theme
+    if (darkModeToggle) {
+        darkModeToggle.checked = (htmlElement.getAttribute('data-bs-theme') === 'dark');
+    }
+    if (darkModeIcon) {
+        darkModeIcon.textContent = (htmlElement.getAttribute('data-bs-theme') === 'dark') ? 'dark_mode' : 'light_mode';
+    }
+
+    // 2. Display the correct content section on load
+    showSectionBasedOnHash();
+
+    loadApiKeys();
+
+    // 1. Theme toggle
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('change', function() {
+            setTheme(this.checked ? 'dark' : 'light');
+        });
+    }
+
+    // 2. Navigation link clicks
+    navLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('href');
+            if (window.location.hash !== targetId) {
+                 history.pushState(null, '', targetId);
+            }
+            showSectionBasedOnHash();
+
+            if (navbarCollapse && navbarCollapse.classList.contains('show')) {
+                const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
+                if (bsCollapse) bsCollapse.hide();
+            }
+        });
+    });
+
+    // 3. Handle back/forward browser navigation
+    window.addEventListener('hashchange', showSectionBasedOnHash);
+
+    // 4. Load API keys when configuration tab is shown
+    const configTab = document.querySelector('a[data-bs-toggle="tab"][href="#configuration"]');
+    if (configTab) {
+        configTab.addEventListener('shown.bs.tab', loadApiKeys);
+    }
+
+    // 5. API Key Management Form Submission
+    if (keyManagerForm) {
+        keyManagerForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const keyIdInput = document.getElementById('key-id-input');
+            const keyValueInput = document.getElementById('key-value-input');
+            const setActiveCheckbox = document.getElementById('set-as-active-checkbox');
+
+            try {
+                const response = await fetch('/add_or_update_api_key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        key_id: keyIdInput.value,
+                        key_value: keyValueInput.value,
+                        set_active: setActiveCheckbox.checked
+                    })
+                });
+                const result = await handleApiResponse(response);
+                alert(result.message);
+                keyManagerForm.reset();
+                const accordionCollapse = document.querySelector('#collapseOne');
+                if (accordionCollapse.classList.contains('show')) {
+                    const bsCollapse = bootstrap.Collapse.getInstance(accordionCollapse);
+                    if (bsCollapse) bsCollapse.hide();
+                }
+                loadApiKeys();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        });
+    }
+
+    // 6. Set Active API Key Button
+    if (setActiveKeyBtn) {
+        setActiveKeyBtn.addEventListener('click', async function() {
+            const selectedKeyId = document.getElementById('active-key-select').value;
+            if (!selectedKeyId) {
+                alert("Please select a key to set as active.");
+                return;
+            }
+            try {
+                const response = await fetch('/set_active_api_key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key_id: selectedKeyId })
+                });
+                const result = await handleApiResponse(response);
+                alert(result.message);
+                loadApiKeys();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        });
+    }
+
+    // 7. Delete API Key Buttons (Event Delegation)
+    if (apiKeyListBody) {
+        apiKeyListBody.addEventListener('click', async function(e) {
+            if (e.target && e.target.classList.contains('delete-key-btn')) {
+                const keyId = e.target.dataset.keyId;
+                if (confirm(`Are you sure you want to delete the key '${keyId}'?`)) {
+                    try {
+                        const response = await fetch('/delete_api_key', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key_id: keyId })
+                        });
+                        const result = await handleApiResponse(response);
+                        alert(result.message);
+                        loadApiKeys();
+                    } catch (error) {
+                        alert('Error: ' + error.message);
+                    }
+                }
+            }
+        });
+    }
 });

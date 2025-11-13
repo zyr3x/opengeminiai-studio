@@ -4,7 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenGeminiAI Studio</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
+    <!-- Inline script to prevent theme flickering -->
+    <script>
+        (function() {
+            const htmlElement = document.documentElement;
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                htmlElement.setAttribute('data-bs-theme', savedTheme);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                htmlElement.setAttribute('data-bs-theme', 'dark');
+                localStorage.setItem('theme', 'dark'); // Save dark preference if system matches
+            } else {
+                htmlElement.setAttribute('data-bs-theme', 'light');
+                localStorage.setItem('theme', 'light'); // Save light preference
+            }
+        })();
+    </script>
     <!-- Google Fonts and Material Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -18,7 +35,7 @@
     <div class="container">
         <a class="navbar-brand" href="/">
             <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="OpenGeminiAI Studio Logo" height="30" class="me-2">
-            OpenGeminiAI Studio
+            OpenGeminiAI Studio <small class="text-muted">v3.0</small>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -30,6 +47,12 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#documentation"><span class="material-icons">article</span> Documentation</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#metrics">
+                        <i class="material-icons me-1">analytics</i>
+                        Metrics
+                    </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#configuration"><span class="material-icons">settings</span> Configuration</a>
@@ -61,7 +84,7 @@
 </main>
 
 <!-- Bootstrap Footer -->
-<footer class="footer mt-auto py-3 bg">
+<footer class="footer mt-auto py-3 bg-body">
     <div class="container text-center">
         <span class="text-muted">© {{ current_year }} OpenGeminiAI Studio. All rights reserved.</span><br>
     </div>
@@ -72,8 +95,23 @@
 <!-- Markdown and Sanitizer Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<!-- KaTeX for LaTeX rendering -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    const theme = document.documentElement.getAttribute('data-bs-theme') || 'default';
+    mermaid.initialize({ startOnLoad: false, theme: theme });
+    window.mermaid = mermaid;
+</script>
 <script src="{{ url_for('static', filename='js/mcp_editor.js') }}"></script>
 <script src="{{ url_for('static', filename='js/prompt_editor.js') }}"></script>
+<script src="{{ url_for('static', filename='js/agent_stats.js') }}"></script>
+<script src="{{ url_for('static', filename='js/metrics_updater.js') }}"></script>
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>

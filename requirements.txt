@@ -1,4 +1,9 @@
 flask
+quart
+hypercorn
+aiohttp
+aiofiles
+aiosqlite
 requests
 python-dotenv
 werkzeug

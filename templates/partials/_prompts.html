@@ -17,7 +17,7 @@
                 {% for profile_name, profile in system_prompt_profiles.items() %}
                 <div class="accordion-item {% if not profile.get('enabled', True) %}disabled-item{% endif %}" data-profile-name="{{ profile_name }}">
                     <h2 class="accordion-header" id="sys-heading-{{ loop.index }}">
-                        <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#sys-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="sys-collapse-{{ loop.index }}">
+                        <button class="accordion-button collapsed bg-body-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#sys-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="sys-collapse-{{ loop.index }}">
                             {{ profile_name }}
                         </button>
                     </h2>
@@ -41,7 +41,7 @@
 
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input system-disable-tools-switch" type="checkbox" role="switch" id="sys-disable-tools-{{ loop.index }}" {% if profile.get('disable_tools') %}checked{% endif %}>
-                                <label class="form-check-label" for="sys-disable-tools-{{ loop.index }}">Disable Tools (Commands) when this prompt is active</label>
+                                <label class="form-check-label" for="sys-disable-tools-{{ loop.index }}">Disable MCP Tools (Commands) when this prompt is active</label>
                             </div>
 
                             <div class="form-check form-switch mb-3">
@@ -49,7 +49,26 @@
                                 <label class="form-check-label" for="sys-enable-native-tools-{{ loop.index }}">Enable Native Google Tools (e.g., Search)</label>
                             </div>
 
-                            <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
+                            <div class="mb-3">
+                                <label class="form-label"><b>Select MCP Functions</b> (optional)</label>
+                                {% if mcp_functions_by_tool %}
+                                <select id="sys-mcp-tools-select-{{ loop.index }}" class="form-select system-mcp-tools-select" multiple>
+                                    <option value="*" {% if "*" in profile.get('selected_mcp_tools', []) %}selected{% endif %}>All Functions</option>
+                                    {% for tool_name, functions in mcp_functions_by_tool.items() %}
+                                    <optgroup label="{{ tool_name }}">
+                                        {% for func in functions %}
+                                        <option value="{{ func.name }}" {% if func.name in profile.get('selected_mcp_tools', []) %}selected{% endif %}>{{ func.name }}</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Select specific functions to use. This will only have an effect if tools are enabled for this prompt.</div>
+                                {% else %}
+                                <p class="text-muted small">No MCP tools configured. Go to the <a href="#mcp">MCP section</a> to add tools.</p>
+                                {% endif %}
+                            </div>
+
+                            <button class="btn btn-danger system-delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Prompt</button>
                         </div>
                     </div>
                 </div>
@@ -65,6 +84,64 @@
 
         <hr>
         <button type="submit" class="btn btn-primary btn-lg"><span class="material-icons">save</span> Save System Prompts</button>
+    </form>
+
+    <hr class="my-5">
+
+    <h2 class="mt-4">Agent Prompts Configuration</h2>
+    <p>Define prompts used by the Code Agent when a <code>project_path=</code> context is provided. These are dynamic system instructions designed for specific development workflows (e.g., feature, bug fixing, research).</p>
+
+    <form action="/set_agent_prompt_config" method="POST" id="agent-prompt-form">
+        <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="agent-prompt-editor-mode-switch" checked>
+            <label class="form-check-label" for="agent-prompt-editor-mode-switch">Use User-Friendly Editor (vs. Advanced JSON)</label>
+        </div>
+
+        <!-- User-Friendly Editor for Agent Prompts -->
+        <div id="agent-friendly-editor">
+            <div id="agent-prompt-profiles-container" class="accordion mb-3">
+                {% for profile_name, profile in agent_prompt_profiles.items() %}
+                <div class="accordion-item {% if not profile.get('enabled', True) %}disabled-item{% endif %}" data-profile-name="{{ profile_name }}">
+                    <h2 class="accordion-header" id="agent-heading-{{ loop.index }}">
+                        <button class="accordion-button collapsed bg-body-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#agent-collapse-{{ loop.index }}" aria-expanded="false" aria-controls="agent-collapse-{{ loop.index }}">
+                            {{ profile_name }}
+                        </button>
+                    </h2>
+                    <div id="agent-collapse-{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="agent-heading-{{ loop.index }}" data-bs-parent="#agent-prompt-profiles-container">
+                        <div class="accordion-body">
+                            <div class="mb-3">
+                                <label class="form-label"><b>Profile Name</b></label>
+                                <input type="text" class="form-control agent-prompt-name-input" value="{{ profile_name }}">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label"><b>Description</b></label>
+                                <input type="text" class="form-control agent-prompt-description-input" value="{{ profile.description }}">
+                                <div class="form-text">A brief explanation of this workflow.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label"><b>Agent System Prompt Template</b></label>
+                                <textarea class="form-control agent-prompt-text-input" rows="10" name="prompt">{{ profile.prompt }}</textarea>
+                                <div class="form-text">This template defines the agent's role and workflow. Use <code>{project_root}</code> placeholder.</div>
+                            </div>
+
+                            <button class="btn btn-danger agent-delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Prompt</button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn btn-success mb-3" id="add-agent-prompt-btn"><span class="material-icons">add</span> Add New Agent Prompt</button>
+        </div>
+
+        <!-- Advanced Editor for Agent Prompts -->
+        <div id="agent-advanced-editor" class="d-none">
+            <textarea class="form-control" name="agent_prompts" id="agent_prompts_textarea" rows="20">{{ current_agent_prompts_str or default_agent_prompts_json }}</textarea>
+        </div>
+
+        <hr>
+        <button type="submit" class="btn btn-primary btn-lg"><span class="material-icons">save</span> Save Agent Prompts</button>
     </form>
 
     <hr class="my-5">
@@ -85,7 +162,7 @@
                 {% for profile_name, profile in prompt_profiles.items() %}
                 <div class="accordion-item {% if not profile.get('enabled', True) %}disabled-item{% endif %}" data-profile-name="{{ profile_name }}">
                     <h2 class="accordion-header" id="heading-{{ loop.index }}">
-                        <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-{{ loop.index }}">
+                        <button class="accordion-button collapsed bg-body-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-{{ loop.index }}">
                             {{ profile_name }}
                         </button>
                     </h2>
@@ -132,7 +209,7 @@
 
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input disable-tools-switch" type="checkbox" role="switch" id="disable-tools-{{ loop.index }}" {% if profile.get('disable_tools') %}checked{% endif %}>
-                                <label class="form-check-label" for="disable-tools-{{ loop.index }}">Disable Tools (Commands) for this profile</label>
+                                <label class="form-check-label" for="disable-tools-{{ loop.index }}">Disable MCP Tools (Commands) for this profile</label>
                             </div>
 
                             <div class="form-check form-switch mb-3">
@@ -140,7 +217,26 @@
                                 <label class="form-check-label" for="enable-native-tools-{{ loop.index }}">Enable Native Google Tools (e.g., Search)</label>
                             </div>
 
-                            <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
+                            <div class="mb-3">
+                                <label class="form-label"><b>Select MCP Functions</b> (optional)</label>
+                                {% if mcp_functions_by_tool %}
+                                <select id="mcp-tools-select-{{ loop.index }}" class="form-select prompt-mcp-tools-select" multiple>
+                                    <option value="*" {% if "*" in profile.get('selected_mcp_tools', []) %}selected{% endif %}>All Functions</option>
+                                    {% for tool_name, functions in mcp_functions_by_tool.items() %}
+                                    <optgroup label="{{ tool_name }}">
+                                        {% for func in functions %}
+                                        <option value="{{ func.name }}" {% if func.name in profile.get('selected_mcp_tools', []) %}selected{% endif %}>{{ func.name }}</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Select specific functions to use. This will only have an effect if tools are enabled for this profile.</div>
+                                {% else %}
+                                <p class="text-muted small">No MCP tools configured. Go to the <a href="#mcp">MCP section</a> to add tools.</p>
+                                {% endif %}
+                            </div>
+
+                            <button class="btn btn-danger delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Profile</button>
                         </div>
                     </div>
                 </div>
@@ -159,4 +255,7 @@
     </form>
 
 </div>
-<script src="{{ url_for('static', filename='js/prompt_editor.js') }}" defer></script>
+<script>
+    // Make the list of MCP functions available to the prompt editor script
+    window.mcpFunctionsByTool = {{ mcp_functions_by_tool | tojson }};
+</script>

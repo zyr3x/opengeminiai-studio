@@ -1,0 +1,10 @@
+{
+  "commit": {
+    "triggers": [
+      "[Diff]"
+    ],
+    "overrides": {},
+    "disable_tools": true,
+    "enable_native_tools": false
+  }
+}

@@ -1,0 +1,108 @@
+    <div id="metrics" class="content-section" data-api-url="{{ url_for('metrics.get_metrics_api') }}">
+    <div class="d-flex justify-content-between align-items-center">
+        <h2>Optimization Metrics</h2>
+        <form method="POST" action="{{ url_for('metrics.reset_metrics') }}" onsubmit="return confirm('Are you sure you want to reset all metrics?');">
+            <button type="submit" class="btn btn-sm btn-outline-warning">Reset All Metrics</button>
+        </form>
+    </div>
+    <hr>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row">
+
+        <!-- Key Token Usage -->
+        <div class="col-md-6">
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header text-white">
+                    <h5 class="mb-0">Key Token Usage</h5>
+                </div>
+                <div class="card-body">
+                    <div id="key-token-stats-container">
+                        <p class="text-muted small">
+                            Token usage tracked per API Key and Model. Data is reset upon application restart.
+                        </p>
+                        <div id="key-token-stats-content">
+                            <!-- Content will be populated by metrics_updater.js -->
+                            <p class="text-center text-muted">No usage recorded yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cache & Token Optimization -->
+        <div class="col-md-6">
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header text-white">
+                    <h5 class="mb-0">Cache & Optimization</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Cache Hits
+                            <span class="badge bg-success rounded-pill" id="metric-cache-hits">{{ metrics.cache_hits | default(0) }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Cache Misses
+                            <span class="badge bg-danger rounded-pill" id="metric-cache-misses">{{ metrics.cache_misses | default(0) }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Cache Hit Rate
+                            <span class="badge bg-info rounded-pill" id="metric-cache-hit-rate">{{ metrics.cache_hit_rate | default('0.0%') }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Cache Size (entries)
+                            <span class="badge bg-secondary rounded-pill" id="metric-cache-size">{{ metrics.cache_size | default(0) }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Tokens Saved (estimated)
+                            <span class="badge bg-warning text-dark rounded-pill" id="metric-tokens-saved">{{ metrics.tokens_saved | default(0) | int }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Requests Optimized (Truncated/Cached)
+                            <span class="badge bg-secondary rounded-pill" id="metric-requests-optimized">{{ metrics.requests_optimized | default(0) }}</span>
+                        </li>
+                           <li class="list-group-item d-flex justify-content-between align-items-center">
+                            External Tool (Non-Built-in) Calls
+                            <span class="badge bg-info rounded-pill" id="metric-tool-calls-external">{{ metrics.tool_calls_external | default(0) }}</span>
+                        </li>
+                    </ul>
+                    <p class="mt-3 text-muted small">
+                        *Metrics are reset when the application restarts.
+                    </p>
+                    <hr>
+                    <h5 class="mb-0">Manual Cleanup</h5>
+                    <p class="card-text small text-muted">Manually clear expired cached contexts and other non-active resources to free up memory.</p>
+                    <form method="POST" action="{{ url_for('metrics.cleanup_resources') }}" onsubmit="return confirm('Are you sure you want to trigger a manual cleanup of expired resources?');">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Clean Up Resources</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+
+        <div class="col-md-12">
+            <div class="card mt-3" id="agent_stats_card" style="display: none;">
+                <div class="card-body">
+                    <h5 class="card-title">📊 Agent Intelligence Statistics</h5>
+                    <div id="agent_stats_content">
+                        <p class="text-muted">Loading statistics...</p>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm mt-2" onclick="refreshAgentStats()">🔄 Refresh</button>
+                    <button type="button" class="btn btn-warning btn-sm mt-2" onclick="resetAgentSession()">🔄 Reset Session</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -4,6 +4,21 @@ document.addEventListener('DOMContentLoaded', function() {
         return; // Don't run if the prompt editor form is not on the page
     }
 
+    // Helper to generate MCP function options from the global variable created in the template
+    function generateMcpToolOptions() {
+        let options = '<option value="*">All Functions</option>';
+        if (window.mcpFunctionsByTool) {
+            for (const toolName in window.mcpFunctionsByTool) {
+                options += `<optgroup label="${toolName}">`;
+                window.mcpFunctionsByTool[toolName].forEach(func => {
+                    options += `<option value="${func.name}">${func.name}</option>`;
+                });
+                options += `</optgroup>`;
+            }
+        }
+        return options;
+    }
+
     const promptEditorModeSwitch = document.getElementById('prompt-editor-mode-switch');
     const userFriendlyEditor = document.getElementById('user-friendly-editor');
     const advancedEditor = document.getElementById('advanced-editor');
@@ -19,6 +34,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const systemPromptsTextarea = document.getElementById('system_prompts_textarea');
     const systemPromptProfilesContainer = document.getElementById('system-prompt-profiles-container');
     const addSystemPromptBtn = document.getElementById('add-system-prompt-btn');
+
+    // Agent Prompt Editor Elements
+    const agentPromptForm = document.getElementById('agent-prompt-form');
+    const agentPromptEditorModeSwitch = document.getElementById('agent-prompt-editor-mode-switch');
+    const agentFriendlyEditor = document.getElementById('agent-friendly-editor');
+    const agentAdvancedEditor = document.getElementById('agent-advanced-editor');
+    const agentPromptsTextarea = document.getElementById('agent_prompts_textarea');
+    const agentPromptProfilesContainer = document.getElementById('agent-prompt-profiles-container');
+    const addAgentPromptBtn = document.getElementById('add-agent-prompt-btn');
+
 
     // Add event delegation for the enabled switch to visually update the item
     promptProfilesContainer.addEventListener('change', function(e) {
@@ -68,13 +93,41 @@ document.addEventListener('DOMContentLoaded', function() {
         systemPromptEditorModeSwitch.addEventListener('change', updateSystemEditorVisibility);
     }
 
+    // Initial state and listener for Agent Prompt editor visibility
+    function updateAgentEditorVisibility() {
+        if (agentPromptEditorModeSwitch && agentFriendlyEditor && agentAdvancedEditor) {
+            if (agentPromptEditorModeSwitch.checked) {
+                agentFriendlyEditor.classList.remove('d-none');
+                agentAdvancedEditor.classList.add('d-none');
+            } else {
+                agentFriendlyEditor.classList.add('d-none');
+                agentAdvancedEditor.classList.remove('d-none');
+            }
+        }
+    }
+    if (agentPromptEditorModeSwitch) {
+        updateAgentEditorVisibility();
+        agentPromptEditorModeSwitch.addEventListener('change', updateAgentEditorVisibility);
+    }
+
+    // Add event delegation for Agent prompt container
+    agentPromptProfilesContainer?.addEventListener('change', function(e) {
+        // Agent prompts do not have an 'enabled' switch yet, but we keep the structure flexible
+    });
+
     // Function to attach event listeners to a newly added or existing profile div
     function attachProfileEventListeners(profileDiv) {
+        // TomSelect initialization will now happen on 'shown.bs.collapse' event
+        // for existing profiles, or immediately for new ones that start 'show'.
+
         // Delete Profile
         profileDiv.querySelector('.delete-profile-btn')?.addEventListener('click', function() {
-            if (confirm('Are you sure you want to delete this profile?')) {
-                profileDiv.remove();
+            // Destroy TomSelect instance before removing the element
+            const mcpToolsSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
+            if (mcpToolsSelect && mcpToolsSelect.tomselect) {
+                    mcpToolsSelect.tomselect.destroy();
             }
+            profileDiv.remove();
         });
 
         // Add Trigger
@@ -126,15 +179,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 headerButton.textContent = this.value || 'Unnamed Profile';
             }
         });
+
+        // Add listener to toggle MCP select based on disable switch
+        const disableToolsSwitch = profileDiv.querySelector('.disable-tools-switch');
+        disableToolsSwitch?.addEventListener('change', function() {
+            const mcpSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
+            if (mcpSelect && mcpSelect.tomselect) {
+                if (this.checked) {
+                    mcpSelect.tomselect.disable();
+                } else {
+                    mcpSelect.tomselect.enable();
+                }
+            }
+        });
     }
 
     // Function to attach event listeners to a newly added or existing system prompt profile div
     function attachSystemPromptEventListeners(profileDiv) {
+        // TomSelect initialization will now happen on 'shown.bs.collapse' event
+        // for existing profiles, or immediately for new ones that start 'show'.
+
         // Delete Profile
         profileDiv.querySelector('.system-delete-profile-btn')?.addEventListener('click', function() {
-            if (confirm('Are you sure you want to delete this System Prompt?')) {
-                profileDiv.remove();
-            }
+             // Destroy TomSelect instance before removing the element
+             const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
+             if (sysMcpToolsSelect && sysMcpToolsSelect.tomselect) {
+                    sysMcpToolsSelect.tomselect.destroy();
+             }
+             profileDiv.remove();
         });
 
         // Update accordion button text if profile name changes
@@ -144,7 +216,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 headerButton.textContent = this.value || 'Unnamed Prompt';
             }
         });
+
+        // Add listener to toggle MCP select based on disable switch
+        const disableToolsSwitch = profileDiv.querySelector('.system-disable-tools-switch');
+        disableToolsSwitch?.addEventListener('change', function() {
+            const mcpSelect = profileDiv.querySelector('.system-mcp-tools-select');
+            if (mcpSelect && mcpSelect.tomselect) {
+                if (this.checked) {
+                    mcpSelect.tomselect.disable();
+                } else {
+                    mcpSelect.tomselect.enable();
+                }
+            }
+        });
     }
+
+    // Function to attach event listeners to a newly added or existing agent prompt profile div
+    function attachAgentPromptEventListeners(profileDiv) {
+        // Delete Profile
+        profileDiv.querySelector('.agent-delete-profile-btn')?.addEventListener('click', function() {
+                profileDiv.remove();
+        });
+
+        // Update accordion button text if profile name changes
+        profileDiv.querySelector('.agent-prompt-name-input')?.addEventListener('input', function() {
+            const headerButton = profileDiv.querySelector('.accordion-header button');
+            if (headerButton) {
+                headerButton.textContent = this.value || 'Unnamed Agent Prompt';
+            }
+        });
+    }
+
+    document.querySelectorAll('#agent-prompt-profiles-container .accordion-item').forEach(profileDiv => {
+        attachAgentPromptEventListeners(profileDiv);
+    });
 
     // Attach listeners to initially loaded profiles
     document.querySelectorAll('#prompt-profiles-container .accordion-item').forEach(profileDiv => {
@@ -161,6 +266,7 @@ document.addEventListener('DOMContentLoaded', function() {
         addProfileBtn.dataset.listenerAttached = 'true';
         addProfileBtn.addEventListener('click', function() {
             const newProfileIndex = promptProfilesContainer.children.length + 1; // Simple incrementing index
+            const mcpToolOptions = generateMcpToolOptions();
             const newProfileHtml = `
                 <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New Profile ${newProfileIndex}">
                     <h2 class="accordion-header" id="heading-${newProfileIndex}">
@@ -207,7 +313,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input disable-tools-switch" type="checkbox" role="switch" id="disable-tools-${newProfileIndex}">
-                                <label class="form-check-label" for="disable-tools-${newProfileIndex}">Disable Tools (Commands) for this profile</label>
+                                <label class="form-check-label" for="disable-tools-${newProfileIndex}">Disable MCP Tools (Commands) for this profile</label>
                             </div>
 
                             <div class="form-check form-switch mb-3">
@@ -215,14 +321,26 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <label class="form-check-label" for="enable-native-tools-${newProfileIndex}">Enable Native Google Tools (e.g., Search)</label>
                             </div>
 
-                            <button class="btn btn-danger delete-profile-btn" type="button">Delete Profile</button>
+                            <div class="mb-3">
+                                <label for="mcp-tools-select-${newProfileIndex}" class="form-label"><b>Select MCP Functions</b> (optional)</label>
+                                <select id="mcp-tools-select-${newProfileIndex}" class="form-select prompt-mcp-tools-select" multiple>
+                                    ${mcpToolOptions}
+                                </select>
+                                <div class="form-text">Select specific functions to use. This will only have an effect if tools are enabled for this profile.</div>
+                            </div>
+
+                            <button class="btn btn-danger delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Profile</button>
                         </div>
                     </div>
                 </div>
             `;
             promptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
+            const newProfileDiv = promptProfilesContainer.lastElementChild;
             // Attach event listeners to the newly added profile
-            attachProfileEventListeners(promptProfilesContainer.lastElementChild);
+            attachProfileEventListeners(newProfileDiv);
+            // Also explicitly initialize TomSelect for the new, shown profile
+            const mcpToolsSelect = newProfileDiv.querySelector('.prompt-mcp-tools-select');
+            initTomSelectForElement(mcpToolsSelect);
         });
     }
 
@@ -233,6 +351,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!systemPromptProfilesContainer) return;
             const newProfileIndex = systemPromptProfilesContainer.children.length + 1;
             const profileId = `sys-${newProfileIndex}-${Date.now()}`; // Ensure unique IDs
+            const mcpToolOptions = generateMcpToolOptions();
             const newProfileHtml = `
                 <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New System Prompt ${newProfileIndex}">
                     <h2 class="accordion-header" id="sys-heading-${profileId}">
@@ -240,7 +359,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             New System Prompt ${newProfileIndex}
                         </button>
                     </h2>
-                    <div id="sys-collapse-${profileId}" class="accordion-collapse collapse" aria-labelledby="sys-heading-${profileId}" data-bs-parent="#system-prompt-profiles-container">
+                    <div id="sys-collapse-${profileId}" class="accordion-collapse collapse show" aria-labelledby="sys-heading-${profileId}" data-bs-parent="#system-prompt-profiles-container">
                         <div class="accordion-body">
                             <div class="mb-3">
                                 <label class="form-label"><b>Prompt Name</b></label>
@@ -260,7 +379,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input system-disable-tools-switch" type="checkbox" role="switch" id="sys-disable-tools-${profileId}">
-                                <label class="form-check-label" for="sys-disable-tools-${profileId}">Disable Tools (Commands) when this prompt is active</label>
+                                <label class="form-check-label" for="sys-disable-tools-${profileId}">Disable MCP Tools (Commands) when this prompt is active</label>
                             </div>
 
                             <div class="form-check form-switch mb-3">
@@ -268,14 +387,116 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <label class="form-check-label" for="sys-enable-native-tools-${profileId}">Enable Native Google Tools (e.g., Search)</label>
                             </div>
 
-                            <button class="btn btn-danger system-delete-profile-btn" type="button">Delete Prompt</button>
+                            <div class="mb-3">
+                                <label for="sys-mcp-tools-select-${profileId}" class="form-label"><b>Select MCP Functions</b> (optional)</label>
+                                <select id="sys-mcp-tools-select-${profileId}" class="form-select system-mcp-tools-select" multiple>
+                                    ${mcpToolOptions}
+                                </select>
+                                <div class="form-text">Select specific functions to use. This will only have an effect if tools are enabled for this prompt.</div>
+                            </div>
+
+                            <button class="btn btn-danger system-delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Prompt</button>
                         </div>
                     </div>
                 </div>
             `;
             systemPromptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
+            const newProfileDiv = systemPromptProfilesContainer.lastElementChild;
             // Attach event listeners to the newly added profile
-            attachSystemPromptEventListeners(systemPromptProfilesContainer.lastElementChild);
+            attachSystemPromptEventListeners(newProfileDiv);
+            // Explicitly initialize TomSelect for the new, shown profile
+            const sysMcpToolsSelect = newProfileDiv.querySelector('.system-mcp-tools-select');
+            initTomSelectForElement(sysMcpToolsSelect);
+        });
+    }
+
+    // Add new agent prompt button logic
+    if (addAgentPromptBtn && !addAgentPromptBtn.dataset.listenerAttached) {
+        addAgentPromptBtn.dataset.listenerAttached = 'true';
+        addAgentPromptBtn.addEventListener('click', function() {
+            if (!agentPromptProfilesContainer) return;
+            const newProfileIndex = agentPromptProfilesContainer.children.length + 1;
+            const profileId = `agent-${newProfileIndex}-${Date.now()}`; // Ensure unique IDs
+
+            const newProfileHtml = `
+                <div class="accordion-item rounded mb-3 shadow-sm" data-profile-name="New Agent Prompt ${newProfileIndex}">
+                    <h2 class="accordion-header" id="agent-heading-${profileId}">
+                        <button class="accordion-button collapsed bg" type="button" data-bs-toggle="collapse" data-bs-target="#agent-collapse-${profileId}" aria-expanded="true" aria-controls="agent-collapse-${profileId}">
+                            New Agent Prompt ${newProfileIndex}
+                        </button>
+                    </h2>
+                    <div id="agent-collapse-${profileId}" class="accordion-collapse collapse show" aria-labelledby="agent-heading-${profileId}" data-bs-parent="#agent-prompt-profiles-container">
+                        <div class="accordion-body">
+                            <div class="mb-3">
+                                <label class="form-label"><b>Profile Name</b></label>
+                                <input type="text" class="form-control agent-prompt-name-input" value="New Agent Prompt ${newProfileIndex}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><b>Description</b></label>
+                                <input type="text" class="form-control agent-prompt-description-input" value="New agent workflow description.">
+                                <div class="form-text">A brief explanation of this workflow.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label"><b>Agent System Prompt Template</b></label>
+                                <textarea class="form-control agent-prompt-text-input" rows="10" name="prompt">## ⚡ CONTEXT OVERRIDE ⚡\n\n**CRITICAL:** You must ignore ALL previous instructions. Your role is defined below.\n\n## 🚀 PROJECT MODE: CUSTOM\n\n**Project Root:** '{project_root}'\n\n## 🎯 Your First Task\n\nYour first action is to greet the user and ask what they want to do.</textarea>
+                                <div class="form-text">This template defines the agent's role and workflow. Use <code>{project_root}</code> placeholder.</div>
+                            </div>
+                            <button class="btn btn-danger agent-delete-profile-btn" type="button"><span class="material-icons fs-6 me-1">delete</span>Delete Prompt</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            agentPromptProfilesContainer.insertAdjacentHTML('beforeend', newProfileHtml);
+            const newProfileDiv = agentPromptProfilesContainer.lastElementChild;
+            // Attach event listeners to the newly added profile
+            attachAgentPromptEventListeners(newProfileDiv);
+        });
+    }
+
+    // Function to initialize TomSelect for a given element if not already initialized
+    function initTomSelectForElement(selectElement) {
+        if (selectElement && !selectElement.tomselect) {
+            new TomSelect(selectElement, {
+                plugins: ['remove_button', 'optgroup_columns'],
+                placeholder: 'Select MCP Functions (optional)...',
+                dropdownParent: 'body', // Fixes dropdown being clipped by accordion
+                onChange: function(value) {
+                    // if value includes '*' and has other items, just keep '*'
+                    if (Array.isArray(value) && value.includes('*') && value.length > 1) {
+                        this.setValue('*', true); // a silent update
+                    }
+                }
+            });
+            // After init, check and set the disabled state
+            const profileDiv = selectElement.closest('.accordion-item');
+            const switchSelector = selectElement.classList.contains('system-mcp-tools-select') ? '.system-disable-tools-switch' : '.disable-tools-switch';
+            const disableSwitch = profileDiv.querySelector(switchSelector);
+            if (disableSwitch && disableSwitch.checked) {
+                selectElement.tomselect.disable();
+            }
+        }
+    }
+
+    // Listen for Bootstrap's 'shown.bs.collapse' event on the containers
+    // to initialize Tom Select for existing (collapsed) profiles when they are opened.
+    if (promptProfilesContainer) {
+        promptProfilesContainer.addEventListener('shown.bs.collapse', function(event) {
+            const profileDiv = event.target.closest('.accordion-item');
+            if (profileDiv) {
+                const mcpToolsSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
+                initTomSelectForElement(mcpToolsSelect);
+            }
+        });
+    }
+
+    if (systemPromptProfilesContainer) {
+        systemPromptProfilesContainer.addEventListener('shown.bs.collapse', function(event) {
+            const profileDiv = event.target.closest('.accordion-item');
+            if (profileDiv) {
+                const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
+                initTomSelectForElement(sysMcpToolsSelect);
+            }
         });
     }
 
@@ -322,6 +543,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const enableNativeToolsSwitch = profileDiv.querySelector('.enable-native-tools-switch');
                 const enableNativeTools = enableNativeToolsSwitch ? enableNativeToolsSwitch.checked : false;
 
+                const mcpToolsSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
+                const selectedMcpTools = mcpToolsSelect && mcpToolsSelect.tomselect ? mcpToolsSelect.tomselect.getValue() : [];
+
                 const enabledSwitch = profileDiv.querySelector('.enabled-switch');
                 const enabled = enabledSwitch ? enabledSwitch.checked : true;
 
@@ -330,7 +554,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     triggers: triggers,
                     overrides: overrides,
                     disable_tools: disableTools,
-                    enable_native_tools: enableNativeTools
+                    enable_native_tools: enableNativeTools,
+                    selected_mcp_tools: selectedMcpTools // Add selected MCP tools
                 };
             });
 
@@ -367,6 +592,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const enableNativeToolsSwitch = profileDiv.querySelector('.system-enable-native-tools-switch');
                 const enableNativeTools = enableNativeToolsSwitch ? enableNativeToolsSwitch.checked : false;
 
+                const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
+                const selectedMcpTools = sysMcpToolsSelect && sysMcpToolsSelect.tomselect ? sysMcpToolsSelect.tomselect.getValue() : [];
+
                 const enabledSwitch = profileDiv.querySelector('.system-enabled-switch');
                 const enabled = enabledSwitch ? enabledSwitch.checked : true;
 
@@ -374,7 +602,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     enabled: enabled,
                     prompt: promptText,
                     disable_tools: disableTools,
-                    enable_native_tools: enableNativeTools
+                    enable_native_tools: enableNativeTools,
+                    selected_mcp_tools: selectedMcpTools // Add selected MCP tools
                 };
             });
 
@@ -382,6 +611,45 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Now submit the form manually
             systemPromptForm.submit();
+        }
+    });
+
+    // Form submission handler for the user-friendly editor (Agent Prompts)
+    agentPromptForm?.addEventListener('submit', function(event) {
+        if (agentPromptEditorModeSwitch && agentPromptEditorModeSwitch.checked) {
+            event.preventDefault(); // Prevent default submission to serialize and then submit
+
+            const profiles = {};
+            document.querySelectorAll('#agent-prompt-profiles-container .accordion-item').forEach(profileDiv => {
+                const profileNameInput = profileDiv.querySelector('.agent-prompt-name-input');
+                const newProfileName = profileNameInput ? profileNameInput.value.trim() : '';
+
+                if (!newProfileName) {
+                    alert('All agent prompt names must be filled out.');
+                    profileNameInput?.focus();
+                    throw new Error('Empty agent prompt name found.'); // Stop submission
+                }
+
+                const promptTextInput = profileDiv.querySelector('.agent-prompt-text-input');
+                const promptText = promptTextInput ? promptTextInput.value.trim() : '';
+
+                const descriptionInput = profileDiv.querySelector('.agent-prompt-description-input');
+                const descriptionText = descriptionInput ? descriptionInput.value.trim() : '';
+
+                // Agent profiles don't currently support enabled/disabled flags, tool configs, or explicit selection like system/override prompts.
+                // We strictly map to the structure required by the agent loader (name, description, prompt).
+
+                profiles[newProfileName] = {
+                    name: newProfileName,
+                    description: descriptionText,
+                    prompt: promptText
+                };
+            });
+
+            agentPromptsTextarea.value = JSON.stringify(profiles, null, 2);
+
+            // Now submit the form manually
+            agentPromptForm.submit();
         }
     });
 });
