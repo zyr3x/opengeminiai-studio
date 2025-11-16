@@ -260,7 +260,7 @@ class RateLimiter:
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 _gemini_rate_limiter = None
-def get_rate_limiter(max_calls: int = 60, period: int = 60) -> RateLimiter:
+def get_rate_limiter(max_calls: int = 30, period: int = 60) -> RateLimiter:
     global _gemini_rate_limiter
     if _gemini_rate_limiter is None:
         _gemini_rate_limiter = RateLimiter(max_calls, period)

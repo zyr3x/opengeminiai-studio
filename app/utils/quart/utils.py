@@ -102,7 +102,7 @@ async def make_request_with_retry_async(
     stream: bool = False,
     timeout: int = 300
 ) -> aiohttp.ClientResponse:
-    retries = 2
+    retries = 5
     backoff_factor = 1.0
     session = await get_async_session()
     for i in range(retries):
