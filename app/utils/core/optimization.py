@@ -203,7 +203,7 @@ def get_http_session() -> requests.Session:
                 session = requests.Session()
 
                 retry_strategy = Retry(
-                    total=5,
+                    total=3,
                     status_forcelist=[429, 502, 503, 504],
                     backoff_factor=10,
                     allowed_methods=["GET", "POST"],

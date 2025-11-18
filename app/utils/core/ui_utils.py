@@ -105,6 +105,7 @@ def get_index_context():
         'aux_model_cache_size': config.AUX_MODEL_CACHE_SIZE,
         'aux_model_min_tokens': config.AUX_MODEL_MIN_TOKENS,
         'aux_model_max_tokens': config.AUX_MODEL_MAX_TOKENS,
+        'max_key_rotation_attempts': config.MAX_KEY_ROTATION_ATTEMPTS,
         'current_max_function_declarations': mcp_config_data.get("maxFunctionDeclarations",
                                                                  mcp_handler.max_function_declarations_limit),
         'current_disable_all_mcp_tools': mcp_handler.disable_all_mcp_tools,

@@ -56,18 +56,21 @@ def handle_set_context_settings(form):
     context_min_relevance_score = form.get('context_min_relevance_score', '0.3')
     context_always_keep_recent = form.get('context_always_keep_recent', '15')
     min_context_caching_tokens = form.get('min_context_caching_tokens', '512')
+    max_key_rotation_attempts = form.get('max_key_rotation_attempts', '3')
 
     env_file = '.env'
     set_key(env_file, 'SELECTIVE_CONTEXT_ENABLED', 'true' if selective_context_enabled else 'false')
     set_key(env_file, 'CONTEXT_MIN_RELEVANCE_SCORE', str(context_min_relevance_score))
     set_key(env_file, 'CONTEXT_ALWAYS_KEEP_RECENT', str(context_always_keep_recent))
     set_key(env_file, 'MIN_CONTEXT_CACHING_TOKENS', str(min_context_caching_tokens))
+    set_key(env_file, 'MAX_KEY_ROTATION_ATTEMPTS', str(max_key_rotation_attempts))
 
     config.SELECTIVE_CONTEXT_ENABLED = selective_context_enabled
     config.CONTEXT_MIN_RELEVANCE_SCORE = float(context_min_relevance_score)
     config.CONTEXT_ALWAYS_KEEP_RECENT = int(context_always_keep_recent)
     config.MIN_CONTEXT_CACHING_TOKENS = int(min_context_caching_tokens)
-    utils.log(f"Context settings updated: selective={selective_context_enabled}, min_score={context_min_relevance_score}, keep_recent={context_always_keep_recent}, min_cache_tokens={min_context_caching_tokens}")
+    config.MAX_KEY_ROTATION_ATTEMPTS = int(max_key_rotation_attempts)
+    utils.log(f"Context settings updated: selective={selective_context_enabled}, min_score={context_min_relevance_score}, keep_recent={context_always_keep_recent}, min_cache_tokens={min_context_caching_tokens}, max_key_rotations={max_key_rotation_attempts}")
 def handle_set_streaming_settings(form):
     streaming_enabled = form.get('streaming_enabled') == 'on'
     streaming_progress_enabled = form.get('streaming_progress_enabled') == 'on'

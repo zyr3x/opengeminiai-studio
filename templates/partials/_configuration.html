@@ -109,6 +109,16 @@
                     </div>
                     <div class="form-text">Minimum token count for a context item to be eligible for caching. 0 disables caching.</div>
                 </div>
+
+                <div class="mt-3">
+                    <label for="max_key_rotation_attempts" class="form-label">Max API Key Rotation Attempts</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="max_key_rotation_attempts" name="max_key_rotation_attempts"
+                               value="{{ max_key_rotation_attempts }}" min="1" max="20" step="1">
+                        <button class="btn btn-primary" type="submit">Save</button>
+                    </div>
+                    <div class="form-text">Max number of different API keys to try for a single request upon failure (401/429/timeout). Default: 3.</div>
+                </div>
             </form>
         </div>
     </div>

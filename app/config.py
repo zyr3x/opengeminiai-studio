@@ -32,6 +32,8 @@ class AppConfig:
         self.AUX_MODEL_MIN_TOKENS = int(os.getenv("AUX_MODEL_MIN_TOKENS", "200"))
         self.AUX_MODEL_MAX_TOKENS = int(os.getenv("AUX_MODEL_MAX_TOKENS", "1000"))
         
+        self.MAX_KEY_ROTATION_ATTEMPTS = int(os.getenv("MAX_KEY_ROTATION_ATTEMPTS", "3"))
+
         self.ETC_DIR =  os.path.realpath(os.path.expanduser(os.getenv("ETC_DIR", "etc/")))
         self.VERBOSE_LOGGING = os.getenv("VERBOSE_LOGGING", "true").lower() == "true"
         self.DEBUG_CLIENT_LOGGING = os.getenv("DEBUG_CLIENT_LOGGING", "true").lower() == "true"

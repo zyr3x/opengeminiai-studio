@@ -195,25 +195,71 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
 def pretty_json(data):
     return json.dumps(data, indent=2, ensure_ascii=False, default=str)
 def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bool = False, timeout: int = 300) -> requests.Response:
+    from app.config import config
+    from app.utils.core.api_key_manager import api_key_manager
     from app.utils.core import optimization
     session = optimization.get_http_session()
     rate_limiter = optimization.get_rate_limiter()
 
-    rate_limiter.wait_if_needed()
+    rotation_attempts = 0
+    last_exception = None
 
-    try:
-        response = session.post(
-            url,
-            headers=headers,
-            json=json_data,
-            stream=stream,
-            timeout=timeout
-        )
-        response.raise_for_status()
-        return response
-    except requests.exceptions.RequestException as e:
-        log(f"Request failed after retries: {e}")
-        raise
+    current_key_id = api_key_manager.get_active_key_id()
+
+    while rotation_attempts < config.MAX_KEY_ROTATION_ATTEMPTS:
+        rate_limiter.wait_if_needed()
+
+        try:
+            response = session.post(
+                url,
+                headers=headers,
+                json=json_data,
+                stream=stream,
+                timeout=timeout
+            )
+            response.raise_for_status()
+            return response
+        except requests.exceptions.HTTPError as e:
+            last_exception = e
+            if e.response is not None and e.response.status_code in [401, 429]:
+                log(f"Request with key '{current_key_id}' failed with status {e.response.status_code}. Rotating key... (Attempt {rotation_attempts + 1})")
+            else:
+                raise
+        except requests.exceptions.RequestException as e:
+            last_exception = e
+            log(f"Request with key '{current_key_id}' failed: {e}. Rotating key... (Attempt {rotation_attempts + 1})")
+
+        rotation_attempts += 1
+        if rotation_attempts >= config.MAX_KEY_ROTATION_ATTEMPTS:
+            log("Max key rotation attempts reached.")
+            break
+
+        if not current_key_id:
+            api_key_value_in_header = headers.get('X-goog-api-key')
+            all_keys = api_key_manager.get_all_keys_data()['keys']
+            found = False
+            for k_id, k_val in all_keys.items():
+                if k_val == api_key_value_in_header:
+                    current_key_id = k_id
+                    found = True
+                    break
+            if not found:
+                log("Could not determine current key ID for rotation.")
+                break
+
+        new_key_value, new_key_id = api_key_manager.get_next_key_value_and_id(current_key_id)
+
+        if new_key_value and new_key_id:
+            log(f"Rotated to new API key: {new_key_id}")
+            headers['X-goog-api-key'] = new_key_value
+            config.reload_api_key()
+            current_key_id = new_key_id
+        else:
+            log("API key rotation failed: no more keys available.")
+            break
+
+    log(f"Request failed after all key rotation attempts.")
+    raise last_exception
 def save_config_to_file(config_str: str, file_path: str, config_name: str):
     if not config_str.strip():
         if os.path.exists(file_path):
