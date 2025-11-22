@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
              });
 
-             textContent = DOMPurify.sanitize(tempDiv.innerHTML, {ADD_TAGS: ['details', 'summary']});
+             textContent = DOMPurify.sanitize(tempDiv.innerHTML, {ADD_TAGS: ['details', 'summary', 'video'], ADD_ATTR: ['controls', 'src', 'style']});
         } else { // bot role for errors
             textContent = `<p>${escapeHtml(content)}</p>`;
         }
@@ -685,7 +685,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const formData = new FormData();
         formData.append('chat_id', currentChatId);
         formData.append('model', modelSelect.value);
-        if (generationType === 'image') {
+        if (generationType === 'image' || generationType === 'veo') {
             formData.append('prompt', userInput);
         } else {
             formData.append('system_prompt_name', systemPromptSelect ? systemPromptSelect.value : '');
@@ -700,7 +700,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-        const apiUrl = generationType === 'image' ? '/api/generate_image' : '/chat_api';
+        const apiUrl = (generationType === 'image' || generationType === 'veo') ? '/api/generate_image' : '/chat_api';
 
         try {
             const response = await fetch(apiUrl, { method: 'POST', body: formData });
@@ -711,7 +711,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 throw new Error(err.error || 'API request failed');
             }
 
-            if (generationType === 'image') {
+            if (generationType === 'image' || generationType === 'veo') {
                 const data = await response.json();
                 addMessageToHistory('assistant', data.content, [], data.message_id);
             } else {
@@ -767,7 +767,7 @@ document.addEventListener('DOMContentLoaded', function () {
                          const tempDiv = document.createElement('div');
                          tempDiv.innerHTML = html;
                          // Image replacement logic (same as before) ...
-                         botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, { ADD_TAGS: ['details', 'summary'] });
+                         botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, { ADD_TAGS: ['details', 'summary', 'video'], ADD_ATTR: ['controls', 'src', 'style'] });
 
                          if (isScrolledToBottom) {
                             chatHistory.scrollTop = chatHistory.scrollHeight;
@@ -822,8 +822,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const generationType = generationTypeSelect.value;
         const files = [...attachedFiles];
 
-        if (generationType === 'image' && !userInput) {
-             alert("Please enter a prompt to generate an image.");
+        if ((generationType === 'image' || generationType === 'veo') && !userInput) {
+             alert(`Please enter a prompt to generate a${generationType === 'image' ? 'n image' : ' video'}.`);
              return;
         }
         if (generationType === 'text' && !userInput && files.length === 0) {
@@ -844,9 +844,9 @@ document.addEventListener('DOMContentLoaded', function () {
             el ? el.parentElement : null // The TomSelect wrapper div
         ].filter(Boolean); // Filter out null elements
 
-        if (generationType === 'image') {
+        if (generationType === 'image' || generationType === 'veo') {
             textOnlyControls.forEach(control => control.style.display = 'none');
-            chatInput.placeholder = 'Enter a prompt to generate an image...';
+            chatInput.placeholder = generationType === 'image' ? 'Enter a prompt to generate an image...' : 'Enter a prompt to generate a video...';
         } else { // 'text'
             textOnlyControls.forEach(control => control.style.display = ''); // Reset to default display
              if (systemPromptSelect.parentElement) systemPromptSelect.parentElement.style.display = 'flex';
