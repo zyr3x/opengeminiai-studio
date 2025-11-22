@@ -1256,6 +1256,7 @@ def _parse_headers_from_args(args: list[str]) -> dict:
 def _fetch_raw_mcp_tools_http(tool_name: str, tool_info: dict) -> tuple[list | None, str | None]:
     url = tool_info.get("url")
     headers = tool_info.get("headers", {})
+    headers['Accept'] = 'application/json'
     headers['Content-Type'] = 'application/json'
 
     try:
@@ -1561,6 +1562,7 @@ def _parse_kwargs_string(s: str) -> dict:
 def _execute_mcp_tool_http(function_name: str, tool_args: dict, tool_name: str, tool_info: dict):
     url = tool_info.get("url")
     headers = tool_info.get("headers", {})
+    headers['Accept'] = 'application/json'
     headers['Content-Type'] = 'application/json'
 
     global mcp_request_id_counter
