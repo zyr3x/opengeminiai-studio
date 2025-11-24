@@ -10,7 +10,7 @@ from app.db import get_db_connection, UPLOAD_FOLDER
 from app.utils.core import chat_db_utils, file_processing_utils, logging, mcp_handler
 from app.utils.core import tool_config_utils
 from app.utils.core import tools as utils
-def generate_image_logic(chat_id, model, prompt):
+def generate_image_logic(chat_id, model, prompt, generation_type='image'):
     if not config.API_KEY:
         return {"error": "API key not configured."}, 401
     if not all([chat_id, model, prompt]):
@@ -18,12 +18,37 @@ def generate_image_logic(chat_id, model, prompt):
     try:
         user_parts = [{"text": prompt}]
         utils.add_message_to_db(chat_id, 'user', user_parts)
-        media_type = 'video' if 'veo' in model else 'image'
+        media_type = 'video' if generation_type == 'veo' else 'image'
+        
+        # Detect if using Imagen model
+        is_imagen = 'imagen' in model.lower()
+        
         MEDIA_GEN_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
         headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
+        
+        # Build request data with proper configuration for image/video generation
         request_data = {
-            "contents": [{"parts": [{"text": f"Generate a {media_type} of: {prompt}"}]}],
+            "contents": [{"parts": [{"text": prompt}]}],
         }
+        
+        # Configure based on model type
+        if media_type == 'image':
+            if is_imagen:
+                # Imagen models use simpler configuration
+                request_data["generationConfig"] = {
+                    "temperature": 1.0,
+                }
+            else:
+                # Gemini models need responseModalities for image generation
+                request_data["generationConfig"] = {
+                    "responseModalities": ["TEXT", "IMAGE"],
+                    "temperature": 1.0,
+                }
+        elif media_type == 'video':
+            # For video generation (Veo), use appropriate configuration
+            request_data["generationConfig"] = {
+                "temperature": 1.0,
+            }
         response = utils.make_request_with_retry(
             url=MEDIA_GEN_URL,
             headers=headers,

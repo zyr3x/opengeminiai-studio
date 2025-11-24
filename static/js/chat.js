@@ -42,16 +42,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     if (el) {
-       new TomSelect(el, {
-          plugins: ['remove_button'],
-          placeholder: 'Select MCP Functions (optional)...',
-          dropdownParent: 'body', // Fixes dropdown being clipped by parent elements
-           onChange: function(value) {
+        new TomSelect(el, {
+            plugins: ['remove_button'],
+            placeholder: 'Select MCP Functions (optional)...',
+            dropdownParent: 'body', // Fixes dropdown being clipped by parent elements
+            onChange: function (value) {
                 if (Array.isArray(value) && value.includes('*') && value.length > 1) {
                     this.setValue('*', true); // silent update
                 }
             }
-       });
+        });
     }
 
     // --- Helper Functions ---
@@ -92,13 +92,13 @@ document.addEventListener('DOMContentLoaded', function () {
         let textContent = '';
         if (role === 'user' || role === 'assistant' || role === 'tool') { // assistant role from db
             // HACK: `df -h` on macOS can add a trailing \ to mount points.
-            content = content.replace(/\\"/g, '"').replace("/\\\n","\n").replaceAll("\\\n","\n");
+            content = content.replace(/\\"/g, '"').replace("/\\\n", "\n").replaceAll("\\\n", "\n");
 
             let html = marked.parse(content, { gfm: true, breaks: true });
-             const tempDiv = document.createElement('div');
-             tempDiv.innerHTML = html;
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
 
-             const replaceWithImage = (element, url) => {
+            const replaceWithImage = (element, url) => {
                 try {
                     // URLs from pollinations sometimes have spaces, encode them.
                     const encodedUrl = encodeURI(url);
@@ -111,18 +111,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     img.style.marginTop = "0.5rem";
                     element.parentNode.replaceChild(img, element);
                 } catch (e) { /* Ignore failed transformations */ }
-             };
+            };
 
-             // Case 1: Correctly formed <a> tags
-             tempDiv.querySelectorAll('a[href*="image.pollinations.ai"]').forEach(a => {
+            // Case 1: Correctly formed <a> tags
+            tempDiv.querySelectorAll('a[href*="image.pollinations.ai"]').forEach(a => {
                 // To avoid replacing links that are part of larger text, check if link text is the URL itself
                 if (a.textContent.trim() === a.href) {
                     replaceWithImage(a, a.href);
                 }
-             });
+            });
 
-             // Case 2: URLs as plain text inside <p> or <code> tags
-             tempDiv.querySelectorAll('p, code').forEach(el => {
+            // Case 2: URLs as plain text inside <p> or <code> tags
+            tempDiv.querySelectorAll('p, code').forEach(el => {
                 const text = el.textContent.trim();
                 if (text.startsWith('https://image.pollinations.ai') || text.startsWith('http://image.pollinations.ai')) {
                     // Ensure the element only contains this URL and nothing else.
@@ -130,9 +130,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         replaceWithImage(el, text);
                     }
                 }
-             });
+            });
 
-             textContent = DOMPurify.sanitize(tempDiv.innerHTML, {ADD_TAGS: ['details', 'summary', 'video'], ADD_ATTR: ['controls', 'src', 'style']});
+            textContent = DOMPurify.sanitize(tempDiv.innerHTML, { ADD_TAGS: ['details', 'summary', 'video'], ADD_ATTR: ['controls', 'src', 'style'] });
         } else { // bot role for errors
             textContent = `<p>${escapeHtml(content)}</p>`;
         }
@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         contentDiv.innerHTML = textContent + filesHtml;
-        if (window.renderMathInElement) renderMathInElement(contentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
+        if (window.renderMathInElement) renderMathInElement(contentDiv, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }, { left: '\\(', right: '\\)', display: false }, { left: '\\[', right: '\\]', display: true }], throwOnError: false });
         addCopyButtonsToCodeBlocks(contentDiv);
         renderMermaidDiagrams(contentDiv);
 
@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 navigator.clipboard.writeText(code).then(() => {
                     copyBtn.innerHTML = '<span class="material-icons fs-6">done</span> Copied!';
                     setTimeout(() => {
-                         copyBtn.innerHTML = '<span class="material-icons fs-6">content_copy</span> Copy';
+                        copyBtn.innerHTML = '<span class="material-icons fs-6">content_copy</span> Copy';
                     }, 2000);
                 }).catch(err => {
                     console.error('Failed to copy text: ', err);
@@ -228,7 +228,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 window.mermaid.run({
                     nodes: container.querySelectorAll('.mermaid')
                 });
-            } catch(e) {
+            } catch (e) {
                 console.error("Mermaid rendering failed:", e);
             }
         }
@@ -408,7 +408,7 @@ document.addEventListener('DOMContentLoaded', function () {
             mobileChatSelect.value = chatId;
             const selectedOption = mobileChatSelect.options[mobileChatSelect.selectedIndex];
             if (selectedOption) {
-                 newTitle = selectedOption.textContent;
+                newTitle = selectedOption.textContent;
             }
         }
 
@@ -420,7 +420,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!response.ok) throw new Error('Failed to load messages');
             const messages = await response.json();
             if (messages.length === 0) {
-                 chatHistory.innerHTML = `
+                chatHistory.innerHTML = `
                     <div class="message bot-message">
                         <div class="avatar"><span class="material-icons">smart_toy</span></div>
                         <div class="message-content"><p>This is a new chat. Ask me anything!</p></div>
@@ -573,19 +573,19 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (mobileChatSelect) {
-        mobileChatSelect.addEventListener('change', function() {
+        mobileChatSelect.addEventListener('change', function () {
             loadChat(parseInt(this.value));
         });
     }
 
-    fileUpload.addEventListener('change', function(event) {
+    fileUpload.addEventListener('change', function (event) {
         const files = event.target.files;
         if (!files.length) return;
         filePreviewsContainer.style.display = 'flex';
         for (const file of files) {
             if (!attachedFiles.some(f => f.name === file.name && f.size === file.size)) {
-                 attachedFiles.push(file);
-                 createFilePreview(file);
+                attachedFiles.push(file);
+                createFilePreview(file);
             }
         }
         fileUpload.value = '';
@@ -636,7 +636,7 @@ document.addEventListener('DOMContentLoaded', function () {
         filePreviewsContainer.appendChild(wrapper);
     }
 
-    chatHistory.addEventListener('click', async function(e) {
+    chatHistory.addEventListener('click', async function (e) {
         const deleteBtn = e.target.closest('.delete-message-btn');
         if (deleteBtn) {
             const messageId = deleteBtn.dataset.messageId;
@@ -687,6 +687,7 @@ document.addEventListener('DOMContentLoaded', function () {
         formData.append('model', modelSelect.value);
         if (generationType === 'image' || generationType === 'veo') {
             formData.append('prompt', userInput);
+            formData.append('generation_type', generationType);
         } else {
             formData.append('system_prompt_name', systemPromptSelect ? systemPromptSelect.value : '');
             formData.append('message', userInput);
@@ -715,73 +716,73 @@ document.addEventListener('DOMContentLoaded', function () {
                 const data = await response.json();
                 addMessageToHistory('assistant', data.content, [], data.message_id);
             } else {
-                 const reader = response.body.getReader();
-                 const decoder = new TextDecoder();
-                 let botMessageContent = '';
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let botMessageContent = '';
 
-                 // Create a new bot message element to stream content into
-                 const botMessageDiv = addMessageToHistory('assistant', '', []);
+                // Create a new bot message element to stream content into
+                const botMessageDiv = addMessageToHistory('assistant', '', []);
 
-                 const botContentDiv = botMessageDiv.querySelector('.message-content');
-                 botContentDiv.innerHTML = ''; // Clear initial content
+                const botContentDiv = botMessageDiv.querySelector('.message-content');
+                botContentDiv.innerHTML = ''; // Clear initial content
 
                 // Smart scroll check: only auto-scroll if user is already at the bottom
                 const isScrolledToBottom = chatHistory.scrollHeight - chatHistory.clientHeight <= chatHistory.scrollTop + 1;
 
-                 try {
-                     while (true) {
-                         const { value, done } = await reader.read();
-                         if (done) break;
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
 
-                         const chunk = decoder.decode(value, { stream: true });
+                        const chunk = decoder.decode(value, { stream: true });
 
-                         // Check for special events from the backend
-                         if (chunk.startsWith('__LLM_EVENT__')) {
-                             try {
-                                 const eventData = JSON.parse(chunk.replace('__LLM_EVENT__', ''));
-                                 if (eventData.type === 'message_id' && eventData.id) {
-                                     const actionsDiv = botMessageDiv.querySelector('.message-actions');
-                                     if (actionsDiv && !actionsDiv.querySelector('.delete-message-btn')) {
-                                         const deleteBtn = document.createElement('button');
-                                         deleteBtn.className = 'btn btn-sm btn-outline-danger p-0 px-1 delete-message-btn';
-                                         deleteBtn.innerHTML = '<span class="material-icons fs-6">delete</span>';
-                                         deleteBtn.title = 'Delete Message';
-                                         deleteBtn.dataset.messageId = eventData.id;
-                                         actionsDiv.appendChild(deleteBtn);
-                                     }
-                                 }
-                             } catch (e) {
-                                 console.error("Failed to parse LLM event:", e);
-                             }
-                             continue; // Skip processing this chunk as text
-                         }
+                        // Check for special events from the backend
+                        if (chunk.startsWith('__LLM_EVENT__')) {
+                            try {
+                                const eventData = JSON.parse(chunk.replace('__LLM_EVENT__', ''));
+                                if (eventData.type === 'message_id' && eventData.id) {
+                                    const actionsDiv = botMessageDiv.querySelector('.message-actions');
+                                    if (actionsDiv && !actionsDiv.querySelector('.delete-message-btn')) {
+                                        const deleteBtn = document.createElement('button');
+                                        deleteBtn.className = 'btn btn-sm btn-outline-danger p-0 px-1 delete-message-btn';
+                                        deleteBtn.innerHTML = '<span class="material-icons fs-6">delete</span>';
+                                        deleteBtn.title = 'Delete Message';
+                                        deleteBtn.dataset.messageId = eventData.id;
+                                        actionsDiv.appendChild(deleteBtn);
+                                    }
+                                }
+                            } catch (e) {
+                                console.error("Failed to parse LLM event:", e);
+                            }
+                            continue; // Skip processing this chunk as text
+                        }
 
 
-                         botMessageContent += chunk;
+                        botMessageContent += chunk;
                         // Clean up escape sequences
                         botMessageContent = botMessageContent.replace(/\\"/g, '"').replace(/\\\n/g, "\n");
-                        
+
                         // Parse markdown - marked.parse is safe with partial content
                         let html = marked.parse(botMessageContent, { gfm: true, breaks: true });
 
-                         const tempDiv = document.createElement('div');
-                         tempDiv.innerHTML = html;
-                         // Image replacement logic (same as before) ...
-                         botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, { ADD_TAGS: ['details', 'summary', 'video'], ADD_ATTR: ['controls', 'src', 'style'] });
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = html;
+                        // Image replacement logic (same as before) ...
+                        botContentDiv.innerHTML = DOMPurify.sanitize(tempDiv.innerHTML, { ADD_TAGS: ['details', 'summary', 'video'], ADD_ATTR: ['controls', 'src', 'style'] });
 
-                         if (isScrolledToBottom) {
+                        if (isScrolledToBottom) {
                             chatHistory.scrollTop = chatHistory.scrollHeight;
-                         }
-                     }
-                     // After the stream is complete, apply post-processing for code blocks, math, and diagrams
-                     if (window.renderMathInElement) renderMathInElement(botContentDiv, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}], throwOnError: false });
-                     addCopyButtonsToCodeBlocks(botContentDiv);
-                     renderMermaidDiagrams(botContentDiv);
-                 } catch (streamError) {
-                     console.error("Streaming error:", streamError);
-                     botContentDiv.innerHTML += `<p class="text-danger small mt-2"><strong>Error:</strong> The connection was interrupted during the response.</p>`;
-                     chatHistory.scrollTop = chatHistory.scrollHeight;
-                 }
+                        }
+                    }
+                    // After the stream is complete, apply post-processing for code blocks, math, and diagrams
+                    if (window.renderMathInElement) renderMathInElement(botContentDiv, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }, { left: '\\(', right: '\\)', display: false }, { left: '\\[', right: '\\]', display: true }], throwOnError: false });
+                    addCopyButtonsToCodeBlocks(botContentDiv);
+                    renderMermaidDiagrams(botContentDiv);
+                } catch (streamError) {
+                    console.error("Streaming error:", streamError);
+                    botContentDiv.innerHTML += `<p class="text-danger small mt-2"><strong>Error:</strong> The connection was interrupted during the response.</p>`;
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                }
             }
 
             // Success: reload chats to get new IDs and titles
@@ -816,15 +817,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
 
-    chatForm.addEventListener('submit', async function(event) {
+    chatForm.addEventListener('submit', async function (event) {
         event.preventDefault();
         const userInput = chatInput.value.trim();
         const generationType = generationTypeSelect.value;
         const files = [...attachedFiles];
 
         if ((generationType === 'image' || generationType === 'veo') && !userInput) {
-             alert(`Please enter a prompt to generate a${generationType === 'image' ? 'n image' : ' video'}.`);
-             return;
+            alert(`Please enter a prompt to generate a${generationType === 'image' ? 'n image' : ' video'}.`);
+            return;
         }
         if (generationType === 'text' && !userInput && files.length === 0) {
             return;
@@ -849,8 +850,8 @@ document.addEventListener('DOMContentLoaded', function () {
             chatInput.placeholder = generationType === 'image' ? 'Enter a prompt to generate an image...' : 'Enter a prompt to generate a video...';
         } else { // 'text'
             textOnlyControls.forEach(control => control.style.display = ''); // Reset to default display
-             if (systemPromptSelect.parentElement) systemPromptSelect.parentElement.style.display = 'flex';
-             if (el && el.parentElement) el.parentElement.style.display = 'flex';
+            if (systemPromptSelect.parentElement) systemPromptSelect.parentElement.style.display = 'flex';
+            if (el && el.parentElement) el.parentElement.style.display = 'flex';
             chatInput.placeholder = 'Type a message or a prompt...';
         }
     }
@@ -860,7 +861,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch('/v1/models');
             if (!response.ok) throw new Error('Failed to load models');
             const data = await response.json();
-            const models = data.data.filter(m => m.id.includes('gemini'));
+            // Include gemini, veo, and imagen models
+            const models = data.data.filter(m =>
+                m.id.includes('gemini') ||
+                m.id.includes('veo') ||
+                m.id.includes('imagen')
+            );
             modelSelect.innerHTML = '';
             models.forEach(model => {
                 const option = document.createElement('option');
