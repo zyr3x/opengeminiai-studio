@@ -101,6 +101,7 @@ def get_index_context():
         'agent_memory_size': config.AGENT_MEMORY_SIZE,
         'agent_plan_validation': config.AGENT_PLAN_VALIDATION,
         'agent_reflection_enabled': config.AGENT_REFLECTION_ENABLED,
+        'quick_edit_enabled': config.QUICK_EDIT_ENABLED,
         # Enhanced Aux Model settings
         'aux_model_cache_size': config.AUX_MODEL_CACHE_SIZE,
         'aux_model_min_tokens': config.AUX_MODEL_MIN_TOKENS,
