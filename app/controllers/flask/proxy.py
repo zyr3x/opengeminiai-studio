@@ -71,7 +71,7 @@ def chat_completions():
                         processed_content, project_path_found, project_system_context = file_processing_utils.process_message_for_paths(
                             content, processed_code_paths
                         )
-                        if 'code_path=' in content:
+                        if config.QUICK_EDIT_ENABLED and 'code_path=' in content:
                             editing_mode = True
 
                         message['content'] = processed_content
