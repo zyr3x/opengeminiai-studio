@@ -14,6 +14,7 @@ from app.utils.core.optimization_utils import can_execute_parallel
 
 import traceback
 from app.utils.core import file_processing_utils
+from app.utils.core import patch_utils
 proxy_bp = Blueprint('proxy', __name__)
 @proxy_bp.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
@@ -28,6 +29,7 @@ def chat_completions():
         enable_native_tools = False
         project_system_context_text = None
         profile_selected_mcp_tools = []
+        editing_mode = False
 
         if mcp_handler.disable_all_mcp_tools:
             utils.log("All MCP tools globally disabled via general settings.")
@@ -69,6 +71,9 @@ def chat_completions():
                         processed_content, project_path_found, project_system_context = file_processing_utils.process_message_for_paths(
                             content, processed_code_paths
                         )
+                        if 'code_path=' in content:
+                            editing_mode = True
+
                         message['content'] = processed_content
                         if project_path_found:
                             project_context_tools_requested = True
@@ -94,6 +99,28 @@ def chat_completions():
             elif messages[0].get("role") == "system" or 'JetBrains' in messages[0].get("content"):
                 system_instruction = {"parts": [{"text": messages[0].get("content", "")}]}
                 messages = messages[1:]
+
+            if editing_mode:
+                edit_instruction = (
+                    "\n\n**EDITING MODE ACTIVE**\n"
+                    "You are in editing mode. The user has provided code context via `code_path=`.\n"
+                    "If you need to modify any files, you MUST use the following patch format:\n\n"
+                    "File: `path/to/file`\n"
+                    "<<<<<<< SEARCH\n"
+                    "[exact content to replace]\n"
+                    "=======\n"
+                    "[new content]\n"
+                    ">>>>>>> REPLACE\n\n"
+                    "Rules:\n"
+                    "1. The SEARCH block must match the existing file content EXACTLY, including whitespace.\n"
+                    "2. You can apply multiple patches to multiple files.\n"
+                    "3. The system will automatically apply these patches and strip them from your response.\n"
+                    "4. Your final response to the user should ONLY contain the answer/explanation, not the patch blocks.\n"
+                )
+                if system_instruction:
+                    system_instruction['parts'][0]['text'] += edit_instruction
+                else:
+                    system_instruction = {"parts": [{"text": edit_instruction}]}
 
             mapped_messages = []
             for message in messages:
@@ -457,6 +484,37 @@ def chat_completions():
             output_tokens = usage_metadata.get('candidatesTokenCount', 0)
 
             record_token_usage(api_key_header, model_name, input_tokens, output_tokens)
+
+            if editing_mode:
+                # In editing mode, we buffer the entire response to apply patches
+                full_response_text = ""
+                for content in current_contents:
+                    if content.get('role') == 'model':
+                        for part in content.get('parts', []):
+                            if 'text' in part:
+                                full_response_text += part['text']
+
+                # Apply patches
+                cleaned_text, changes = patch_utils.apply_patches(full_response_text)
+
+                if changes:
+                    cleaned_text += "\n\n**System applied patches:**\n" + "\n".join([f"- {c}" for c in changes])
+
+                # Send the cleaned response
+                final_chunk = {
+                    "id": f"chatcmpl-{os.urandom(12).hex()}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": COMPLETION_MODEL,
+                    "choices": [{
+                        "index": 0,
+                        "delta": {"content": cleaned_text},
+                        "finish_reason": "stop"
+                    }]
+                }
+                yield f"data: {json.dumps(final_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+                return
 
             final_chunk = {
                 "id": f"chatcmpl-{os.urandom(12).hex()}",
