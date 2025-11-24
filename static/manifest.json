@@ -1,0 +1,15 @@
+{
+  "name": "OpenGeminiAI Studio",
+  "short_name": "Gemini Studio",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000",
+  "theme_color": "#000",
+  "icons": [
+    {
+      "src": "/static/img/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
