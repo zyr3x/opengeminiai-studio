@@ -73,17 +73,19 @@ async def async_chat_completions():
                                 content = content.replace(find, replace)
 
                     if not disable_mcp_tools:
-                        processed_content, project_path_found, project_system_context = file_processing_utils.process_message_for_paths(
+                        processed_content, project_path_found, new_system_context = file_processing_utils.process_message_for_paths(
                             content, processed_code_paths
                         )
                         if config.QUICK_EDIT_ENABLED and 'code_path=' in content:
                             editing_mode = True
-                        
+
                         message['content'] = processed_content
+                        if new_system_context:
+                            project_system_context_text = new_system_context
+
                         if project_path_found:
                             project_context_tools_requested = True
                             if isinstance(project_path_found, str):
-                                project_system_context_text = project_system_context
                                 project_context_root = project_path_found
 
                 processed_messages.append(message)

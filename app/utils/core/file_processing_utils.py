@@ -35,7 +35,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
     if not isinstance(content, str):
         return content, None, None
 
-    path_pattern = re.compile(r'(image|pdf|audio|code|project)_path=("[^"]+"|\'[^\']+\'|[^\s,;)]+)')
+    path_pattern = re.compile(r'(image|pdf|audio|code|project)_path=("[^"]+"|\'[^\']+\'|[^\s,;)]+)|(system_prompt)=("[^"]+"|\'[^\']+\'|[^\s,;)]+)')
     matches = list(path_pattern.finditer(content))
     if not matches:
         return content, None, None
@@ -50,6 +50,30 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
             new_content_parts.append({"type": "text", "text": content[last_end:start]})
 
         command_end = _parse_ignore_patterns(content, match, matches, i)
+
+        if match.group(3) and match.group(3) == 'system_prompt':
+            raw_value = match.group(4)
+            if raw_value.startswith(('"', "'")) and raw_value.endswith(raw_value[0]):
+                prompt_key = raw_value[1:-1]
+            else:
+                prompt_key = raw_value
+
+            prompt_data = utils.system_prompts.get(prompt_key)
+            if not prompt_data:
+                for key, data in utils.system_prompts.items():
+                    if key.lower().startswith(prompt_key.lower()):
+                        prompt_data = data
+                        logging.log(f"Found partial match for system prompt '{prompt_key}': using '{key}'")
+                        break
+
+            if prompt_data and prompt_data.get('prompt'):
+                system_context_text = prompt_data['prompt']
+                logging.log(f"Overriding system prompt with '{prompt_key}'")
+            else:
+                logging.log(f"Warning: system_prompt '{prompt_key}' not found. No system context will be injected.")
+
+            last_end = command_end
+            continue
 
         file_type = match.group(1)
         raw_path = match.group(2)
