@@ -1,4 +1,4 @@
-# OpenGeminiAI Studio V3.0
+# OpenGeminiAI Studio V3.1
 
 <!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
@@ -20,6 +20,16 @@ In a world of AI coding assistants, OpenGeminiAI Studio stands out by combining 
 -   **Total Control & Privacy:** Host it on your own machine or private network. Your code and API keys never leave your control. Sandbox the AI's access to specific project directories for complete peace of mind.
 -   **Extensible & Open:** Built with a modular MCP architecture, you can easily add your own custom tools to extend its capabilities. The project is open and transparent.
 -   **Cost-Effective:** Leverage powerful optimization features like selective context, prompt caching, and tool output summarization to significantly reduce token usage and lower your API costs.
+
+## 🚀 What's New in V3.1 - Enhanced Development Flow
+
+Version 3.1 refines the development experience, making the AI agent even more integrated and efficient in your coding workflow.
+
+-   **✍️ Quick Edit Mode (NEW)**: Empower the AI to directly suggest and apply code modifications using a patch-based format. When enabled with `code_path=` context, the AI will output patches that are automatically applied to your files, streamlining the iterative development and bug-fixing process.
+-   **📝 Improved Patch Application (NEW)**: The system's patch application now provides clearer feedback on success or failure, with better error handling and auto-fix suggestions in case of issues, ensuring more reliable code modifications.
+-   **💬 System Prompt Override (NEW)**: Users can now override the active system prompt directly within a message using the `system_prompt=` command, allowing for dynamic persona and instruction changes mid-conversation.
+-   **🌐 PWA Support (NEW)**: Added Progressive Web App (PWA) support, enabling users to install the web UI as a desktop application with offline capabilities via a Service Worker and Manifest.
+-   **🎥 Veo Video Generation (NEW)**: Enhanced media generation capabilities now include support for Veo video generation, alongside updated defaults for image generation models for better performance and quality.
 
 ## 🚀 What's New in V3.0 - The Agentic Developer Update
 

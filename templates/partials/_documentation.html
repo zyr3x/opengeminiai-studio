@@ -1,7 +1,17 @@
 <!-- Documentation Section -->
 <div id="documentation" class="content-section">
     <h1 class="my-4">📚 Documentation</h1>
-    <p class="lead">Dive into the details of OpenGeminiAI Studio v3.0: learn how to set up, configure, and maximize the utility of this high-performance, AI-driven software development agent and proxy for Google's Gemini API.</p>
+    <p class="lead">Dive into the details of OpenGeminiAI Studio v3.1: learn how to set up, configure, and maximize the utility of this high-performance, AI-driven software development agent and proxy for Google's Gemini API.</p>
+
+    <h2 class="mt-4">🚀 What's New in V3.1 - Enhanced Development Flow</h2>
+    <p>Version 3.1 refines the development experience, making the AI agent even more integrated and efficient in your coding workflow.</p>
+    <ul>
+        <li><strong>✍️ Quick Edit Mode (NEW):</strong> Empower the AI to directly suggest and apply code modifications using a patch-based format. When enabled with `code_path=` context, the AI will output patches that are automatically applied to your files, streamlining the iterative development and bug-fixing process.</li>
+        <li><strong>📝 Improved Patch Application (NEW):</strong> The system's patch application now provides clearer feedback on success or failure, with better error handling and auto-fix suggestions in case of issues, ensuring more reliable code modifications.</li>
+               <li><strong>💬 System Prompt Override (NEW):</strong> Users can now override the active system prompt directly within a message using the `system_prompt=` command, allowing for dynamic persona and instruction changes mid-conversation.</li>
+               <li><strong>🌐 PWA Support (NEW):</strong> Added Progressive Web App (PWA) support, enabling users to install the web UI as a desktop application with offline capabilities via a Service Worker and Manifest.</li>
+               <li><strong>🎥 Veo Video Generation (NEW):</strong> Enhanced media generation capabilities now include support for Veo video generation, alongside updated defaults for image generation models for better performance and quality.</li>
+    </ul>
 
     <h2 class="mt-4">🚀 What's New in V3.0 - The Agentic Developer Update</h2>
     <p>Version 3.0 transforms OpenGeminiAI Studio into a powerful <strong>AI-driven software developer</strong>. With an expanded toolkit, deeper project understanding, and new cognitive abilities, it can now take on complex development tasks with greater autonomy and intelligence.</p>
@@ -73,7 +83,7 @@
     <p>or with Docker:</p>
     <pre><code class="language-bash">docker-compose up -d</code></pre>
     <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
-    
+
     <div class="alert alert-success mt-3">
         <strong>💡 Pro Tip:</strong> Use <code>ASYNC_MODE=true</code> for 3-5x better performance with concurrent requests!
     </div>
@@ -144,7 +154,7 @@
                     </ul>
                     <p><strong>Usage:</strong></p>
                     <pre><code class="language-bash">"Fix the auth bug: project_path=~/myproject"</code></pre>
-                    <p><strong>Perfect For:</strong></p>
+                    <p><strong>Perfect For:</b></p>
                     <ul class="mb-0">
                         <li>Bug fixing & debugging</li>
                         <li>Feature development</li>
@@ -245,7 +255,7 @@
                 <li><code>create_file</code> - Create new files</li>
                 <li><code>write_file</code> - Overwrite files</li>
             </ul>
-            
+
             <h6>🔀 Git Operations</h6>
             <ul class="small">
                 <li><code>git_status</code> - Check repo status</li>
@@ -259,7 +269,7 @@
     </div>
 
     <h4 class="mt-4">💡 Real-World Examples</h4>
-    
+
     <div class="card mb-3">
         <div class="card-header"><strong>Example 1:</strong> Code Review</div>
         <div class="card-body">
@@ -268,7 +278,7 @@
             <p><strong>Result:</strong> AI receives all source files and analyzes them (no modifications made)</p>
         </div>
     </div>
-    
+
     <div class="card mb-3">
         <div class="card-header"><strong>Example 2:</strong> Bug Fixing</div>
         <div class="card-body">
@@ -277,9 +287,9 @@
             <p><strong>Result:</strong> AI uses tools to search code, analyze vulnerabilities, patch files, and run tests</p>
         </div>
     </div>
-    
+
     <div class="card mb-3">
-        <div class="card-header"><strong>Example 3:</strong> New Feature Development</div>
+        <div class="card-header"><strong>Example 3:</b> New Feature Development</div>
         <div class="card-body">
             <p><strong>Prompt:</strong></p>
             <pre><code class="language-bash">"Add /api/users endpoint with JWT auth: project_path=~/api-server"</code></pre>
