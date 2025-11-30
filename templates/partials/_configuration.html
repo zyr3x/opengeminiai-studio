@@ -4,69 +4,73 @@
 
     <!-- API Key Management Card -->
     <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">API Key Management</h5>
-                <p class="card-text">Manage multiple Gemini API keys. Select an active key for use in requests.</p>
+        <div class="card-body">
+            <h5 class="card-title">API Key Management</h5>
+            <p class="card-text">Manage multiple Gemini API keys. Select an active key for use in requests.</p>
 
-                <!-- Active Key Selection -->
-                <div class="mb-3">
-                    <label for="active-key-select" class="form-label">Active API Key</label>
-                    <div class="input-group">
-                        <select class="form-select" id="active-key-select">
-                            <!-- Options will be populated by JavaScript -->
-                        </select>
-                        <button class="btn btn-secondary" type="button" id="set-active-key-btn">Set Active</button>
-                    </div>
+            <!-- Active Key Selection -->
+            <div class="mb-3">
+                <label for="active-key-select" class="form-label">Active API Key</label>
+                <div class="input-group">
+                    <select class="form-select" id="active-key-select">
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                    <button class="btn btn-secondary" type="button" id="set-active-key-btn">Set Active</button>
                 </div>
+            </div>
 
-                <!-- Add/Update Key Form -->
-                <div class="accordion" id="add-key-accordion">
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingOne">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
-                                Add or Update a Key
-                            </button>
-                        </h2>
-                        <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#add-key-accordion">
-                            <div class="accordion-body">
-                                <form id="key-manager-form">
-                                    <div class="mb-3">
-                                        <label for="key-id-input" class="form-label">Key ID (a unique name)</label>
-                                        <input type="text" class="form-control" id="key-id-input" placeholder="e.g., personal-key" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="key-value-input" class="form-label">API Key Value</label>
-                                        <input type="password" class="form-control" id="key-value-input" placeholder="Enter the secret key" required>
-                                    </div>
-                                    <div class="form-check mb-3">
-                                        <input class="form-check-input" type="checkbox" id="set-as-active-checkbox">
-                                        <label class="form-check-label" for="set-as-active-checkbox">
-                                            Set as active key upon saving
-                                        </label>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary">Save Key</button>
-                                </form>
-                            </div>
+            <!-- Add/Update Key Form -->
+            <div class="accordion" id="add-key-accordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingOne">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                            Add or Update a Key
+                        </button>
+                    </h2>
+                    <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne"
+                        data-bs-parent="#add-key-accordion">
+                        <div class="accordion-body">
+                            <form id="key-manager-form">
+                                <div class="mb-3">
+                                    <label for="key-id-input" class="form-label">Key ID (a unique name)</label>
+                                    <input type="text" class="form-control" id="key-id-input"
+                                        placeholder="e.g., personal-key" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="key-value-input" class="form-label">API Key Value</label>
+                                    <input type="password" class="form-control" id="key-value-input"
+                                        placeholder="Enter the secret key" required>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="set-as-active-checkbox">
+                                    <label class="form-check-label" for="set-as-active-checkbox">
+                                        Set as active key upon saving
+                                    </label>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Key</button>
+                            </form>
                         </div>
                     </div>
                 </div>
-
-                <!-- Stored Keys List -->
-                <h6 class="mt-4">Stored Keys</h6>
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th scope="col">ID</th>
-                            <th scope="col">Value (Masked)</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="api-key-list-body">
-                        <!-- Rows will be populated by JavaScript -->
-                    </tbody>
-                </table>
             </div>
+
+            <!-- Stored Keys List -->
+            <h6 class="mt-4">Stored Keys</h6>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th scope="col">ID</th>
+                        <th scope="col">Value (Masked)</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="api-key-list-body">
+                    <!-- Rows will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div class="card mt-3">
@@ -74,40 +78,59 @@
             <h5 class="card-title">🧠 Context Management</h5>
             <form action="/set_context_settings" method="POST">
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" role="switch" id="selective_context_enabled" name="selective_context_enabled"
-                           {% if selective_context_enabled %}checked{% endif %} onchange="this.form.submit()">
+                    <input class="form-check-input" type="checkbox" role="switch" id="selective_context_enabled"
+                        name="selective_context_enabled" {% if selective_context_enabled %}checked{% endif %}
+                        onchange="this.form.submit()">
                     <label class="form-check-label" for="selective_context_enabled">Enable Selective Context</label>
                 </div>
-                <div class="form-text">When enabled, only the most relevant context from conversation history is sent to the model.</div>
-                
+                <div class="form-text">When enabled, only the most relevant context from conversation history is sent to
+                    the model.</div>
+
                 <div class="mt-3">
                     <label for="context_min_relevance_score" class="form-label">Minimum Relevance Score</label>
                     <div class="input-group">
-                        <input type="number" class="form-control" id="context_min_relevance_score" name="context_min_relevance_score"
-                               value="{{ context_min_relevance_score }}" min="0" max="1" step="0.1">
+                        <input type="number" class="form-control" id="context_min_relevance_score"
+                            name="context_min_relevance_score" value="{{ context_min_relevance_score }}" min="0" max="1"
+                            step="0.1">
                         <button class="btn btn-primary" type="submit">Save</button>
                     </div>
-                    <div class="form-text">Threshold for context relevance (0.0 - 1.0). Higher values mean stricter filtering.</div>
+                    <div class="form-text">Threshold for context relevance (0.0 - 1.0). Higher values mean stricter
+                        filtering.</div>
                 </div>
 
                 <div class="mt-3">
                     <label for="context_always_keep_recent" class="form-label">Always Keep Recent Messages</label>
                     <div class="input-group">
-                        <input type="number" class="form-control" id="context_always_keep_recent" name="context_always_keep_recent"
-                               value="{{ context_always_keep_recent }}" min="1" max="100" step="1">
+                        <input type="number" class="form-control" id="context_always_keep_recent"
+                            name="context_always_keep_recent" value="{{ context_always_keep_recent }}" min="1" max="100"
+                            step="1">
                         <button class="btn btn-primary" type="submit">Save</button>
                     </div>
-                    <div class="form-text">Number of most recent messages to always include in context, regardless of relevance.</div>
+                    <div class="form-text">Number of most recent messages to always include in context, regardless of
+                        relevance.</div>
                 </div>
 
                 <div class="mt-3">
                     <label for="min_context_caching_tokens" class="form-label">Minimum Context Caching Tokens</label>
                     <div class="input-group">
-                        <input type="number" class="form-control" id="min_context_caching_tokens" name="min_context_caching_tokens"
-                               value="{{ min_context_caching_tokens }}" min="0" step="1">
+                        <input type="number" class="form-control" id="min_context_caching_tokens"
+                            name="min_context_caching_tokens" value="{{ min_context_caching_tokens }}" min="0" step="1">
                         <button class="btn btn-primary" type="submit">Save</button>
                     </div>
-                    <div class="form-text">Minimum token count for a context item to be eligible for caching. 0 disables caching.</div>
+                    <div class="form-text">Minimum token count for a context item to be eligible for caching. 0 disables
+                        caching.</div>
+                </div>
+
+                <div class="mt-3">
+                    <label for="max_key_rotation_attempts" class="form-label">Max API Key Rotation Attempts</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="max_key_rotation_attempts"
+                            name="max_key_rotation_attempts" value="{{ max_key_rotation_attempts }}" min="1" max="20"
+                            step="1">
+                        <button class="btn btn-primary" type="submit">Save</button>
+                    </div>
+                    <div class="form-text">Max number of different API keys to try for a single request upon failure
+                        (401/429/timeout). Default: 3.</div>
                 </div>
             </form>
         </div>
@@ -126,11 +149,30 @@
                 <div class="form-text">When enabled, the model's response will be streamed back to the client as it's generated.</div>
                 -->
                 <div class="form-check form-switch mt-3">
-                    <input class="form-check-input" type="checkbox" role="switch" id="streaming_progress_enabled" name="streaming_progress_enabled"
-                           {% if streaming_progress_enabled %}checked{% endif %} onchange="this.form.submit()">
-                    <label class="form-check-label" for="streaming_progress_enabled">Enable Tool Progress Streaming</label>
+                    <input class="form-check-input" type="checkbox" role="switch" id="streaming_progress_enabled"
+                        name="streaming_progress_enabled" {% if streaming_progress_enabled %}checked{% endif %}
+                        onchange="this.form.submit()">
+                    <label class="form-check-label" for="streaming_progress_enabled">Enable Tool Progress
+                        Streaming</label>
                 </div>
-                <div class="form-text">When enabled, progress updates from long-running tools (like <code>list_files</code> or <code>search_codebase</code>) will be streamed back to the user in real-time.</div>
+                <div class="form-text">When enabled, progress updates from long-running tools (like
+                    <code>list_files</code> or <code>search_codebase</code>) will be streamed back to the user in
+                    real-time.</div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5 class="card-title">✏️ Quick Edit Settings</h5>
+            <form action="/set_quick_edit_settings" method="POST">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick_edit_enabled"
+                        name="quick_edit_enabled" {% if quick_edit_enabled %}checked{% endif %}
+                        onchange="this.form.submit()">
+                    <label class="form-check-label" for="quick_edit_enabled">Enable Quick Edit</label>
+                </div>
+                <div class="form-text">When enabled, activates editing mode when code context is provided, allowing the model to apply patches.</div>
             </form>
         </div>
     </div>
@@ -141,19 +183,21 @@
             <form action="/set_security_settings" method="POST">
                 <div class="mb-3">
                     <label for="allowed_code_paths" class="form-label">Allowed Code Paths</label>
-                    <textarea class="form-control" id="allowed_code_paths" name="allowed_code_paths" rows="3" placeholder="/home/user/projects,/opt/workspace">{{ allowed_code_paths }}</textarea>
+                    <textarea class="form-control" id="allowed_code_paths" name="allowed_code_paths" rows="3"
+                        placeholder="/home/user/projects,/opt/workspace">{{ allowed_code_paths }}</textarea>
                     <div class="form-text">
-                        Comma-separated list of root directories that builtin tools can access. 
+                        Comma-separated list of root directories that builtin tools can access.
                         Leave empty to allow all paths. Example: <code>/home/user/projects,/opt/workspace</code>
                         <br><strong>Note:</strong> Tools will only access files within these directories when specified.
                     </div>
                 </div>
                 <div class="mb-3">
                     <label for="max_code_injection_size_kb" class="form-label">Max Code Injection Size (KB)</label>
-                    <input type="number" class="form-control" id="max_code_injection_size_kb" name="max_code_injection_size_kb"
-                           value="{{ max_code_injection_size_kb }}" min="0">
+                    <input type="number" class="form-control" id="max_code_injection_size_kb"
+                        name="max_code_injection_size_kb" value="{{ max_code_injection_size_kb }}" min="0">
                     <div class="form-text">
-                        Maximum size in kilobytes for code automatically injected into the context (e.g., from <code>read_file</code>). Prevents excessively large context.
+                        Maximum size in kilobytes for code automatically injected into the context (e.g., from
+                        <code>read_file</code>). Prevents excessively large context.
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary">Save Security Settings</button>
@@ -166,12 +210,16 @@
             <h5 class="card-title">🤖 Agent Auxiliary Model (Tool Output Summarization)</h5>
             <form action="/set_agent_settings" method="POST">
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" role="switch" id="agent_aux_model_enabled" name="agent_aux_model_enabled"
-                           {% if agent_aux_model_enabled %}checked{% endif %} onchange="this.form.submit()">
-                    <label class="form-check-label" for="agent_aux_model_enabled">Enable Auxiliary Model for Summarization</label>
+                    <input class="form-check-input" type="checkbox" role="switch" id="agent_aux_model_enabled"
+                        name="agent_aux_model_enabled" {% if agent_aux_model_enabled %}checked{% endif %}
+                        onchange="this.form.submit()">
+                    <label class="form-check-label" for="agent_aux_model_enabled">Enable Auxiliary Model for
+                        Summarization</label>
                 </div>
                 <div class="form-text">
-                    When enabled in Agent Mode (using <code>project_path=</code>), a secondary model is used to summarize overly large tool outputs (e.g., from <code>get_file_content</code>) before they are sent back to the main LLM.
+                    When enabled in Agent Mode (using <code>project_path=</code>), a secondary model is used to
+                    summarize overly large tool outputs (e.g., from <code>get_file_content</code>) before they are sent
+                    back to the main LLM.
                     This prevents context window overflow and reduces token costs.
                 </div>
 
@@ -179,7 +227,7 @@
                     <label for="agent_aux_model_name" class="form-label">Auxiliary Model Name</label>
                     <div class="input-group">
                         <input type="text" class="form-control" id="agent_aux_model_name" name="agent_aux_model_name"
-                               value="{{ agent_aux_model_name }}">
+                            value="{{ agent_aux_model_name }}">
                         <button class="btn btn-primary" type="submit">Save</button>
                     </div>
                     <div class="form-text">
@@ -199,12 +247,14 @@
             </p>
             <form action="/set_agent_intelligence_settings" method="POST">
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" role="switch" id="agent_intelligence_enabled" name="agent_intelligence_enabled"
-                           {% if agent_intelligence_enabled %}checked{% endif %} onchange="this.form.submit()">
+                    <input class="form-check-input" type="checkbox" role="switch" id="agent_intelligence_enabled"
+                        name="agent_intelligence_enabled" {% if agent_intelligence_enabled %}checked{% endif %}
+                        onchange="this.form.submit()">
                     <label class="form-check-label" for="agent_intelligence_enabled">Enable Agent Intelligence</label>
                 </div>
                 <div class="form-text mb-3">
-                    Master switch for all intelligent agent features: planning, memory, reflection, and recovery suggestions.
+                    Master switch for all intelligent agent features: planning, memory, reflection, and recovery
+                    suggestions.
                 </div>
 
                 <div class="row mt-3">
@@ -212,26 +262,29 @@
                         <label for="agent_memory_size" class="form-label">Memory Size</label>
                         <div class="input-group">
                             <input type="number" class="form-control" id="agent_memory_size" name="agent_memory_size"
-                                   value="{{ agent_memory_size }}" min="10" max="500" step="10">
+                                value="{{ agent_memory_size }}" min="10" max="500" step="10">
                             <span class="input-group-text">executions</span>
                         </div>
-                        <div class="form-text">Maximum number of tool executions to remember (10-500, default: 100).</div>
+                        <div class="form-text">Maximum number of tool executions to remember (10-500, default: 100).
+                        </div>
                     </div>
                 </div>
 
                 <div class="form-check form-switch mt-3">
-                    <input class="form-check-input" type="checkbox" role="switch" id="agent_plan_validation" name="agent_plan_validation"
-                           {% if agent_plan_validation %}checked{% endif %}>
+                    <input class="form-check-input" type="checkbox" role="switch" id="agent_plan_validation"
+                        name="agent_plan_validation" {% if agent_plan_validation %}checked{% endif %}>
                     <label class="form-check-label" for="agent_plan_validation">Enable Plan Validation</label>
                 </div>
-                <div class="form-text">Validates execution plans for safety before running (checks for destructive operations without safeguards).</div>
+                <div class="form-text">Validates execution plans for safety before running (checks for destructive
+                    operations without safeguards).</div>
 
                 <div class="form-check form-switch mt-3">
-                    <input class="form-check-input" type="checkbox" role="switch" id="agent_reflection_enabled" name="agent_reflection_enabled"
-                           {% if agent_reflection_enabled %}checked{% endif %}>
+                    <input class="form-check-input" type="checkbox" role="switch" id="agent_reflection_enabled"
+                        name="agent_reflection_enabled" {% if agent_reflection_enabled %}checked{% endif %}>
                     <label class="form-check-label" for="agent_reflection_enabled">Enable Self-Reflection</label>
                 </div>
-                <div class="form-text mb-3">Agent validates its own outputs and suggests recovery actions on errors.</div>
+                <div class="form-text mb-3">Agent validates its own outputs and suggests recovery actions on errors.
+                </div>
 
                 <button type="submit" class="btn btn-primary mt-2">Save Intelligence Settings</button>
             </form>
@@ -254,8 +307,9 @@
                     <div class="col-md-4">
                         <label for="aux_model_cache_size" class="form-label">Cache Size</label>
                         <div class="input-group">
-                            <input type="number" class="form-control" id="aux_model_cache_size" name="aux_model_cache_size"
-                                   value="{{ aux_model_cache_size }}" min="0" max="500" step="10">
+                            <input type="number" class="form-control" id="aux_model_cache_size"
+                                name="aux_model_cache_size" value="{{ aux_model_cache_size }}" min="0" max="500"
+                                step="10">
                             <span class="input-group-text">entries</span>
                         </div>
                         <div class="form-text">LRU cache size for processed outputs (0 to disable, default: 100).</div>
@@ -264,8 +318,9 @@
                     <div class="col-md-4">
                         <label for="aux_model_min_tokens" class="form-label">Min Tokens Threshold</label>
                         <div class="input-group">
-                            <input type="number" class="form-control" id="aux_model_min_tokens" name="aux_model_min_tokens"
-                                   value="{{ aux_model_min_tokens }}" min="50" max="1000" step="50">
+                            <input type="number" class="form-control" id="aux_model_min_tokens"
+                                name="aux_model_min_tokens" value="{{ aux_model_min_tokens }}" min="50" max="1000"
+                                step="50">
                             <span class="input-group-text">tokens</span>
                         </div>
                         <div class="form-text">Minimum tokens to trigger aux model processing (default: 200).</div>
@@ -274,8 +329,9 @@
                     <div class="col-md-4">
                         <label for="aux_model_max_tokens" class="form-label">Max Tokens Threshold</label>
                         <div class="input-group">
-                            <input type="number" class="form-control" id="aux_model_max_tokens" name="aux_model_max_tokens"
-                                   value="{{ aux_model_max_tokens }}" min="500" max="5000" step="100">
+                            <input type="number" class="form-control" id="aux_model_max_tokens"
+                                name="aux_model_max_tokens" value="{{ aux_model_max_tokens }}" min="500" max="5000"
+                                step="100">
                             <span class="input-group-text">tokens</span>
                         </div>
                         <div class="form-text">Always process outputs above this size (default: 1000).</div>
@@ -284,10 +340,12 @@
 
                 <div class="mt-3">
                     <h6>Processing Strategies</h6>
-                    <p class="text-muted small">The enhanced aux model automatically chooses the best strategy for each tool:</p>
+                    <p class="text-muted small">The enhanced aux model automatically chooses the best strategy for each
+                        tool:</p>
                     <ul class="small">
                         <li><strong>summarize</strong> - General summarization preserving key details</li>
-                        <li><strong>extract_key_info</strong> - Extracts only critical information (paths, names, errors)</li>
+                        <li><strong>extract_key_info</strong> - Extracts only critical information (paths, names,
+                            errors)</li>
                         <li><strong>structure</strong> - Organizes lists into hierarchical format</li>
                         <li><strong>analyze</strong> - Adds insights and recommendations</li>
                         <li><strong>filter_relevant</strong> - Context-specific filtering</li>
@@ -304,14 +362,16 @@
             <h5 class="card-title">🐞 Debugging</h5>
             <form action="/set_logging" method="POST">
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" role="switch" id="verbose_logging" name="verbose_logging"
-                           {% if verbose_logging_status %}checked{% endif %} onchange="this.form.submit()">
+                    <input class="form-check-input" type="checkbox" role="switch" id="verbose_logging"
+                        name="verbose_logging" {% if verbose_logging_status %}checked{% endif %}
+                        onchange="this.form.submit()">
                     <label class="form-check-label" for="verbose_logging">Enable Verbose Console Logging</label>
                 </div>
                 <div class="form-text">Toggles detailed logging of events in the server console.</div>
                 <div class="form-check form-switch mt-3">
-                    <input class="form-check-input" type="checkbox" id="debugClientLoggingSwitch" name="debug_client_logging"
-                           {% if debug_client_logging_status %}checked{% endif %} onchange="this.form.submit()">
+                    <input class="form-check-input" type="checkbox" id="debugClientLoggingSwitch"
+                        name="debug_client_logging" {% if debug_client_logging_status %}checked{% endif %}
+                        onchange="this.form.submit()">
                     <label class="form-check-label" for="debugClientLoggingSwitch">
                         Enable Debug Client Logging
                     </label>

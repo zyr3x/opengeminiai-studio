@@ -102,55 +102,109 @@ async def make_request_with_retry_async(
     stream: bool = False,
     timeout: int = 300
 ) -> aiohttp.ClientResponse:
-    retries = 2
-    backoff_factor = 1.0
-    session = await get_async_session()
-    for i in range(retries):
+    from app.config import config
+    from app.utils.core.api_key_manager import api_key_manager
+
+    rotation_attempts = 0
+    last_exception = None
+    current_key_id = api_key_manager.get_active_key_id()
+
+    while rotation_attempts < config.MAX_KEY_ROTATION_ATTEMPTS:
         try:
-            response = await session.post(
-                url,
-                headers=headers,
-                json=json_data,
-                timeout=aiohttp.ClientTimeout(total=timeout)
-            )
+            retries = 5
+            backoff_factor = 1.0
+            session = await get_async_session()
+            for i in range(retries):
+                try:
+                    response = await session.post(
+                        url,
+                        headers=headers,
+                        json=json_data,
+                        timeout=aiohttp.ClientTimeout(total=timeout)
+                    )
 
-            if response.status < 400:
-                return response
+                    if response.status < 400:
+                        return response
 
-            status_code = response.status
-            if (status_code == 429 or status_code in [502, 503, 504]) and i < retries - 1:
-                wait_time = 0
-                if 'Retry-After' in response.headers:
-                    try:
-                        wait_time = int(response.headers.get('Retry-After'))
-                    except (ValueError, TypeError):
-                        pass
+                    status_code = response.status
+                    # For key-related errors, we want to fail fast from the inner retry loop to trigger rotation
+                    if status_code in [401, 429]:
+                        response.raise_for_status()
 
-                if wait_time > 0:
-                    wait_time += random.uniform(0, 1)
-                elif status_code == 429:
-                    wait_time = (backoff_factor * 10) * (2 ** i) + random.uniform(0, 3.0)
-                else:
-                    wait_time = backoff_factor * (2 ** i) + random.uniform(0, 1.0)
+                    if status_code in [502, 503, 504] and i < retries - 1:
+                        wait_time = 0
+                        if 'Retry-After' in response.headers:
+                            try:
+                                wait_time = int(response.headers.get('Retry-After'))
+                            except (ValueError, TypeError):
+                                pass
 
-                log(f"Received status {status_code}. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
-                await asyncio.sleep(wait_time)
-                continue
+                        if wait_time > 0:
+                            wait_time += random.uniform(0, 1)
+                        else:
+                            wait_time = backoff_factor * (2 ** i) + random.uniform(0, 1.0)
+
+                        log(f"Received status {status_code}. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        error_text = await response.text()
+                        log(f"HTTP Error {status_code}: {error_text}")
+                        response.raise_for_status()
+
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if i < retries - 1:
+                        wait_time = backoff_factor * (2 ** i) + random.uniform(0, 0.5)
+                        log(f"Connection/Timeout error. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        log(f"Connection/Timeout Error after final retry: {e}")
+                        raise
+            raise aiohttp.ClientError(f"All {retries} retries failed for key '{current_key_id}'.")
+        except (aiohttp.ClientResponseError, aiohttp.ClientError, asyncio.TimeoutError) as e:
+            last_exception = e
+            if isinstance(e, aiohttp.ClientResponseError) and e.status in [401, 429]:
+                log(f"Request with key '{current_key_id}' failed with status {e.status}. Rotating key... (Attempt {rotation_attempts + 1})")
+            elif isinstance(e, (aiohttp.ClientError, asyncio.TimeoutError)):
+                log(f"Request with key '{current_key_id}' failed: {e}. Rotating key... (Attempt {rotation_attempts + 1})")
             else:
-                error_text = await response.text()
-                log(f"HTTP Error {status_code}: {error_text}")
-                response.raise_for_status()
+                raise e
 
-        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-            if i < retries - 1:
-                wait_time = backoff_factor * (2 ** i) + random.uniform(0, 0.5)
-                log(f"Connection/Timeout error. Retrying in {wait_time:.2f}s... (Attempt {i + 1}/{retries})")
-                await asyncio.sleep(wait_time)
-                continue
-            else:
-                log(f"Connection/Timeout Error after final retry: {e}")
-                raise
-    raise aiohttp.ClientError(f"All {retries} retries failed.")
+        rotation_attempts += 1
+        if rotation_attempts >= config.MAX_KEY_ROTATION_ATTEMPTS:
+            log("Max key rotation attempts reached.")
+            break
+
+        if not current_key_id:
+            api_key_value_in_header = headers.get('X-goog-api-key')
+            all_keys = api_key_manager.get_all_keys_data()['keys']
+            found = False
+            for k_id, k_val in all_keys.items():
+                if k_val == api_key_value_in_header:
+                    current_key_id = k_id
+                    found = True
+                    break
+            if not found:
+                log("Could not determine current key ID for rotation.")
+                break
+
+        new_key_value, new_key_id = api_key_manager.get_next_key_value_and_id(current_key_id)
+
+        if new_key_value and new_key_id:
+            log(f"Rotated to new API key: {new_key_id}")
+            headers['X-goog-api-key'] = new_key_value
+            config.reload_api_key()
+            current_key_id = new_key_id
+        else:
+            log("API key rotation failed: no more keys available.")
+            break
+
+    log(f"Request failed after all key rotation attempts.")
+    if last_exception:
+        raise last_exception
+    raise aiohttp.ClientError(f"All request attempts failed, including {rotation_attempts} key rotations.")
+
 async def truncate_contents_async(contents: list, limit: int, current_query: str = None) -> list:
     estimated_tokens = estimate_token_count(contents)
     if estimated_tokens <= limit:

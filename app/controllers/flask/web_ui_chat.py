@@ -50,7 +50,8 @@ def generate_image_api():
     chat_id = form.get('chat_id', type=int)
     model = form.get('model', 'gemini-1.5-pro-latest')
     prompt = form.get('prompt', '')
-    result, status_code = chat_web_logic.generate_image_logic(chat_id, model, prompt)
+    generation_type = form.get('generation_type', 'image')
+    result, status_code = chat_web_logic.generate_image_logic(chat_id, model, prompt, generation_type)
     return jsonify(result), status_code
 @web_ui_chat_bp.route('/chat_api', methods=['POST'])
 def chat_api():

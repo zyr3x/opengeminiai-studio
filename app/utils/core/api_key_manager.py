@@ -53,4 +53,29 @@ class APIKeyManager:
     def get_all_keys_data(self):
         with self.lock:
             return self.keys_data.copy()
+
+    def get_active_key_id(self):
+        with self.lock:
+            return self.keys_data.get('active_key_id')
+
+    def get_next_key_value_and_id(self, current_key_id: str):
+        with self.lock:
+            all_key_ids = sorted(list(self.keys_data.get('keys', {}).keys()))
+            if len(all_key_ids) < 2:
+                return None, None
+
+            try:
+                current_index = all_key_ids.index(current_key_id)
+                next_index = (current_index + 1) % len(all_key_ids)
+            except ValueError:
+                # The key that failed is not in our list (e.g. from .env)
+                # Just pick the first available key
+                if not all_key_ids:
+                    return None, None
+                next_index = 0
+
+            next_key_id = all_key_ids[next_index]
+            self.set_active_key(next_key_id)
+            return self.keys_data['keys'][next_key_id], next_key_id
+
 api_key_manager = APIKeyManager()

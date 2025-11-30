@@ -10,7 +10,7 @@ from app.db import get_db_connection, UPLOAD_FOLDER
 from app.utils.core import chat_db_utils, file_processing_utils, logging, mcp_handler
 from app.utils.core import tool_config_utils
 from app.utils.core import tools as utils
-def generate_image_logic(chat_id, model, prompt):
+def generate_image_logic(chat_id, model, prompt, generation_type='image'):
     if not config.API_KEY:
         return {"error": "API key not configured."}, 401
     if not all([chat_id, model, prompt]):
@@ -18,60 +18,89 @@ def generate_image_logic(chat_id, model, prompt):
     try:
         user_parts = [{"text": prompt}]
         utils.add_message_to_db(chat_id, 'user', user_parts)
-        IMAGE_GEN_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
+        media_type = 'video' if generation_type == 'veo' else 'image'
+        
+        # Detect if using Imagen model
+        is_imagen = 'imagen' in model.lower()
+        
+        MEDIA_GEN_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
         headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
+        
+        # Build request data with proper configuration for image/video generation
         request_data = {
-            "contents": [{"parts": [{"text": f"Generate an image of: {prompt}"}]}],
+            "contents": [{"parts": [{"text": prompt}]}],
         }
+        
+        # Configure based on model type
+        if media_type == 'image':
+            if is_imagen:
+                # Imagen models use simpler configuration
+                request_data["generationConfig"] = {
+                    "temperature": 1.0,
+                }
+            else:
+                # Gemini models need responseModalities for image generation
+                request_data["generationConfig"] = {
+                    "responseModalities": ["TEXT", "IMAGE"],
+                    "temperature": 1.0,
+                }
+        elif media_type == 'video':
+            # For video generation (Veo), use appropriate configuration
+            request_data["generationConfig"] = {
+                "temperature": 1.0,
+            }
         response = utils.make_request_with_retry(
-            url=IMAGE_GEN_URL,
+            url=MEDIA_GEN_URL,
             headers=headers,
             json_data=request_data,
             stream=False,
-            timeout=300
+            timeout=600
         )
         response_data = response.json()
         parts = response_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-        image_data = None
+        media_data = None
         mime_type = None
-        inline_part = next((p for p in parts if 'inline_data' in p and 'image' in p['inline_data']['mime_type']), None)
+        inline_part = next((p for p in parts if 'inline_data' in p and media_type in p['inline_data']['mime_type']), None)
         if inline_part:
             mime_type = inline_part['inline_data']['mime_type']
-            image_data = base64.b64decode(inline_part['inline_data']['data'])
+            media_data = base64.b64decode(inline_part['inline_data']['data'])
         else:
-            uri_part = next((p for p in parts if 'fileData' in p and 'image' in p['fileData']['mimeType']), None)
+            uri_part = next((p for p in parts if 'fileData' in p and media_type in p['fileData']['mimeType']), None)
             if uri_part:
                 try:
                     mime_type = uri_part['fileData']['mimeType']
-                    image_url = uri_part['fileData']['fileUri']
-                    image_response = requests.get(image_url, timeout=60)
-                    image_response.raise_for_status()
-                    image_data = image_response.content
+                    media_url = uri_part['fileData']['fileUri']
+                    media_response = requests.get(media_url, timeout=120)
+                    media_response.raise_for_status()
+                    media_data = media_response.content
                 except (RequestException, HTTPError) as e:
-                    logging.log(f"Failed to download image from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
-                    image_data = None
-        if not image_data or not mime_type:
-            text_response = " ".join(p.get('text', '') for p in parts).strip() or "Sorry, I couldn't generate an image. The model returned an unexpected response."
+                    logging.log(f"Failed to download media from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
+                    media_data = None
+        if not media_data or not mime_type:
+            text_response = " ".join(p.get('text', '') for p in parts).strip() or f"Sorry, I couldn't generate a {media_type}. The model returned an unexpected response."
             bot_text_parts = [{"text": text_response}]
             bot_message_id = utils.add_message_to_db(chat_id, 'model', bot_text_parts)
             return {'content': text_response, 'message_id': bot_message_id}, 200
-        ext = mime_type.split('/')[-1] if '/' in mime_type else 'png'
+        ext = mime_type.split('/')[-1] if '/' in mime_type else ('mp4' if media_type == 'video' else 'png')
         chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))
         os.makedirs(chat_upload_folder, exist_ok=True)
-        filename = f"generated_image_{len(os.listdir(chat_upload_folder))}.{ext}"
+        filename = f"generated_{media_type}_{len(os.listdir(chat_upload_folder))}.{ext}"
         filepath = os.path.join(chat_upload_folder, filename)
         with open(filepath, 'wb') as f:
-            f.write(image_data)
+            f.write(media_data)
         relative_path = os.path.relpath(filepath, UPLOAD_FOLDER)
         file_url = f"/uploads/{relative_path.replace(os.sep, '/')}"
         text_part = " ".join(p.get('text', '') for p in parts if 'text' in p).strip()
-        bot_response_text = text_part or f"Here is the generated image for '{prompt}':"
+        bot_response_text = text_part or f"Here is the generated {media_type} for '{prompt}':"
         bot_parts = [
             {"text": bot_response_text},
             {"file_data": {"mime_type": mime_type, "path": filepath}}
         ]
         bot_message_id = utils.add_message_to_db(chat_id, 'model', bot_parts)
-        response_content = f"{bot_response_text}\n![{prompt}]({file_url})"
+        if media_type == 'video':
+            response_content = f"{bot_response_text}\n<video controls src='{file_url}' style='max-width: 100%; border-radius: 0.5rem; margin-top: 0.5rem;'></video>"
+        else:
+            response_content = f"{bot_response_text}\n![{prompt}]({file_url})"
         return {'content': response_content, 'message_id': bot_message_id}, 200
     except (HTTPError, ConnectionError, Timeout, RequestException) as e:
         error_message = f"Error from upstream API: {e}"

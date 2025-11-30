@@ -101,10 +101,12 @@ def get_index_context():
         'agent_memory_size': config.AGENT_MEMORY_SIZE,
         'agent_plan_validation': config.AGENT_PLAN_VALIDATION,
         'agent_reflection_enabled': config.AGENT_REFLECTION_ENABLED,
+        'quick_edit_enabled': config.QUICK_EDIT_ENABLED,
         # Enhanced Aux Model settings
         'aux_model_cache_size': config.AUX_MODEL_CACHE_SIZE,
         'aux_model_min_tokens': config.AUX_MODEL_MIN_TOKENS,
         'aux_model_max_tokens': config.AUX_MODEL_MAX_TOKENS,
+        'max_key_rotation_attempts': config.MAX_KEY_ROTATION_ATTEMPTS,
         'current_max_function_declarations': mcp_config_data.get("maxFunctionDeclarations",
                                                                  mcp_handler.max_function_declarations_limit),
         'current_disable_all_mcp_tools': mcp_handler.disable_all_mcp_tools,

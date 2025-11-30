@@ -82,4 +82,6 @@ if config.ASYNC_MODE:
         return await run_quart_app(Quart(__name__, template_folder=template_dir, static_folder=static_dir))
 else:
     def run(name):
-       return run_flask_app(Flask(name))
+        template_dir = Path(__file__).parent.parent / 'templates'
+        static_dir = Path(__file__).parent.parent / 'static'
+        return run_flask_app(Flask(name, template_folder=template_dir, static_folder=static_dir))
