@@ -105,22 +105,22 @@ async def async_chat_completions():
                 system_instruction = {"parts": [{"text": messages[0].get("content", "")}]}
                 messages = messages[1:]
             
-            if editing_mode and 'EDITING MODE ACTIVE' not in system_instruction:
+            if editing_mode:
                 edit_instruction = (
-                                    "\n\n**EDITING MODE ACTIVE**\n"
-                                    "You are in editing mode. The user has provided code context via `code_path=`.\n"
-                                    "If you need to modify any files, you MUST use the following patch format:\n\n"
-                                    "File: `original_file_path`\n"
-                                    "<<<<<<< SEARCH\n"
-                                    "[exact content to replace]\n"
-                                    "=======\n"
-                                    "[new content]\n"
-                                    ">>>>>>> REPLACE\n\n"
-                                    "Rules:\n"
-                                    "1. The SEARCH block must match the existing file content EXACTLY, including whitespace.\n"
-                                    "2. You can apply multiple patches to multiple files.\n"
-                                    "3. The system will automatically apply these patches and strip them from your response.\n"
-                                    "4. Your final response to the user should ONLY contain the answer/explanation, not the patch blocks.\n"
+                    "\n\n**EDITING MODE ACTIVE**\n"
+                    "You are in editing mode. The user has provided code context via `code_path=`.\n"
+                    "If you need to modify any files, you MUST use the following patch format:\n\n"
+                    "File: `path/to/file`\n"
+                    "<<<<<<< SEARCH\n"
+                    "[exact content to replace]\n"
+                    "=======\n"
+                    "[new content]\n"
+                    ">>>>>>> REPLACE\n\n"
+                    "Rules:\n"
+                    "1. The SEARCH block must match the existing file content EXACTLY, including whitespace.\n"
+                    "2. You can apply multiple patches to multiple files.\n"
+                    "3. The system will automatically apply these patches and strip them from your response.\n"
+                    "4. Your final response to the user should ONLY contain the answer/explanation, not the patch blocks.\n"
                 )
                 if system_instruction:
                     system_instruction['parts'][0]['text'] += edit_instruction

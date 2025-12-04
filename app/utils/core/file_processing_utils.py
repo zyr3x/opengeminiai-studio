@@ -219,8 +219,8 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
             if code_files:
                 code_parts = []
                 code_parts.append(
-                    f"\n🛑 **CRITICAL**: You *MUST** use original file path for patches\n"
-                    f"📝 **CODE CONTEXT LOADED** from (original file path): '{file_path_str}'\n"
+                    f"\n🛑 **CRITICAL**: You *MUST** start path for {expanded_path}...\n"
+                    f"📝 **CODE CONTEXT LOADED** from: '{file_path_str}'\n"
                     f"Total: {len(code_files)} files, {total_size / 1024:.2f} KB\n\n"
                 )
 
