@@ -4,126 +4,112 @@ from app.utils.core import logging
 
 def apply_patches(response_text: str) -> tuple[str, list[str]]:
     """
-    Parses the response text for patches in the format:
-    <<<<<<< SEARCH
-    ...
-    =======
-    ...
-    >>>>>>> REPLACE
-    
-    Applies them to the corresponding files found in the context or specified in the patch (if we add file path support later, 
-    but for now it relies on unique search blocks or we can parse file paths if needed. 
-    Actually, the prompt should probably specify the file path if multiple files are involved, 
-    but let's start with a robust search/replace that tries to find the unique match).
+    Parses the response text for patches, applies them to files,
+    and removes the technical patch blocks from the returned text.
 
-    Wait, to be safe and precise, the patch should ideally specify the file. 
-    However, the user request said "system itself applied patches".
-    Let's define a format that includes the file path or rely on the context.
-    
-    Given the `code_path=` context, we might know which files are loaded.
-    Let's support a format like:
-    
-    File: `path/to/file`
-    <<<<<<< SEARCH
-    ...
-    =======
-    ...
-    >>>>>>> REPLACE
-    
-    Or just search globally in loaded files if the search block is unique.
-    For now, let's implement a robust search-and-replace that looks for the block in the provided text.
-    
-    But wait, we need to write to the actual files on disk.
-    
     Returns:
-        tuple: (cleaned_response_text, list_of_applied_changes_descriptions)
+        tuple: (cleaned_text_for_user, list_of_applied_changes_descriptions)
     """
-    
+
     # Regex to find patch blocks
-    # We look for the standard conflict marker style, but used for search/replace
     patch_pattern = re.compile(
         r'<<<<<<< SEARCH\n(.*?)\n=======\n(.*?)\n>>>>>>> REPLACE',
         re.DOTALL
     )
-    
+
     patches = list(patch_pattern.finditer(response_text))
-    
+
     if not patches:
         return response_text, []
 
     applied_changes = []
-    
-    # We need to know WHICH file to apply to. 
-    # If the response text mentions "File: `...`" before the patch, we can use that.
-    # Or we can scan all files loaded in the context (which we might not have easy access to here without passing it in).
-    # Let's assume the prompt instructs the model to output the file path immediately before the patch.
-    
-    # Actually, a better approach for the "editing mode" is to pass the list of loaded files to this function,
-    # or have this function search through the loaded files to find where the SEARCH block fits.
-    # Since we don't have the loaded files list passed in yet, let's update the signature to accept loaded_file_paths if possible,
-    # or just try to find the file path in the text preceding the patch.
-    
-    # Let's try to find the file path in the text.
-    
     cleaned_text = response_text
-    
-    # We will process patches in reverse order to maintain indices if we were modifying the response text,
-    # but here we are modifying files on disk and stripping the patches from the response.
-    
-    # To avoid messing up the text while iterating, let's build the result text.
-    # Actually, we want to return "only the answer". 
-    # If the model outputs: "Here is the fix:\nFile: foo.py\n<<<<...>>>", we probably want to remove the patch block.
-    
-    for match in patches:
+
+    for match in reversed(patches):
         search_block = match.group(1)
         replace_block = match.group(2)
-        full_match = match.group(0)
-        
-        # Find the file path associated with this patch
-        # Look backwards from the patch start for something like "File: `path`" or "File: path"
+
+        removal_start = match.start()
+        removal_end = match.end()
+
         preceding_text = response_text[:match.start()]
-        file_path_match = re.search(r'(?:File|file):\s*`?([^`\n]+)`?\s*$', preceding_text.strip().split('\n')[-1])
-        
-        target_file = None
-        if file_path_match:
-            target_file = file_path_match.group(1).strip()
-            # Resolve absolute path if possible, or assume it's relative to project root
-            # We need to be careful about security here, but `code_path` logic already validates paths.
-            # We should probably verify this file exists.
-            if not os.path.exists(target_file):
-                # Try to resolve relative to cwd
-                if os.path.exists(os.path.abspath(target_file)):
-                    target_file = os.path.abspath(target_file)
-                else:
-                    target_file = None
-        
-        if not target_file:
-            # Fallback: Try to find the search block in any of the files we might know about?
-            # Without explicit file context, this is dangerous.
-            # Let's log a warning and skip if we can't find the file.
+        lines = preceding_text.splitlines(keepends=True)
+
+        target_file_raw = None
+        target_file_abs = None
+
+        lines_to_check = 5
+        chars_scanned_from_end = 0
+
+        for line in reversed(lines):
+            if lines_to_check <= 0:
+                break
+            lines_to_check -= 1
+
+            file_match = re.search(r'(?i)(?:^|\n)\s*(?:\**)?(?:File|Path|Target)(?:\**)?\s*:?\s*[`\'"]?([^`\'"\n\r]+)[`\'"]?', line)
+
+            if file_match:
+                candidate = file_match.group(1).strip()
+                is_path_like = '.' in candidate or '/' in candidate or '\\' in candidate
+
+                if candidate and (os.path.exists(candidate) or os.path.exists(os.path.abspath(candidate)) or is_path_like):
+                    target_file_raw = candidate
+                    line_length = len(line)
+                    line_start_index = match.start() - chars_scanned_from_end - line_length
+                    removal_start = line_start_index
+                    break
+
+            chars_scanned_from_end += len(line)
+
+        status_message = ""
+
+        if not target_file_raw:
             logging.log(f"⚠️ Could not identify target file for patch starting at index {match.start()}")
-            continue
-            
-        try:
-            with open(target_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                
-            if search_block in content:
-                new_content = content.replace(search_block, replace_block)
-                with open(target_file, 'w', encoding='utf-8') as f:
-                    f.write(new_content)
-                applied_changes.append(f"Applied patch to {target_file}")
-                
-                # Remove the patch from the response text to clean it up
-                cleaned_text = cleaned_text.replace(full_match, f"[Patch applied to {os.path.basename(target_file)}]")
+            status_message = f"\n> ⚠️ *Failed to apply patch: Could not identify target file*\n"
+        else:
+            # Определяем полный абсолютный путь
+            if os.path.isabs(target_file_raw):
+                target_file_abs = target_file_raw
             else:
-                logging.log(f"⚠️ Search block not found in {target_file}")
-                # We might want to leave the patch in the text so the user sees it failed?
-                # Or replace with an error message.
-                cleaned_text = cleaned_text.replace(full_match, f"[FAILED to apply patch to {os.path.basename(target_file)}: Search block not found]")
-                
-        except Exception as e:
-            logging.log(f"❌ Error applying patch to {target_file}: {e}")
-            cleaned_text = cleaned_text.replace(full_match, f"[Error applying patch to {os.path.basename(target_file)}: {e}]")
+                # Превращаем относительный путь в абсолютный
+                target_file_abs = os.path.abspath(target_file_raw)
+
+            try:
+                if not os.path.exists(target_file_abs):
+                    # Fallback: пробуем найти, если путь был указан относительно текущей папки
+                    if os.path.exists(os.path.abspath(target_file_raw)):
+                         target_file_abs = os.path.abspath(target_file_raw)
+                    else:
+                         logging.log(f"Target file does not exist: {target_file_abs}")
+                         status_message = f"\n> ⚠️ *Failed: File `{target_file_raw}` not found*\n"
+                         target_file_abs = None
+
+                if target_file_abs:
+                    with open(target_file_abs, 'r', encoding='utf-8') as f:
+                        content = f.read()
+
+                    content_normalized = content.replace('\r\n', '\n')
+                    search_block_normalized = search_block.replace('\r\n', '\n')
+
+                    if search_block_normalized in content_normalized:
+                        new_content = content_normalized.replace(search_block_normalized, replace_block)
+                        with open(target_file_abs, 'w', encoding='utf-8') as f:
+                            f.write(new_content)
+
+                        # !!! ИЗМЕНЕНИЕ ЗДЕСЬ: Используем target_file_abs вместо target_file_raw !!!
+                        applied_changes.append(target_file_abs)
+                        logging.log(f"Applied patch to {target_file_abs}")
+
+                        # Выводим полный путь пользователю
+                        status_message = f"\n> 📝 *Applied patch to `{target_file_abs}`*\n"
+                    else:
+                        logging.log(f"⚠️ Search block not found in {target_file_abs}")
+                        status_message = f"\n> ⚠️ *Failed to apply patch to `{target_file_raw}`: Search block match failed*\n"
+
+            except Exception as e:
+                logging.log(f"❌ Error applying patch to {target_file_abs}: {e}")
+                status_message = f"\n> ❌ *Error applying patch: {str(e)}*\n"
+
+        cleaned_text = cleaned_text[:removal_start] + status_message + cleaned_text[removal_end:]
 
     return cleaned_text, applied_changes

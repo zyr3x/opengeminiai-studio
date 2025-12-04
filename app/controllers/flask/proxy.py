@@ -102,12 +102,12 @@ def chat_completions():
                 system_instruction = {"parts": [{"text": messages[0].get("content", "")}]}
                 messages = messages[1:]
 
-            if editing_mode:
+            if editing_mode and 'EDITING MODE ACTIVE' not in system_instruction:
                 edit_instruction = (
                     "\n\n**EDITING MODE ACTIVE**\n"
                     "You are in editing mode. The user has provided code context via `code_path=`.\n"
                     "If you need to modify any files, you MUST use the following patch format:\n\n"
-                    "File: `path/to/file`\n"
+                    "File: `original_file_path`\n"
                     "<<<<<<< SEARCH\n"
                     "[exact content to replace]\n"
                     "=======\n"
