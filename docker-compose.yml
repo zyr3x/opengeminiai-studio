@@ -13,10 +13,6 @@ services:
       - ASYNC_MODE=${ASYNC_MODE:-false}
     restart: unless-stopped
     volumes:
+       - ${PROJECTS_PATH}:${PROJECTS_PATH}
        - ./:/app/
-       # To grant the container access to the host's Docker daemon, we mount the Docker socket.
-       # The path /var/run/docker.sock is standard for Linux.
-       # Docker Desktop for macOS and Windows creates a Linux VM to run containers,
-       # and it makes the Docker socket available at the same path inside that VM.
-       # Therefore, this configuration is cross-platform for Linux, macOS, and Windows (with Docker Desktop).
-       - /var/run/docker.sock:/var/run/docker.sock
+       - ${DOCKER_SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock
