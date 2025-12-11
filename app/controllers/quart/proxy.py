@@ -174,10 +174,13 @@ async def async_chat_completions():
                                     try:
                                         chunk = json.loads(decoded_line[6:])
                                         delta = chunk['choices'][0]['delta']
-                                        
+                                        finish_reason = chunk['choices'][0].get('finish_reason')
+
                                         if 'content' in delta and delta['content']:
                                             content_chunk = delta['content']
                                             full_response_text += content_chunk
+                                            yield f"data: {json.dumps(chunk)}\n\n"
+                                        elif finish_reason and finish_reason != 'tool_calls':
                                             yield f"data: {json.dumps(chunk)}\n\n"
                                         
                                         if 'tool_calls' in delta:
@@ -229,7 +232,15 @@ async def async_chat_completions():
                     except Exception as e:
                         err_msg = f"OpenAI Provider Error: {e}"
                         utils.log(err_msg)
-                        yield f"data: {json.dumps({'error': {'message': err_msg}})}\n\n"
+                        error_chunk = {
+                            "id": f"chatcmpl-{os.urandom(12).hex()}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": COMPLETION_MODEL,
+                            "choices": [{"index": 0, "delta": {"content": err_msg}, "finish_reason": "stop"}]
+                        }
+                        yield f"data: {json.dumps(error_chunk)}\n\n"
+                        yield "data: [DONE]\n\n"
                         return
 
             return Response(generate_openai(), mimetype='text/event-stream')
