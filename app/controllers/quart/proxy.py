@@ -124,7 +124,7 @@ async def async_chat_completions():
 
                 while True:
                     request_data = {
-                        "model": config.OPENAI_MODEL_NAME,
+                        "model": COMPLETION_MODEL,
                         "messages": current_messages,
                         "stream": True,
                         "temperature": 0.7

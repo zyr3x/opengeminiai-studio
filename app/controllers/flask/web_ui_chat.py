@@ -91,7 +91,7 @@ def chat_api():
 
                 while True:
                     request_data = {
-                        "model": config.OPENAI_MODEL_NAME,
+                        "model": model,
                         "messages": messages,
                         "stream": True,
                         "temperature": 0.7
