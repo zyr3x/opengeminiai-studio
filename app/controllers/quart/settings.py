@@ -93,6 +93,13 @@ async def set_quick_edit_settings():
     settings_logic.handle_set_quick_edit_settings(form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
 
+@settings_bp.route('/set_ai_provider_settings', methods=['POST'])
+async def set_ai_provider_settings():
+    form = await request.form
+    settings_logic.handle_set_ai_provider_settings(form)
+    return redirect(url_for('web_ui.index', _anchor='configuration'))
+
+
 
 @settings_bp.route('/get_agent_stats', methods=['GET'])
 async def get_agent_stats():

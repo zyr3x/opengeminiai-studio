@@ -219,3 +219,19 @@ def handle_set_quick_edit_settings(form):
     
     config.QUICK_EDIT_ENABLED = quick_edit_enabled
     utils.log(f"Quick Edit settings updated: enabled={quick_edit_enabled}")
+
+def handle_set_ai_provider_settings(form):
+    openai_base_url = form.get('openai_base_url', '').strip()
+    openai_api_key = form.get('openai_api_key', '').strip()
+    openai_model_name = form.get('openai_model_name', '').strip()
+
+    env_file = '.env'
+    set_key(env_file, 'OPENAI_BASE_URL', openai_base_url)
+    set_key(env_file, 'OPENAI_API_KEY', openai_api_key)
+    set_key(env_file, 'OPENAI_MODEL_NAME', openai_model_name)
+
+    config.OPENAI_BASE_URL = openai_base_url
+    config.OPENAI_API_KEY = openai_api_key
+    config.OPENAI_MODEL_NAME = openai_model_name
+
+    utils.log(f"AI Provider settings updated: base_url={openai_base_url}, model={openai_model_name}")

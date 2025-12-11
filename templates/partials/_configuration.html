@@ -75,6 +75,31 @@
 
     <div class="card mt-3">
         <div class="card-body">
+            <h5 class="card-title">🔌 Secondary AI Provider (OpenAI Compatible)</h5>
+            <p class="card-text">Configure a secondary provider (like OpenRouter, OpenAI, or local models) to use when non-Gemini models are requested.</p>
+            <form action="/set_ai_provider_settings" method="POST">
+                <div class="mb-3">
+                    <label for="openai_base_url" class="form-label">Base URL</label>
+                    <input type="text" class="form-control" id="openai_base_url" name="openai_base_url"
+                        value="{{ openai_base_url }}" placeholder="https://openrouter.ai/api/v1">
+                </div>
+                <div class="mb-3">
+                    <label for="openai_api_key" class="form-label">API Key</label>
+                    <input type="password" class="form-control" id="openai_api_key" name="openai_api_key"
+                        value="{{ openai_api_key }}" placeholder="sk-...">
+                </div>
+                <div class="mb-3">
+                    <label for="openai_model_name" class="form-label">Default Model Name</label>
+                    <input type="text" class="form-control" id="openai_model_name" name="openai_model_name"
+                        value="{{ openai_model_name }}" placeholder="openai/gpt-4o-mini">
+                </div>
+                <button type="submit" class="btn btn-primary">Save Provider Settings</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
             <h5 class="card-title">🧠 Context Management</h5>
             <form action="/set_context_settings" method="POST">
                 <div class="form-check form-switch">
