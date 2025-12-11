@@ -90,6 +90,162 @@ def chat_completions():
             full_prompt_text = ""
 
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
+        provider = utils.get_provider_for_model(COMPLETION_MODEL)
+
+        if provider == 'openai':
+            def generate_openai():
+                current_messages = messages.copy()
+                # Inject system prompt if needed
+                if project_system_context_text:
+                    current_messages.insert(0, {"role": "system", "content": project_system_context_text})
+
+                # Editing mode instruction
+                if editing_mode:
+                    edit_instruction = (
+                        "\n\n**EDITING MODE ACTIVE**\n"
+                        "You are in editing mode. The user has provided code context via `code_path=`.\n"
+                        "If you need to modify any files, you MUST use the following patch format:\n\n"
+                        "File: `path/to/file`\n"
+                        "<<<<<<< SEARCH\n"
+                        "[exact content to replace]\n"
+                        "=======\n"
+                        "[new content]\n"
+                        ">>>>>>> REPLACE\n\n"
+                    )
+                    # Find system message or insert one
+                    sys_msg_idx = next((i for i, m in enumerate(current_messages) if m['role'] == 'system'), None)
+                    if sys_msg_idx is not None:
+                        current_messages[sys_msg_idx]['content'] += edit_instruction
+                    else:
+                        current_messages.insert(0, {"role": "system", "content": edit_instruction})
+
+                while True:
+                    request_data = {
+                        "model": config.OPENAI_MODEL_NAME,
+                        "messages": current_messages,
+                        "stream": True,
+                        "temperature": 0.7
+                    }
+
+                    # Tools setup for OpenAI
+                    openai_tools = []
+                    builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
+
+                    if project_context_tools_requested and not disable_mcp_tools:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+                    elif not disable_mcp_tools and profile_selected_mcp_tools:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
+                    elif not disable_mcp_tools:
+                         # For all tools, we need names. Using context aware is harder here without refactoring, 
+                         # so we enable all allowed or relevant. Let's enable all available declarations.
+                         # Or we can reuse mcp_handler.create_tool_declarations but need names
+                         # Simplified: enable builtin if no profile
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+
+                    if enable_native_tools:
+                        pass # Native tools are Gemini specific
+
+                    if openai_tools:
+                        request_data["tools"] = openai_tools
+                        request_data["tool_choice"] = "auto"
+
+                    try:
+                        headers = {
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {config.OPENAI_API_KEY}"
+                        }
+                        response = requests.post(
+                            f"{config.OPENAI_BASE_URL}/chat/completions",
+                            headers=headers,
+                            json=request_data,
+                            stream=True,
+                            timeout=300
+                        )
+                        response.raise_for_status()
+                    except Exception as e:
+                        err_msg = f"OpenAI Provider Error: {e}"
+                        utils.log(err_msg)
+                        yield f"data: {json.dumps({'error': {'message': err_msg}})}\n\n"
+                        return
+
+                    tool_calls = []
+                    current_tool_call = None
+                    full_response_text = ""
+
+                    for line in response.iter_lines():
+                        if not line: continue
+                        decoded_line = line.decode('utf-8')
+                        if decoded_line.startswith('data: '):
+                            if decoded_line == 'data: [DONE]': break
+                            try:
+                                chunk = json.loads(decoded_line[6:])
+                                delta = chunk['choices'][0]['delta']
+
+                                if 'content' in delta and delta['content']:
+                                    content_chunk = delta['content']
+                                    full_response_text += content_chunk
+                                    # Yield text content immediately
+                                    yield f"data: {json.dumps(chunk)}\n\n"
+
+                                if 'tool_calls' in delta:
+                                    for tc in delta['tool_calls']:
+                                        if tc.get('id'):
+                                            if current_tool_call:
+                                                tool_calls.append(current_tool_call)
+                                            current_tool_call = {
+                                                'id': tc['id'],
+                                                'function': {
+                                                    'name': tc['function'].get('name', ''),
+                                                    'arguments': tc['function'].get('arguments', '')
+                                                },
+                                                'type': 'function'
+                                            }
+                                        elif current_tool_call:
+                                            if 'name' in tc['function']:
+                                                current_tool_call['function']['name'] += tc['function']['name']
+                                            if 'arguments' in tc['function']:
+                                                current_tool_call['function']['arguments'] += tc['function']['arguments']
+                            except Exception:
+                                pass
+
+                    if current_tool_call:
+                        tool_calls.append(current_tool_call)
+
+                    # Editing mode patch application
+                    if editing_mode and full_response_text:
+                        cleaned_text, changes = patch_utils.apply_patches(full_response_text)
+                        if changes:
+                            # We already yielded the original text. OpenAI protocol doesn't support replacing easily in stream.
+                            # But client might just display it.
+                            pass
+
+                    if not tool_calls:
+                        yield "data: [DONE]\n\n"
+                        break
+
+                    # Process tool calls
+                    current_messages.append({"role": "assistant", "content": full_response_text, "tool_calls": tool_calls})
+
+                    for tool_call in tool_calls:
+                        func_name = tool_call['function']['name']
+                        func_args_str = tool_call['function']['arguments']
+                        try:
+                            func_args = json.loads(func_args_str)
+                        except:
+                            func_args = {}
+
+                        utils.log(f"Executing tool: {func_name}")
+                        tool_result = mcp_handler.execute_mcp_tool(func_name, func_args, project_context_root)
+
+                        current_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call['id'],
+                            "name": func_name,
+                            "content": str(tool_result)
+                        })
+
+            return Response(generate_openai(), mimetype='text/event-stream')
+
         system_instruction = None
 
         gemini_contents = []
@@ -544,24 +700,48 @@ def list_models():
         if utils.cached_models_response:
             return jsonify(utils.cached_models_response)
 
-        params = {"key": config.API_KEY}
-        GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
-        response = requests.get(GEMINI_MODELS_URL, params=params)
-        response.raise_for_status()
-        gemini_models_data = response.json()
-
         openai_models_list = []
-        for model in gemini_models_data.get("models", []):
-            if "generateContent" in model.get("supportedGenerationMethods", []):
-                openai_models_list.append({
-                    "id": model["name"].split("/")[-1], "object": "model",
-                    "created": 1677649553, "owned_by": "google", "permission": []
-                })
+
+        # 1. Fetch Gemini Models
+        try:
+            params = {"key": config.API_KEY}
+            GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
+            response = requests.get(GEMINI_MODELS_URL, params=params, timeout=10)
+            response.raise_for_status()
+            gemini_models_data = response.json()
+
+            for model in gemini_models_data.get("models", []):
+                if "generateContent" in model.get("supportedGenerationMethods", []):
+                    openai_models_list.append({
+                        "id": model["name"].split("/")[-1], "object": "model",
+                        "created": 1677649553, "owned_by": "google", "permission": []
+                    })
+        except Exception as e:
+            utils.log(f"Error fetching Gemini models: {e}")
+
+        # 2. Fetch OpenAI Models
+        if config.OPENAI_API_KEY and config.OPENAI_BASE_URL:
+            try:
+                OPENAI_MODELS_URL = f"{config.OPENAI_BASE_URL}/models"
+                headers = {"Authorization": f"Bearer {config.OPENAI_API_KEY}"}
+                response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    openai_models_data = response.json()
+                    for model in openai_models_data.get("data", []):
+                        openai_models_list.append({
+                            "id": model.get("id"), "object": "model",
+                            "created": model.get("created", 1677649553),
+                            "owned_by": model.get("owned_by", "openai-compatible"),
+                            "permission": []
+                        })
+                else:
+                    utils.log(f"Error fetching OpenAI models: Status {response.status_code}")
+            except Exception as e:
+                utils.log(f"Error fetching OpenAI models: {e}")
+
         openai_response = {"object": "list", "data": openai_models_list}
         utils.cached_models_response = openai_response
         return jsonify(openai_response)
 
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Error fetching models from Gemini API: {e}"}), 500
     except Exception as e:
         return jsonify({"error": f"Internal server error: {e}"}), 500

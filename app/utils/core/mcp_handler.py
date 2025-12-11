@@ -1546,6 +1546,47 @@ def create_tool_declarations_from_list(function_names: list[str]):
     if not selected_declarations:
         return None
     return [{"functionDeclarations": selected_declarations}]
+
+def convert_to_openai_tool(declaration):
+    import copy
+    decl = copy.deepcopy(declaration)
+    def lowercase_types(schema):
+        if "type" in schema:
+            schema["type"] = schema["type"].lower()
+        if "properties" in schema:
+            for prop in schema["properties"].values():
+                lowercase_types(prop)
+        if "items" in schema:
+            lowercase_types(schema["items"])
+    parameters = decl.get("parameters", {})
+    lowercase_types(parameters)
+    return {
+        "type": "function",
+        "function": {
+            "name": decl["name"],
+            "description": decl.get("description", ""),
+            "parameters": parameters
+        }
+    }
+
+def get_openai_compatible_tools(tool_names: list[str]) -> list[dict]:
+    tools = []
+    if not mcp_function_declarations:
+        return []
+
+    declarations_to_use = []
+    if tool_names == ["*"]:
+        declarations_to_use = mcp_function_declarations
+    else:
+        for decl in mcp_function_declarations:
+            if decl['name'] in tool_names:
+                declarations_to_use.append(decl)
+
+    for decl in declarations_to_use:
+        tools.append(convert_to_openai_tool(decl))
+
+    return tools
+
 def _parse_kwargs_string(s: str) -> dict:
     result = {}
     try:

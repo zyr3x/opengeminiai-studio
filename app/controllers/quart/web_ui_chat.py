@@ -75,6 +75,136 @@ async def chat_api():
         disable_mcp_tools = data['disable_mcp_tools']
         enable_native_tools = data['enable_native_tools']
 
+        if tools.get_provider_for_model(model) == 'openai':
+            async def generate_openai():
+                # Reconstruct OpenAI style messages from gemini_contents
+                # This is an approximation as gemini_contents are already converted.
+                # Ideally we should use raw input but it was processed.
+                # Assuming simple conversion back for user/model roles.
+                messages = []
+                for content in gemini_contents:
+                    role = 'user' if content['role'] == 'user' else 'assistant'
+                    text = " ".join([p.get('text', '') for p in content['parts'] if 'text' in p])
+                    if text:
+                        messages.append({"role": role, "content": text})
+
+                # Add system prompt if available (it was injected into first user message in logic usually, 
+                # but here we might just prepend if we have access, or it is already in contents)
+
+                while True:
+                    request_data = {
+                        "model": config.OPENAI_MODEL_NAME,
+                        "messages": messages,
+                        "stream": True,
+                        "temperature": 0.7
+                    }
+
+                    # Tools
+                    openai_tools = []
+                    builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
+                    if project_context_tools_requested:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+                    elif selected_mcp_tools:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(selected_mcp_tools))
+                    elif profile_selected_mcp_tools:
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
+                    elif not disable_mcp_tools:
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+
+                    if openai_tools:
+                        request_data["tools"] = openai_tools
+                        request_data["tool_choice"] = "auto"
+
+                    try:
+                        session = await quart_utils.get_async_session()
+                        headers = {
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {config.OPENAI_API_KEY}"
+                        }
+                        
+                        async with session.post(
+                            f"{config.OPENAI_BASE_URL}/chat/completions",
+                            headers=headers,
+                            json=request_data,
+                            timeout=300
+                        ) as response:
+                            response.raise_for_status()
+                            
+                            tool_calls = []
+                            current_tool_call = None
+                            full_response_text = ""
+                            
+                            async for line in response.content:
+                                if not line: continue
+                                decoded_line = line.decode('utf-8').strip()
+                                if decoded_line.startswith('data: '):
+                                    if decoded_line == 'data: [DONE]': break
+                                    try:
+                                        chunk = json.loads(decoded_line[6:])
+                                        delta = chunk['choices'][0]['delta']
+                                        
+                                        if 'content' in delta and delta['content']:
+                                            content_chunk = delta['content']
+                                            full_response_text += content_chunk
+                                            yield content_chunk
+                                        
+                                        if 'tool_calls' in delta:
+                                            for tc in delta['tool_calls']:
+                                                if tc.get('id'):
+                                                    if current_tool_call: tool_calls.append(current_tool_call)
+                                                    current_tool_call = {
+                                                        'id': tc['id'],
+                                                        'function': {'name': tc['function'].get('name', ''), 'arguments': tc['function'].get('arguments', '')},
+                                                        'type': 'function'
+                                                    }
+                                                elif current_tool_call:
+                                                    if 'name' in tc['function']: current_tool_call['function']['name'] += tc['function']['name']
+                                                    if 'arguments' in tc['function']: current_tool_call['function']['arguments'] += tc['function']['arguments']
+                                    except: pass
+                            
+                            if current_tool_call: tool_calls.append(current_tool_call)
+                            
+                            if full_response_text:
+                                tools.add_message_to_db(chat_id, 'model', [{"text": full_response_text}])
+                                messages.append({"role": "assistant", "content": full_response_text})
+                            
+                            if not tool_calls:
+                                break
+                                
+                            # Process tools
+                            tool_response_parts = []
+                            messages.append({"role": "assistant", "tool_calls": tool_calls})
+                            
+                            tool_calls_list = [{'name': tc['function']['name'], 'args': json.loads(tc['function']['arguments'])} for tc in tool_calls]
+                            
+                            tool_results = await async_mcp_handler.execute_multiple_tools_async(tool_calls_list, project_context_root)
+                            
+                            for i, result_part in enumerate(tool_results):
+                                func_name = tool_calls[i]['function']['name']
+                                output = result_part['functionResponse']['response']
+                                if isinstance(output, dict) and 'content' in output:
+                                    output = output['content']
+                                else:
+                                    output = json.dumps(output)
+                                    
+                                tool_response_parts.append({"functionResponse": {"name": func_name, "response": json.loads(output) if output.startswith('{') else {"content": output}}})
+                                
+                                messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": tool_calls[i]['id'],
+                                    "name": func_name,
+                                    "content": str(output)
+                                })
+                            
+                            if tool_response_parts:
+                                tools.add_message_to_db(chat_id, 'tool', tool_response_parts)
+
+                    except Exception as e:
+                        yield f"ERROR: OpenAI Provider: {e}"
+                        return
+
+            return Response(generate_openai(), mimetype='text/event-stream')
+
         async def generate():
             headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
             current_contents = gemini_contents.copy()

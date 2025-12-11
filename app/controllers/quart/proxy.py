@@ -93,6 +93,147 @@ async def async_chat_completions():
             messages = processed_messages
 
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
+        provider = utils.get_provider_for_model(COMPLETION_MODEL)
+
+        if provider == 'openai':
+            async def generate_openai():
+                current_messages = messages.copy()
+                # Inject system prompt if needed
+                if project_system_context_text:
+                    current_messages.insert(0, {"role": "system", "content": project_system_context_text})
+                
+                # Editing mode instruction
+                if editing_mode:
+                    edit_instruction = (
+                        "\n\n**EDITING MODE ACTIVE**\n"
+                        "You are in editing mode. The user has provided code context via `code_path=`.\n"
+                        "If you need to modify any files, you MUST use the following patch format:\n\n"
+                        "File: `path/to/file`\n"
+                        "<<<<<<< SEARCH\n"
+                        "[exact content to replace]\n"
+                        "=======\n"
+                        "[new content]\n"
+                        ">>>>>>> REPLACE\n\n"
+                    )
+                    # Find system message or insert one
+                    sys_msg_idx = next((i for i, m in enumerate(current_messages) if m['role'] == 'system'), None)
+                    if sys_msg_idx is not None:
+                        current_messages[sys_msg_idx]['content'] += edit_instruction
+                    else:
+                        current_messages.insert(0, {"role": "system", "content": edit_instruction})
+
+                while True:
+                    request_data = {
+                        "model": config.OPENAI_MODEL_NAME,
+                        "messages": current_messages,
+                        "stream": True,
+                        "temperature": 0.7
+                    }
+                    
+                    # Tools
+                    openai_tools = []
+                    builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
+                    if project_context_tools_requested:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+                    elif selected_mcp_tools:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(selected_mcp_tools))
+                    elif profile_selected_mcp_tools:
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
+                    elif not disable_mcp_tools:
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+
+                    if openai_tools:
+                        request_data["tools"] = openai_tools
+                        request_data["tool_choice"] = "auto"
+                    
+                    try:
+                        session = await quart_utils.get_async_session()
+                        headers = {
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {config.OPENAI_API_KEY}"
+                        }
+                        
+                        # Note: This uses aiohttp session which is async
+                        async with session.post(
+                            f"{config.OPENAI_BASE_URL}/chat/completions",
+                            headers=headers,
+                            json=request_data,
+                            timeout=300
+                        ) as response:
+                            response.raise_for_status()
+                            
+                            tool_calls = []
+                            current_tool_call = None
+                            full_response_text = ""
+                            
+                            async for line in response.content:
+                                if not line: continue
+                                decoded_line = line.decode('utf-8').strip()
+                                if decoded_line.startswith('data: '):
+                                    if decoded_line == 'data: [DONE]': break
+                                    try:
+                                        chunk = json.loads(decoded_line[6:])
+                                        delta = chunk['choices'][0]['delta']
+                                        
+                                        if 'content' in delta and delta['content']:
+                                            content_chunk = delta['content']
+                                            full_response_text += content_chunk
+                                            yield f"data: {json.dumps(chunk)}\n\n"
+                                        
+                                        if 'tool_calls' in delta:
+                                            for tc in delta['tool_calls']:
+                                                if tc.get('id'):
+                                                    if current_tool_call: tool_calls.append(current_tool_call)
+                                                    current_tool_call = {
+                                                        'id': tc['id'],
+                                                        'function': {'name': tc['function'].get('name', ''), 'arguments': tc['function'].get('arguments', '')},
+                                                        'type': 'function'
+                                                    }
+                                                elif current_tool_call:
+                                                    if 'name' in tc['function']: current_tool_call['function']['name'] += tc['function']['name']
+                                                    if 'arguments' in tc['function']: current_tool_call['function']['arguments'] += tc['function']['arguments']
+                                    except: pass
+                            
+                            if current_tool_call: tool_calls.append(current_tool_call)
+                            
+                            if editing_mode and full_response_text:
+                                cleaned_text, changes = patch_utils.apply_patches(full_response_text)
+                                # Cleaned text handling if needed
+                            
+                            if not tool_calls:
+                                yield "data: [DONE]\n\n"
+                                return # Break out of while loop
+                                
+                            # Process tools
+                            current_messages.append({"role": "assistant", "content": full_response_text, "tool_calls": tool_calls})
+                            
+                            tool_calls_list = [{'name': tc['function']['name'], 'args': json.loads(tc['function']['arguments'])} for tc in tool_calls]
+                            
+                            tool_results = await async_mcp_handler.execute_multiple_tools_async(tool_calls_list, project_context_root)
+                            
+                            for i, result_part in enumerate(tool_results):
+                                func_name = tool_calls[i]['function']['name']
+                                output = result_part['functionResponse']['response']
+                                if isinstance(output, dict) and 'content' in output:
+                                    output = output['content']
+                                else:
+                                    output = json.dumps(output)
+                                    
+                                current_messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": tool_calls[i]['id'],
+                                    "name": func_name,
+                                    "content": str(output)
+                                })
+
+                    except Exception as e:
+                        err_msg = f"OpenAI Provider Error: {e}"
+                        utils.log(err_msg)
+                        yield f"data: {json.dumps({'error': {'message': err_msg}})}\n\n"
+                        return
+
+            return Response(generate_openai(), mimetype='text/event-stream')
+
         system_instruction = None
 
         gemini_contents = []
@@ -434,11 +575,7 @@ async def async_chat_completions():
                             "object": "chat.completion.chunk",
                             "created": int(time.time()),
                             "model": COMPLETION_MODEL,
-                            "choices": [{
-                                "index": 0,
-                                "delta": {"content": final_text},
-                                "finish_reason": None
-                            }]
+                            "choices": [{"index": 0, "delta": {"content": final_text}, "finish_reason": None}]
                         }
                         yield f"data: {json.dumps(tool_output_chunk)}\n\n"
 
@@ -541,24 +678,50 @@ async def async_list_models():
         if utils.cached_models_response:
             return jsonify(utils.cached_models_response)
 
-        params = {"key": config.API_KEY}
-        GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
-        
-        session = await quart_utils.get_async_session()
-        async with session.get(GEMINI_MODELS_URL, params=params) as response:
-            response.raise_for_status()
-            gemini_models_data = await response.json()
-
         openai_models_list = []
-        for model in gemini_models_data.get("models", []):
-            if "generateContent" in model.get("supportedGenerationMethods", []):
-                openai_models_list.append({
-                    "id": model["name"].split("/")[-1],
-                    "object": "model",
-                    "created": 1677649553,
-                    "owned_by": "google",
-                    "permission": []
-                })
+        session = await quart_utils.get_async_session()
+
+        # 1. Fetch Gemini Models
+        try:
+            params = {"key": config.API_KEY}
+            GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
+
+            async with session.get(GEMINI_MODELS_URL, params=params) as response:
+                response.raise_for_status()
+                gemini_models_data = await response.json()
+
+            for model in gemini_models_data.get("models", []):
+                if "generateContent" in model.get("supportedGenerationMethods", []):
+                    openai_models_list.append({
+                        "id": model["name"].split("/")[-1],
+                        "object": "model",
+                        "created": 1677649553,
+                        "owned_by": "google",
+                        "permission": []
+                    })
+        except Exception as e:
+            utils.log(f"Error fetching Gemini models: {e}")
+
+        # 2. Fetch OpenAI Models
+        if config.OPENAI_API_KEY and config.OPENAI_BASE_URL:
+            try:
+                OPENAI_MODELS_URL = f"{config.OPENAI_BASE_URL}/models"
+                headers = {"Authorization": f"Bearer {config.OPENAI_API_KEY}"}
+
+                async with session.get(OPENAI_MODELS_URL, headers=headers) as response:
+                    response.raise_for_status()
+                    openai_models_data = await response.json()
+
+                for model in openai_models_data.get("data", []):
+                    openai_models_list.append({
+                        "id": model.get("id"),
+                        "object": "model",
+                        "created": model.get("created", 1677649553),
+                        "owned_by": model.get("owned_by", "openai-compatible"),
+                        "permission": []
+                    })
+            except Exception as e:
+                utils.log(f"Error fetching OpenAI models: {e}")
         
         openai_response = {"object": "list", "data": openai_models_list}
         utils.cached_models_response = openai_response

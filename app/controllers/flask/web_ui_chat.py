@@ -73,6 +73,132 @@ def chat_api():
         disable_mcp_tools = data['disable_mcp_tools']
         enable_native_tools = data['enable_native_tools']
 
+        if utils.get_provider_for_model(model) == 'openai':
+            def generate_openai():
+                # Reconstruct OpenAI style messages from gemini_contents
+                # This is an approximation as gemini_contents are already converted.
+                # Ideally we should use raw input but it was processed.
+                # Assuming simple conversion back for user/model roles.
+                messages = []
+                for content in gemini_contents:
+                    role = 'user' if content['role'] == 'user' else 'assistant'
+                    text = " ".join([p.get('text', '') for p in content['parts'] if 'text' in p])
+                    if text:
+                        messages.append({"role": role, "content": text})
+
+                # Add system prompt if available (it was injected into first user message in logic usually, 
+                # but here we might just prepend if we have access, or it is already in contents)
+
+                while True:
+                    request_data = {
+                        "model": config.OPENAI_MODEL_NAME,
+                        "messages": messages,
+                        "stream": True,
+                        "temperature": 0.7
+                    }
+
+                    # Tools
+                    openai_tools = []
+                    builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
+                    if project_context_tools_requested:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+                    elif selected_mcp_tools:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(selected_mcp_tools))
+                    elif profile_selected_mcp_tools:
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
+                    elif not disable_mcp_tools:
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+
+                    if openai_tools:
+                        request_data["tools"] = openai_tools
+                        request_data["tool_choice"] = "auto"
+
+                    try:
+                        import requests
+                        headers = {
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {config.OPENAI_API_KEY}"
+                        }
+                        response = requests.post(
+                            f"{config.OPENAI_BASE_URL}/chat/completions",
+                            headers=headers,
+                            json=request_data,
+                            stream=True,
+                            timeout=300
+                        )
+                        response.raise_for_status()
+                    except Exception as e:
+                        yield f"ERROR: OpenAI Provider: {e}"
+                        return
+
+                    tool_calls = []
+                    current_tool_call = None
+                    full_response_text = ""
+
+                    for line in response.iter_lines():
+                        if not line: continue
+                        decoded_line = line.decode('utf-8')
+                        if decoded_line.startswith('data: '):
+                            if decoded_line == 'data: [DONE]': break
+                            try:
+                                chunk = json.loads(decoded_line[6:])
+                                delta = chunk['choices'][0]['delta']
+
+                                if 'content' in delta and delta['content']:
+                                    text = delta['content']
+                                    full_response_text += text
+                                    yield text
+
+                                if 'tool_calls' in delta:
+                                    for tc in delta['tool_calls']:
+                                        if tc.get('id'):
+                                            if current_tool_call: tool_calls.append(current_tool_call)
+                                            current_tool_call = {
+                                                'id': tc['id'],
+                                                'function': {'name': tc['function'].get('name', ''), 'arguments': tc['function'].get('arguments', '')},
+                                                'type': 'function'
+                                            }
+                                        elif current_tool_call:
+                                            if 'name' in tc['function']: current_tool_call['function']['name'] += tc['function']['name']
+                                            if 'arguments' in tc['function']: current_tool_call['function']['arguments'] += tc['function']['arguments']
+                            except: pass
+
+                    if current_tool_call: tool_calls.append(current_tool_call)
+
+                    if full_response_text:
+                        utils.add_message_to_db(chat_id, 'model', [{"text": full_response_text}])
+                        messages.append({"role": "assistant", "content": full_response_text})
+
+                    if not tool_calls:
+                        break
+
+                    # Process tools
+                    tool_response_parts = []
+                    messages.append({"role": "assistant", "tool_calls": tool_calls})
+
+                    for tool_call in tool_calls:
+                        func_name = tool_call['function']['name']
+                        try:
+                            func_args = json.loads(tool_call['function']['arguments'])
+                        except:
+                            func_args = {}
+
+                        output = mcp_handler.execute_mcp_tool(func_name, func_args, project_context_root)
+                        response_payload = json.loads(output) if isinstance(output, str) and output.startswith('{') else {"content": str(output)}
+                        tool_response_parts.append({"functionResponse": {"name": func_name, "response": response_payload}})
+
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call['id'],
+                            "name": func_name,
+                            "content": str(output)
+                        })
+
+                    if tool_response_parts:
+                        utils.add_message_to_db(chat_id, 'tool', tool_response_parts)
+
+            return Response(generate_openai(), mimetype='text/event-stream')
+
         def generate():
             headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
             current_contents = gemini_contents.copy()

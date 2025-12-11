@@ -485,3 +485,29 @@ def summarize_with_aux_model(content: str, tool_name: str, task_context: str = N
         log(f"Error during summarization with auxiliary model: {e}")
         from app.utils.core.optimization_utils import optimize_tool_output
         return optimize_tool_output(content, tool_name)
+
+def get_provider_for_model(model_name: str) -> str:
+    """
+    Determine the AI provider based on the model name.
+    
+    Args:
+        model_name (str): The name of the model.
+        
+    Returns:
+        str: 'gemini' for Google Gemini models, 'openai' for OpenAI-compatible models.
+    """
+    if not model_name:
+        return 'gemini'
+    
+    model_lower = model_name.lower()
+    # Check for known Google model prefixes
+    if model_lower.startswith('gemini') or model_lower.startswith('learnlm') or model_lower.startswith('models/gemini'):
+        return 'gemini'
+        
+    # Default to OpenAI compatible for everything else (GPT, Claude via OpenRouter, etc.)
+    return 'openai'
+
+def cleanup_resources():
+    close_http_session()
+    shutdown_tool_executor()
+    clear_expired_contexts()

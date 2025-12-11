@@ -22,6 +22,13 @@ class AppConfig:
         self.AGENT_AUX_MODEL_NAME = os.getenv("AGENT_AUX_MODEL_NAME", "gemini-flash-latest")
         self.QUICK_EDIT_ENABLED = os.getenv("QUICK_EDIT_ENABLED", "false").lower() == "true"
         
+        # AI Provider settings
+        # Provider is determined automatically from model name.
+        # These settings are used when the detected provider is 'openai'
+        self.OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+        self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+        self.OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
+
         # Agent Intelligence settings
         self.AGENT_INTELLIGENCE_ENABLED = os.getenv("AGENT_INTELLIGENCE_ENABLED", "true").lower() == "true"
         self.AGENT_MEMORY_SIZE = int(os.getenv("AGENT_MEMORY_SIZE", "100"))
