@@ -85,10 +85,12 @@ def handle_set_streaming_settings(form):
 def handle_set_security_settings(form):
     allowed_code_paths = form.get('allowed_code_paths', '').strip()
     max_code_injection_size_kb = form.get('max_code_injection_size_kb', '128')
+    allowed_models = form.get('allowed_models', '').strip()
 
     env_file = '.env'
     set_key(env_file, 'ALLOWED_CODE_PATHS', allowed_code_paths)
     set_key(env_file, 'MAX_CODE_INJECTION_SIZE_KB', str(max_code_injection_size_kb))
+    set_key(env_file, 'ALLOWED_MODELS', allowed_models)
 
     if allowed_code_paths:
         config.ALLOWED_CODE_PATHS = [
@@ -99,8 +101,15 @@ def handle_set_security_settings(form):
     else:
         config.ALLOWED_CODE_PATHS = []
 
+    if allowed_models:
+        config.ALLOWED_MODELS = [m.strip() for m in allowed_models.split(',') if m.strip()]
+    else:
+        config.ALLOWED_MODELS = []
+
+    utils.cached_models_response = None
+
     config.MAX_CODE_INJECTION_SIZE_KB = int(max_code_injection_size_kb)
-    utils.log(f"Security settings updated: allowed_code_paths={config.ALLOWED_CODE_PATHS}, max_code_injection_size_kb={config.MAX_CODE_INJECTION_SIZE_KB}")
+    utils.log(f"Security settings updated: allowed_code_paths={config.ALLOWED_CODE_PATHS}, allowed_models={config.ALLOWED_MODELS}, max_code_injection_size_kb={config.MAX_CODE_INJECTION_SIZE_KB}")
 def handle_set_mcp_config(form):
     config_str = form.get('mcp_config', '')
     try:

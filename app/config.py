@@ -54,6 +54,12 @@ class AppConfig:
             ]
         else:
             self.ALLOWED_CODE_PATHS = []
+
+        self.ALLOWED_MODELS = []
+        allowed_models_str = os.getenv("ALLOWED_MODELS", "")
+        if allowed_models_str:
+            self.ALLOWED_MODELS = [m.strip() for m in allowed_models_str.split(',') if m.strip()]
+
         self.FAVICON = ''
         with open(os.path.realpath(os.path.expanduser("static/img/logo.svg")), 'r', encoding='utf-8', errors='ignore') as f:
             self.FAVICON = f.read()

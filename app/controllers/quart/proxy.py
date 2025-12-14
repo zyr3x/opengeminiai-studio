@@ -734,6 +734,9 @@ async def async_list_models():
             except Exception as e:
                 utils.log(f"Error fetching OpenAI models: {e}")
         
+        if config.ALLOWED_MODELS and '*' not in config.ALLOWED_MODELS:
+            openai_models_list = [m for m in openai_models_list if m['id'] in config.ALLOWED_MODELS]
+
         openai_response = {"object": "list", "data": openai_models_list}
         utils.cached_models_response = openai_response
         return jsonify(openai_response)
