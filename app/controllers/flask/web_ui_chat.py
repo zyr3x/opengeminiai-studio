@@ -1,5 +1,7 @@
 import json
 import os
+import requests
+import fnmatch
 from flask import Blueprint, request, jsonify, Response, send_from_directory
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
 from app.config import config
@@ -44,6 +46,67 @@ def delete_message(message_id):
     except Exception as e:
         logging.log(f"Error deleting message {message_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
+@web_ui_chat_bp.route('/api/models', methods=['GET'])
+def list_models():
+    if not config.API_KEY:
+        return jsonify({"error": {"message": "API key not configured.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
+    try:
+        if utils.cached_models_response:
+            return jsonify(utils.cached_models_response)
+
+        openai_models_list = []
+
+        # 1. Fetch Gemini Models
+        try:
+            params = {"key": config.API_KEY}
+            GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
+            response = requests.get(GEMINI_MODELS_URL, params=params, timeout=10)
+            response.raise_for_status()
+            gemini_models_data = response.json()
+
+            for model in gemini_models_data.get("models", []):
+                if "generateContent" in model.get("supportedGenerationMethods", []):
+                    openai_models_list.append({
+                        "id": model["name"].split("/")[-1], "object": "model",
+                        "created": 1677649553, "owned_by": "google", "permission": []
+                    })
+        except Exception as e:
+            utils.log(f"Error fetching Gemini models: {e}")
+
+        # 2. Fetch OpenAI Models
+        if config.OPENAI_API_KEY and config.OPENAI_BASE_URL:
+            try:
+                OPENAI_MODELS_URL = f"{config.OPENAI_BASE_URL}/models"
+                headers = {"Authorization": f"Bearer {config.OPENAI_API_KEY}"}
+                response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    openai_models_data = response.json()
+                    for model in openai_models_data.get("data", []):
+                        openai_models_list.append({
+                            "id": model.get("id"), "object": "model",
+                            "created": model.get("created", 1677649553),
+                            "owned_by": model.get("owned_by", "openai-compatible"),
+                            "permission": []
+                        })
+                else:
+                    utils.log(f"Error fetching OpenAI models: Status {response.status_code}")
+            except Exception as e:
+                utils.log(f"Error fetching OpenAI models: {e}")
+
+        if config.ALLOWED_MODELS and '*' not in config.ALLOWED_MODELS:
+            openai_models_list = [
+                m for m in openai_models_list
+                if any(fnmatch.fnmatch(m['id'], pattern) for pattern in config.ALLOWED_MODELS)
+            ]
+
+        openai_response = {"object": "list", "data": openai_models_list}
+        utils.cached_models_response = openai_response
+        return jsonify(openai_response)
+
+    except Exception as e:
+        return jsonify({"error": f"Internal server error: {e}"}), 500
+
 @web_ui_chat_bp.route('/api/generate_image', methods=['POST'])
 def generate_image_api():
     form = request.form
