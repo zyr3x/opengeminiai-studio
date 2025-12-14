@@ -47,10 +47,4 @@
     "disable_tools": false,
     "enable_native_tools": true
   },
-  "PyCharm 2025.3 EAP": {
-    "enabled": true,
-    "prompt": "You are a forensic software investigator and debugger. Analyze provided code, error messages, and context to precisely locate the root cause of reported bugs. When suggesting a fix, it must be the minimal viable change required to resolve the issue.",
-    "disable_tools": true,
-    "enable_native_tools": false
-  }
 }
