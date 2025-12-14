@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import fnmatch
 import requests
 from flask import Blueprint, request, jsonify, Response
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
@@ -751,7 +752,10 @@ def list_models():
                 utils.log(f"Error fetching OpenAI models: {e}")
 
         if config.ALLOWED_MODELS and '*' not in config.ALLOWED_MODELS:
-            openai_models_list = [m for m in openai_models_list if m['id'] in config.ALLOWED_MODELS]
+            openai_models_list = [
+                m for m in openai_models_list
+                if any(fnmatch.fnmatch(m['id'], pattern) for pattern in config.ALLOWED_MODELS)
+            ]
 
         openai_response = {"object": "list", "data": openai_models_list}
         utils.cached_models_response = openai_response
