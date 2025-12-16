@@ -498,8 +498,14 @@ def get_provider_for_model(model_name: str) -> str:
     """
     if not model_name:
         return 'gemini'
-    
+
+
     model_lower = model_name.lower()
+
+    # Check for free OpenRouter model postfix :free
+    if model_lower.endswith(':free'):
+        return 'openai'
+
     # Check for known Google model prefixes
     if model_lower.startswith('gemini') or model_lower.startswith('learnlm') or model_lower.startswith('models/gemini'):
         return 'gemini'
