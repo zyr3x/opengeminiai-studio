@@ -94,6 +94,7 @@ def get_index_context():
         'min_context_caching_tokens': config.MIN_CONTEXT_CACHING_TOKENS,
         'allowed_code_paths': ','.join(config.ALLOWED_CODE_PATHS) if config.ALLOWED_CODE_PATHS else '',
         'allowed_models': ','.join(config.ALLOWED_MODELS) if config.ALLOWED_MODELS else '',
+        'ignored_models': ','.join(config.IGNORED_MODELS) if config.IGNORED_MODELS else '',
         'max_code_injection_size_kb': config.MAX_CODE_INJECTION_SIZE_KB,
         'agent_aux_model_enabled': config.AGENT_AUX_MODEL_ENABLED,
         'agent_aux_model_name': config.AGENT_AUX_MODEL_NAME,

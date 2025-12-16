@@ -226,6 +226,15 @@
                     </div>
                 </div>
                 <div class="mb-3">
+                    <label for="ignored_models" class="form-label">Ignored Models</label>
+                    <textarea class="form-control" id="ignored_models" name="ignored_models" rows="2"
+                        placeholder="*-image-*, google/*">{{ ignored_models }}</textarea>
+                    <div class="form-text">
+                        Comma-separated list of model IDs to exclude (denylist).
+                        Supports wildcards (e.g. <code>*-image-*, google/*</code>).
+                    </div>
+                </div>
+                <div class="mb-3">
                     <label for="max_code_injection_size_kb" class="form-label">Max Code Injection Size (KB)</label>
                     <input type="number" class="form-control" id="max_code_injection_size_kb"
                         name="max_code_injection_size_kb" value="{{ max_code_injection_size_kb }}" min="0">

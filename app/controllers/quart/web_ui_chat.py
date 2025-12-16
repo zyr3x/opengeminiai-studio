@@ -114,6 +114,12 @@ async def list_models():
                 if any(fnmatch.fnmatch(m['id'], pattern) for pattern in config.ALLOWED_MODELS)
             ]
 
+        if config.IGNORED_MODELS:
+            openai_models_list = [
+                m for m in openai_models_list
+                if not any(fnmatch.fnmatch(m['id'], pattern) for pattern in config.IGNORED_MODELS)
+            ]
+
         openai_response = {"object": "list", "data": openai_models_list}
         tools.cached_models_response = openai_response
         return jsonify(openai_response)
