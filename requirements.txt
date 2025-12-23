@@ -7,3 +7,5 @@ aiosqlite
 requests
 python-dotenv
 werkzeug
+thefuzz
+python-Levenshtein

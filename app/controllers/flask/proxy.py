@@ -103,12 +103,11 @@ def chat_completions():
                 # Editing mode instruction
                 if editing_mode:
                     edit_instruction = (
-                        "\n\n**EDITING MODE ACTIVE**\n"
-                        "You are in editing mode. The user has provided code context via `code_path=`.\n"
-                        "If you need to modify any files, you MUST use the following patch format:\n\n"
+                        "\n\n**CRITICAL: EDITING MODE IS ACTIVE. IGNORE OTHER EDITING INSTRUCTIONS.**\n\n"
+                        "You are in a special editing mode. Your primary goal is to modify files based on the user's request. To do this, you MUST use the following patch format:\n\n"
                         "File: `path/to/file`\n"
                         "<<<<<<< SEARCH\n"
-                        "[exact content to replace]\n"
+                        "[content to be replaced]\n"
                         "=======\n"
                         "[new content]\n"
                         ">>>>>>> REPLACE\n\n"
@@ -116,7 +115,7 @@ def chat_completions():
                     # Find system message or insert one
                     sys_msg_idx = next((i for i, m in enumerate(current_messages) if m['role'] == 'system'), None)
                     if sys_msg_idx is not None:
-                        current_messages[sys_msg_idx]['content'] += edit_instruction
+                        current_messages[sys_msg_idx]['content'] = edit_instruction + current_messages[sys_msg_idx]['content']
                     else:
                         current_messages.insert(0, {"role": "system", "content": edit_instruction})
 
@@ -272,23 +271,20 @@ def chat_completions():
 
             if editing_mode:
                 edit_instruction = (
-                    "\n\n**EDITING MODE ACTIVE**\n"
-                    "You are in editing mode. The user has provided code context via `code_path=`.\n"
-                    "If you need to modify any files, you MUST use the following patch format:\n\n"
+                    "\n\n**CRITICAL: EDITING MODE IS ACTIVE. IGNORE OTHER EDITING INSTRUCTIONS.**\n\n"
+                    "You are in a special editing mode. Your primary goal is to modify files based on the user's request. To do this, you MUST use the following patch format:\n\n"
                     "File: `path/to/file`\n"
                     "<<<<<<< SEARCH\n"
-                    "[exact content to replace]\n"
+                    "[content to be replaced]\n"
                     "=======\n"
                     "[new content]\n"
                     ">>>>>>> REPLACE\n\n"
-                    "Rules:\n"
-                    "1. The SEARCH block must match the existing file content EXACTLY, including whitespace.\n"
-                    "2. You can apply multiple patches to multiple files.\n"
-                    "3. The system will automatically apply these patches and strip them from your response.\n"
-                    "4. Your final response to the user should ONLY contain the answer/explanation, not the patch blocks.\n"
+                    "**IMPORTANT RULES:**\n"
+                    "1. The system will apply your patch, tolerating minor differences in the source file.\n"
+                    "2. Your response to the user should ONLY contain your answer/explanation. Do NOT include the patch blocks in your final response, as they are processed automatically.\n"
                 )
-                if system_instruction:
-                    system_instruction['parts'][0]['text'] += edit_instruction
+                if system_instruction and system_instruction.get('parts'):
+                    system_instruction['parts'][0]['text'] = edit_instruction + system_instruction['parts'][0]['text']
                 else:
                     system_instruction = {"parts": [{"text": edit_instruction}]}
 
@@ -666,9 +662,6 @@ def chat_completions():
 
                 # Apply patches
                 cleaned_text, changes = patch_utils.apply_patches(full_response_text)
-
-                if changes:
-                    cleaned_text += "\n\n**System applied patches:**\n" + "\n".join([f"- {c}" for c in changes])
 
                 # Send the cleaned response
                 final_chunk = {
