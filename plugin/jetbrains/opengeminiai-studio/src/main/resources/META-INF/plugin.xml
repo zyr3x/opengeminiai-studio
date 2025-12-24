@@ -5,7 +5,8 @@
     <description>Professional AI Assistant. Compact, Stable, Modern UI.</description>
     <depends>com.intellij.modules.platform</depends>
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="OpenGeminiAI Studio" secondary="false" anchor="right" icon="AllIcons.Toolwindows.ToolWindowMessages"
+        <toolWindow id="OpenGeminiAI Studio" secondary="false" anchor="right"
+                    icon="/icons/logo.svg"
                     factoryClass="com.opengeminiai.studio.client.GeminiToolWindowFactory"/>
     </extensions>
 </idea-plugin>

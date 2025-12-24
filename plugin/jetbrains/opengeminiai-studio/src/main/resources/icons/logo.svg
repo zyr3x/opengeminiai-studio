@@ -1,0 +1,36 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background rectangle removed for transparency -->
+
+    <!-- Central Core -->
+    <circle cx="128" cy="128" r="40" fill="url(#center_core_gradient)"/>
+
+    <!-- Orbiting Element -->
+    <ellipse cx="128" cy="128" rx="80" ry="40" stroke="url(#orbit_path_gradient)" stroke-width="12" stroke-linecap="round" transform="rotate(30 128 128)"/>
+    <circle cx="192.6" cy="100" r="12" fill="url(#orbit_dot_gradient)" transform="rotate(30 128 128)"/>
+
+    <!-- AI Text (Enlarged and recolored for light background) -->
+    <text x="220" y="225" font-family="Inter, Arial, sans-serif" font-size="72" font-weight="900" fill="url(#text_gradient_inverted)" text-anchor="end">AI</text>
+
+    <defs>
+        <!-- Gradients remain the same -->
+        <radialGradient id="center_core_gradient" cx="0.5" cy="0.5" r="0.5" fx="0.75" fy="0.75">
+            <stop stop-color="#4F46E5"/>
+            <stop offset="1" stop-color="#312E81"/>
+        </radialGradient>
+        <linearGradient id="orbit_path_gradient" x1="48" y1="128" x2="208" y2="128" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#38BDF8" stop-opacity="0"/>
+            <stop offset="0.5" stop-color="#38BDF8"/>
+            <stop offset="1" stop-color="#38BDF8" stop-opacity="0"/>
+        </linearGradient>
+        <radialGradient id="orbit_dot_gradient" cx="0.5" cy="0.5" r="0.5">
+            <stop stop-color="#67E8F9"/>
+            <stop offset="1" stop-color="#0EA5E9"/>
+        </radialGradient>
+
+        <!-- Dark gradient for the text, suitable for light backgrounds -->
+        <linearGradient id="text_gradient_inverted" x1="0" y1="0" x2="1" y2="1">
+             <stop stop-color="#374151"/>
+             <stop offset="1" stop-color="#111827"/>
+        </linearGradient>
+    </defs>
+</svg>

@@ -59,6 +59,10 @@ class MainPanel(val project: Project) {
     private var sendBtn: JButton? = null
     private var currentApiCall: Call? = null
 
+    // -- STATE FOR MODES --
+    private var lastChatModel: String = "gemini-2.0-flash-exp"
+    private var lastQuickEditModel: String = "gemini-2.0-flash-exp"
+
     // -- HISTORY --
     private val historyList = JBList(chatListModel)
 
@@ -104,6 +108,31 @@ class MainPanel(val project: Project) {
             }
         })
 
+        // -- LOGIC: Persist Model Selection per Mode --
+        modeComboBox.addItemListener { e ->
+            if (e.stateChange == ItemEvent.SELECTED) {
+                val newMode = e.item as String
+                val modelToRestore = if (newMode == "Chat") lastChatModel else lastQuickEditModel
+
+                val listeners = modelComboBox.itemListeners
+                listeners.forEach { modelComboBox.removeItemListener(it) }
+                modelComboBox.selectedItem = modelToRestore
+                listeners.forEach { modelComboBox.addItemListener(it) }
+            }
+        }
+
+        modelComboBox.addItemListener { e ->
+            if (e.stateChange == ItemEvent.SELECTED) {
+                val currentMode = modeComboBox.item
+                val currentModel = e.item as String
+                if (currentMode == "Chat") {
+                    lastChatModel = currentModel
+                } else {
+                    lastQuickEditModel = currentModel
+                }
+            }
+        }
+
         centerPanel.add(scrollPane, "CHAT")
         centerPanel.add(JBScrollPane(historyList), "HISTORY")
 
@@ -138,24 +167,36 @@ class MainPanel(val project: Project) {
         val bottomPanel = JPanel(BorderLayout())
         bottomPanel.border = JBUI.Borders.empty(8)
 
-        // Input Wrapper (Contains Attachments + TextArea)
+        // Input Wrapper
         val inputWrapper = JPanel(BorderLayout())
         inputWrapper.border = BorderFactory.createLineBorder(JBColor.border())
-        inputWrapper.background = JBColor.background() // Or Editor background
+        inputWrapper.background = JBColor.background()
 
         inputArea.lineWrap = true
         inputArea.wrapStyleWord = true
-        inputArea.border = JBUI.Borders.empty(6) // Padding inside text area
+        inputArea.border = JBUI.Borders.empty(6)
         inputArea.background = JBColor.background()
 
-        // Remove scrollpane border because the wrapper has one
+        // --- KEY BINDINGS: Enter to Send, Shift+Enter for Newline ---
+        val shiftEnter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, InputEvent.SHIFT_DOWN_MASK)
+        val enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0)
+
+        // 1. Shift+Enter -> Insert Break (Standard behavior)
+        inputArea.getInputMap(JComponent.WHEN_FOCUSED).put(shiftEnter, "insert-break")
+
+        // 2. Enter -> Send Message
+        inputArea.getInputMap(JComponent.WHEN_FOCUSED).put(enter, "sendMessage")
+        inputArea.actionMap.put("sendMessage", object : AbstractAction() {
+            override fun actionPerformed(e: ActionEvent?) {
+                sendMessage()
+            }
+        })
+
         val inputScroll = JBScrollPane(inputArea)
         inputScroll.border = null
         inputScroll.preferredSize = Dimension(-1, 80)
 
-        // Add Drag and Drop support
         setupDragAndDrop(inputArea)
-        // Also enable DnD on the scroll pane in case they miss the text area
         setupDragAndDrop(inputScroll)
 
         inputWrapper.add(attachmentsPanel, BorderLayout.NORTH)
@@ -165,8 +206,30 @@ class MainPanel(val project: Project) {
         controls.border = JBUI.Borders.emptyTop(4)
 
         val leftControls = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0))
-        modelComboBox.preferredSize = Dimension(140, 28)
-        modeComboBox.preferredSize = Dimension(90, 28)
+        modelComboBox.preferredSize = Dimension(160, 28)
+        modelComboBox.font = JBUI.Fonts.label().deriveFont(14.0f)
+
+        // --- MODIFIED RENDERER: TEXT + ICON (JetBrains Native Style) ---
+        // Restore width to fit text
+        modeComboBox.preferredSize = Dimension(120, 28)
+        modeComboBox.renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
+                val l = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
+                // NOTE: We do NOT hide text (l.text) anymore. It will show "Chat" or "QuickEdit"
+                l.horizontalAlignment = SwingConstants.LEFT
+                when (value) {
+                    "Chat" -> {
+                        l.icon = AllIcons.Toolwindows.ToolWindowMessages
+                        l.toolTipText = "Chat Mode"
+                    }
+                    "QuickEdit" -> {
+                        l.icon = AllIcons.Actions.Edit
+                        l.toolTipText = "Quick Edit (Code Generation)"
+                    }
+                }
+                return l
+            }
+        }
 
         val refreshBtn = createIconButton(AllIcons.Actions.Refresh, "Refresh Models") { refreshModels() }
 
@@ -344,12 +407,10 @@ class MainPanel(val project: Project) {
         }
 
         val textInput = inputArea.text.trim()
-        // Allow sending if text is empty BUT there are files attached (which we will convert to text)
         if ((textInput.isEmpty() && attachedFiles.isEmpty()) || currentConversation == null) return
 
         val chat = currentConversation!!
 
-        // Construct the final message content with file paths
         val sb = StringBuilder(textInput)
         if (attachedFiles.isNotEmpty()) {
             if (sb.isNotEmpty()) sb.append("\n\n")
@@ -368,7 +429,6 @@ class MainPanel(val project: Project) {
             historyList.repaint()
         }
 
-        // Clear inputs
         inputArea.text = ""
         attachedFiles.clear()
         attachmentsPanel.removeAll()
@@ -465,6 +525,13 @@ class MainPanel(val project: Project) {
                     modelsModel.removeAllElements()
                     if (modelIds.isNotEmpty()) modelIds.forEach { modelsModel.addElement(it) }
                     else modelsModel.addElement("gemini-2.0-flash-exp")
+
+                    val currentMode = modeComboBox.item
+                    val targetModel = if (currentMode == "Chat") lastChatModel else lastQuickEditModel
+                    if (modelIds.contains(targetModel)) {
+                         modelComboBox.selectedItem = targetModel
+                    }
+
                     statusLabel.text = "Models refreshed"
                 }
             } catch (e: Exception) {
