@@ -16,7 +16,7 @@ import javax.swing.*
 
 object ChatComponents {
 
-    fun createMessageBubble(role: String, content: String): JPanel {
+    fun createMessageBubble(role: String, content: String, messageIndex: Int? = null, onDelete: ((Int) -> Unit)? = null): JPanel {
         val isUser = role == "user"
 
         // Outer wrapper for alignment
@@ -114,6 +114,22 @@ object ChatComponents {
         bubble.maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
 
         wrapper.add(box, BorderLayout.CENTER)
+
+        // Add right-click context menu for deletion
+        if (messageIndex != null && onDelete != null) {
+            wrapper.addMouseListener(object : MouseAdapter() {
+                override fun mouseReleased(e: MouseEvent) {
+                    if (e.isPopupTrigger) {
+                        val popupMenu = JPopupMenu()
+                        val deleteItem = JMenuItem("Delete Message")
+                        deleteItem.addActionListener { onDelete.invoke(messageIndex) }
+                        popupMenu.add(deleteItem)
+                        popupMenu.show(e.component, e.x, e.y)
+                    }
+                }
+            })
+        }
+
         return wrapper
     }
 

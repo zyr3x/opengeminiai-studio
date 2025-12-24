@@ -30,7 +30,7 @@ tasks {
         kotlinOptions.jvmTarget = "17"
     }
     patchPluginXml {
-        sinceBuild.set("232")
+        sinceBuild.set("241")
         untilBuild.set("")
     }
 }

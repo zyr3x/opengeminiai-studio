@@ -32,6 +32,7 @@ object MarkdownUtils {
                 body {
                     color: $textColor;
                     margin: 0;
+                    overflow-wrap: break-word; /* Добавлено: перенос длинных слов */
                 }
                 pre {
                     background-color: $codeBg;

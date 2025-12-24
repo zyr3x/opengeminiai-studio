@@ -16,11 +16,28 @@ data class Conversation(
     override fun toString(): String = title
 }
 
-data class StorageWrapper(
-    val conversations: List<Conversation>
+const val DEFAULT_SYSTEM_PROMPT = """You are an expert developer.
+1. Answer using Markdown.
+2. To MODIFY files, output JSON:
+```json
+{
+  "action": "propose_changes",
+  "changes": [ { "path": "/abs/path", "content": "NEW CONTENT" } ]
+}
+```"""
+
+data class AppSettings(
+    var defaultChatModel: String = "gemini-2.0-flash-exp",
+    var defaultQuickEditModel: String = "gemini-2.0-flash-exp",
+    var defaultCommitModel: String = "gemini-2.0-flash-exp",
+    var systemPrompt: String = DEFAULT_SYSTEM_PROMPT
 )
 
-// FIX: Added 'changes' field to persist modified files alongside the text
+data class StorageWrapper(
+    val conversations: List<Conversation>,
+    val settings: AppSettings? = null
+)
+
 data class ChatMessage(
     val role: String,
     val content: String,
