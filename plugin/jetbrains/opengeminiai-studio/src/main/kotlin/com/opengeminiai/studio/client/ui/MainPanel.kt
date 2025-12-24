@@ -16,7 +16,10 @@ import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
 import okhttp3.Call
 import java.awt.*
+import java.awt.datatransfer.DataFlavor
+import java.awt.dnd.*
 import java.awt.event.*
+import java.io.File
 import java.util.UUID
 import javax.swing.*
 import java.util.regex.Pattern
@@ -26,6 +29,10 @@ class MainPanel(val project: Project) {
     private val gson = Gson()
     private val chatListModel = DefaultListModel<Conversation>()
     private var currentConversation: Conversation? = null
+
+    // -- ATTACHMENTS --
+    private val attachedFiles = ArrayList<File>()
+    private val attachmentsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 4))
 
     // -- LAYOUTS --
     private val cardLayout = CardLayout()
@@ -63,6 +70,10 @@ class MainPanel(val project: Project) {
         scrollPane.border = null
         scrollPane.horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         scrollPane.verticalScrollBar.unitIncrement = 16
+
+        // Attachments setup
+        attachmentsPanel.isOpaque = false
+        attachmentsPanel.border = JBUI.Borders.empty(0, 4, 4, 4)
 
         // History List Renderer
         historyList.cellRenderer = object : DefaultListCellRenderer() {
@@ -127,11 +138,28 @@ class MainPanel(val project: Project) {
         val bottomPanel = JPanel(BorderLayout())
         bottomPanel.border = JBUI.Borders.empty(8)
 
+        // Input Wrapper (Contains Attachments + TextArea)
+        val inputWrapper = JPanel(BorderLayout())
+        inputWrapper.border = BorderFactory.createLineBorder(JBColor.border())
+        inputWrapper.background = JBColor.background() // Or Editor background
+
         inputArea.lineWrap = true
         inputArea.wrapStyleWord = true
+        inputArea.border = JBUI.Borders.empty(6) // Padding inside text area
+        inputArea.background = JBColor.background()
+
+        // Remove scrollpane border because the wrapper has one
         val inputScroll = JBScrollPane(inputArea)
+        inputScroll.border = null
         inputScroll.preferredSize = Dimension(-1, 80)
-        inputScroll.border = BorderFactory.createLineBorder(JBColor.border())
+
+        // Add Drag and Drop support
+        setupDragAndDrop(inputArea)
+        // Also enable DnD on the scroll pane in case they miss the text area
+        setupDragAndDrop(inputScroll)
+
+        inputWrapper.add(attachmentsPanel, BorderLayout.NORTH)
+        inputWrapper.add(inputScroll, BorderLayout.CENTER)
 
         val controls = JPanel(BorderLayout())
         controls.border = JBUI.Borders.emptyTop(4)
@@ -157,7 +185,7 @@ class MainPanel(val project: Project) {
         controls.add(leftControls, BorderLayout.WEST)
         controls.add(rightControls, BorderLayout.EAST)
 
-        bottomPanel.add(inputScroll, BorderLayout.CENTER)
+        bottomPanel.add(inputWrapper, BorderLayout.CENTER)
         bottomPanel.add(controls, BorderLayout.SOUTH)
 
         mainWrapper.add(header, BorderLayout.NORTH)
@@ -165,6 +193,53 @@ class MainPanel(val project: Project) {
         mainWrapper.add(bottomPanel, BorderLayout.SOUTH)
 
         return mainWrapper
+    }
+
+    private fun setupDragAndDrop(component: Component) {
+        val target = object : DropTargetAdapter() {
+            override fun drop(dtde: DropTargetDropEvent) {
+                try {
+                    dtde.acceptDrop(DnDConstants.ACTION_COPY)
+                    val transferable = dtde.transferable
+                    if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                        val files = transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>
+                        files.forEach { addAttachment(it) }
+                        dtde.dropComplete(true)
+                    } else {
+                        dtde.rejectDrop()
+                    }
+                } catch (e: Exception) {
+                    dtde.rejectDrop()
+                }
+            }
+        }
+        DropTarget(component, target)
+    }
+
+    private fun addAttachment(file: File) {
+        if (attachedFiles.any { it.absolutePath == file.absolutePath }) return
+
+        attachedFiles.add(file)
+
+        val chip = ChatComponents.createAttachmentChip(file) {
+            removeAttachment(file)
+        }
+        attachmentsPanel.add(chip)
+        refreshAttachmentsPanel()
+    }
+
+    private fun removeAttachment(file: File) {
+        attachedFiles.removeIf { it.absolutePath == file.absolutePath }
+        attachmentsPanel.removeAll()
+        attachedFiles.forEach { f ->
+            attachmentsPanel.add(ChatComponents.createAttachmentChip(f) { removeAttachment(f) })
+        }
+        refreshAttachmentsPanel()
+    }
+
+    private fun refreshAttachmentsPanel() {
+        attachmentsPanel.revalidate()
+        attachmentsPanel.repaint()
     }
 
     private fun createIconButton(icon: Icon, tooltip: String, action: () -> Unit): JButton {
@@ -196,7 +271,6 @@ class MainPanel(val project: Project) {
         chat.messages.forEach { msg ->
             addBubble(msg.role, msg.content)
 
-            // FIX: Restore change widget if the message contains stored changes
             msg.changes?.let { changes ->
                 if (changes.isNotEmpty()) {
                     val widget = ChatComponents.createChangeWidget(project, changes)
@@ -269,20 +343,37 @@ class MainPanel(val project: Project) {
             return
         }
 
-        val text = inputArea.text.trim()
-        if (text.isEmpty() || currentConversation == null) return
+        val textInput = inputArea.text.trim()
+        // Allow sending if text is empty BUT there are files attached (which we will convert to text)
+        if ((textInput.isEmpty() && attachedFiles.isEmpty()) || currentConversation == null) return
 
         val chat = currentConversation!!
 
-        addBubble("user", text)
-        chat.messages.add(ChatMessage("user", text))
+        // Construct the final message content with file paths
+        val sb = StringBuilder(textInput)
+        if (attachedFiles.isNotEmpty()) {
+            if (sb.isNotEmpty()) sb.append("\n\n")
+            attachedFiles.forEach { file ->
+                sb.append("code_path=${file.absolutePath}\n")
+            }
+        }
+        val fullContent = sb.toString().trim()
+
+        addBubble("user", fullContent)
+        chat.messages.add(ChatMessage("user", fullContent))
 
         if (chat.messages.size == 1) {
-            chat.title = if (text.length > 30) text.substring(0, 27) + "..." else text
+            val titleText = if (textInput.isNotEmpty()) textInput else "Files Analysis"
+            chat.title = if (titleText.length > 30) titleText.substring(0, 27) + "..." else titleText
             historyList.repaint()
         }
 
+        // Clear inputs
         inputArea.text = ""
+        attachedFiles.clear()
+        attachmentsPanel.removeAll()
+        refreshAttachmentsPanel()
+
         scrollToBottom()
 
         PersistenceService.save(project, chatListModel.elements().toList())
@@ -347,10 +438,8 @@ class MainPanel(val project: Project) {
 
         if (textPart.isNotBlank()) {
             addBubble("assistant", textPart)
-            // FIX: Save changes into the persistent message object
             chat.messages.add(ChatMessage("assistant", textPart, changes))
         } else if (changes != null && changes.isNotEmpty()) {
-            // Edge case: Response has only code changes, no text
             chat.messages.add(ChatMessage("assistant", "", changes))
         }
 
