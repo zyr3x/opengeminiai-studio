@@ -22,8 +22,12 @@ intellij {
 }
 
 tasks {
+    withType<JavaCompile> {
+        sourceCompatibility = "17"
+        targetCompatibility = "17"
+    }
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions.jvmTarget = "1"
+        kotlinOptions.jvmTarget = "17"
     }
     patchPluginXml {
         sinceBuild.set("232")

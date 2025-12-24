@@ -22,12 +22,13 @@ object MarkdownUtils {
         val textColor = if (isDark) "#C7C7C7" else "#222222"
         val linkColor = if (isDark) "#589DF6" else "#285CC4"
         val codeBg = if (isDark) "#323232" else "#F2F2F2"
-        val fontFamily = "Segoe UI, .AppleSystemUIFont, Helvetica, sans-serif"
+        // Use a safe font stack; identifiers like .AppleSystemUIFont can crash some Swing CSS parsers
+        val fontFamily = "sans-serif"
 
         val document = parser.parse(markdown)
         val htmlBody = renderer.render(document)
 
-        // Robust CSS without complex shorthands to avoid Swing NPE
+        // Robust CSS without unsupported properties like border-radius which cause NPEs in JEditorPane
         return """
         <html>
         <head>
@@ -37,17 +38,15 @@ object MarkdownUtils {
                     font-size: 12px; 
                     color: $textColor; 
                     margin: 0;
-                    padding: 0;
                 }
                 pre { 
                     background-color: $codeBg; 
-                    padding: 6px; 
+                    padding: 5px; 
                     margin-top: 4px; 
                     margin-bottom: 4px;
-                    border-radius: 3px; 
                 }
                 code { 
-                    font-family: JetBrains Mono, monospace; 
+                    font-family: monospaced; 
                     background-color: $codeBg; 
                     font-size: 12px;
                 }
@@ -56,7 +55,7 @@ object MarkdownUtils {
                 h2 { font-size: 14px; color: $linkColor; margin-top: 6px; margin-bottom: 4px; }
                 h3 { font-size: 13px; font-weight: bold; margin-top: 6px; margin-bottom: 2px; }
                 a { color: $linkColor; text-decoration: none; }
-                ul { margin-top: 0; margin-bottom: 4px; margin-left: 15px; padding-left: 0; }
+                ul { margin-top: 0; margin-bottom: 4px; margin-left: 15px; }
                 li { margin-top: 2px; }
             </style>
         </head>

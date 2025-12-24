@@ -14,6 +14,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.ui.JBSplitter
 import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
+import okhttp3.Call // Import okhttp3.Call
 import java.awt.*
 import java.awt.event.*
 import java.util.UUID
@@ -41,6 +42,8 @@ class MainPanel(val project: Project) {
     private val modeModel = DefaultComboBoxModel<String>(arrayOf("Chat", "QuickEdit"))
     private val modelComboBox = ComboBox(modelsModel)
     private val modeComboBox = ComboBox(modeModel)
+    private var sendBtn: JButton? = null // Make sendBtn a class property
+    private var currentApiCall: Call? = null // To hold the ongoing OkHttp call for cancellation
 
     // -- HISTORY --
     private val historyList = JBList(chatListModel)
@@ -136,13 +139,12 @@ class MainPanel(val project: Project) {
 
         val rightControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
 
-        val attachBtn = createIconButton(AllIcons.FileTypes.Any_type, "Add File Context") { addContext() }
-        val sendBtn = createIconButton(AllIcons.Actions.Execute, "Send") { sendMessage() }
+        // Initialize sendBtn here
+        sendBtn = createIconButton(AllIcons.Actions.Execute, "Send") { sendMessage() }
 
         rightControls.add(statusLabel)
         rightControls.add(Box.createHorizontalStrut(5))
-        rightControls.add(attachBtn)
-        rightControls.add(sendBtn)
+        rightControls.add(sendBtn!!) // Add the send button
 
         controls.add(leftControls, BorderLayout.WEST)
         controls.add(rightControls, BorderLayout.EAST)
@@ -218,7 +220,39 @@ class MainPanel(val project: Project) {
         }
     }
 
+    private fun updateSendButtonState(isSending: Boolean) {
+        if (sendBtn == null) return
+
+        if (isSending) {
+            sendBtn?.icon = AllIcons.Actions.Suspend // Use suspend icon for 'stop'
+            sendBtn?.toolTipText = "Stop Sending"
+            // Remove all existing listeners and add the stop action
+            sendBtn?.actionListeners?.forEach { sendBtn?.removeActionListener(it) }
+            sendBtn?.addActionListener { stopSending() }
+            inputArea.isEnabled = false
+            modelComboBox.isEnabled = false
+            modeComboBox.isEnabled = false
+            statusLabel.text = "Sending..."
+        } else {
+            sendBtn?.icon = AllIcons.Actions.Execute
+            sendBtn?.toolTipText = "Send"
+            // Remove all existing listeners and add the send action
+            sendBtn?.actionListeners?.forEach { sendBtn?.removeActionListener(it) }
+            sendBtn?.addActionListener { sendMessage() }
+            inputArea.isEnabled = true
+            modelComboBox.isEnabled = true
+            modeComboBox.isEnabled = true
+            // statusLabel.text will be set by handleAIResponse or error handling
+        }
+    }
+
     private fun sendMessage() {
+        // If a call is already in progress, this click acts as a stop request
+        if (currentApiCall != null) {
+            stopSending()
+            return
+        }
+
         val text = inputArea.text.trim()
         if (text.isEmpty() || currentConversation == null) return
 
@@ -233,25 +267,50 @@ class MainPanel(val project: Project) {
         }
 
         inputArea.text = ""
-        statusLabel.text = "..."
         scrollToBottom()
 
         PersistenceService.save(project, chatListModel.elements().toList())
 
         val model = modelComboBox.item ?: "gemini-2.0-flash-exp"
         val mode = modeComboBox.item ?: "Chat"
+        val prompt = if (mode == "QuickEdit") ApiClient.QUICK_EDIT_PROMPT else ApiClient.CHAT_PROMPT
+
+        updateSendButtonState(true) // Set UI to sending state
 
         ApplicationManager.getApplication().executeOnPooledThread {
+            var callToExecute: Call? = null // Declare a local reference to the call
             try {
-                val prompt = if (mode == "QuickEdit") ApiClient.QUICK_EDIT_PROMPT else ApiClient.CHAT_PROMPT
-                val response = ApiClient.sendRequest(chat.messages, model, prompt)
+                callToExecute = ApiClient.createChatCompletionCall(chat.messages, model, prompt)
+                currentApiCall = callToExecute // Assign to class member for potential cancellation
+
+                val response = ApiClient.processCallResponse(callToExecute)
 
                 SwingUtilities.invokeLater {
                     handleAIResponse(response, chat)
                     statusLabel.text = "Ready"
                 }
             } catch (e: Exception) {
-                SwingUtilities.invokeLater { statusLabel.text = "Error" }
+                // Check if the exception is due to cancellation
+                if (e is java.net.SocketException && (e.message == "Canceled" || e.message?.contains("canceled", ignoreCase = true) == true)) {
+                    SwingUtilities.invokeLater {
+                        statusLabel.text = "Cancelled"
+                        addBubble("assistant", "Request cancelled by user.")
+                    }
+                } else {
+                    SwingUtilities.invokeLater {
+                        statusLabel.text = "Error: ${e.message ?: "Unknown"}"
+                        addBubble("assistant", "An error occurred: ${e.message ?: "Unknown"}")
+                    }
+                }
+            } finally {
+                // Ensure UI state is reset on EDT, regardless of success or failure
+                SwingUtilities.invokeLater {
+                    // Only reset if this is the call that was actually running
+                    if (currentApiCall == callToExecute) {
+                        currentApiCall = null
+                        updateSendButtonState(false)
+                    }
+                }
             }
         }
     }
@@ -267,7 +326,7 @@ class MainPanel(val project: Project) {
                 try {
                     changeRequest = gson.fromJson(json, ChangeRequest::class.java)
                     textPart = response.replace(json, "").trim().replace("```json", "").replace("```", "").trim()
-                } catch (e: Exception) { }
+                } catch (e: Exception) { /* Silently ignore JSON parsing errors for now */ }
             }
         }
 
@@ -284,6 +343,11 @@ class MainPanel(val project: Project) {
 
         PersistenceService.save(project, chatListModel.elements().toList())
         scrollToBottom()
+    }
+
+    private fun stopSending() {
+        currentApiCall?.cancel() // This will cause an exception in the executing pooled thread
+        // The finally block in sendMessage's pooled thread will handle resetting UI state.
     }
 
     private fun addContext() {
@@ -304,8 +368,11 @@ class MainPanel(val project: Project) {
                     modelsModel.removeAllElements()
                     if (models.isNotEmpty()) models.forEach { modelsModel.addElement(it) }
                     else modelsModel.addElement("gemini-2.0-flash-exp")
+                    statusLabel.text = "Models refreshed"
                 }
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                SwingUtilities.invokeLater { statusLabel.text = "Failed to refresh models" }
+            }
         }
     }
 }

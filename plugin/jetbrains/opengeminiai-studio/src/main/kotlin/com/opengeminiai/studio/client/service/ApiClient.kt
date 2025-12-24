@@ -37,27 +37,39 @@ object ApiClient {
 
     data class ChatRequest(val model: String, val messages: List<ChatMessage>, val stream: Boolean = false)
 
-    fun sendRequest(history: List<ChatMessage>, model: String, systemPrompt: String): String {
+    /**
+     * Creates an OkHttp Call object for a chat completion request.
+     * The call is not executed by this function.
+     */
+    fun createChatCompletionCall(history: List<ChatMessage>, model: String, systemPrompt: String): Call {
         val msgs = mutableListOf(ChatMessage("system", systemPrompt))
         msgs.addAll(history)
 
         val body = gson.toJson(ChatRequest(model, msgs, false)).toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url("$BASE_URL/v1/chat/completions").post(body).build()
+        return client.newCall(request)
+    }
 
-        client.newCall(request).execute().use { resp ->
+    /**
+     * Executes an OkHttp Call and processes its response.
+     * @param call The OkHttp Call to execute.
+     * @return The parsed content of the AI response.
+     * @throws Exception if the request fails or parsing errors occur.
+     */
+    fun processCallResponse(call: Call): String {
+        call.execute().use { resp ->
             val str = resp.body?.string() ?: ""
-            if (!resp.isSuccessful) return "Error ${resp.code}"
+            if (!resp.isSuccessful) return "Error ${resp.code}: ${str.take(200)} " // Include snippet of error body
 
             if (str.trim().startsWith("data:")) {
                 val sb = StringBuilder()
                 str.lines().forEach { line ->
-                    if (line.trim().startsWith("data:") && !line.contains("[DONE]")) {
-                        try {
-                            val json = line.trim().removePrefix("data:").trim()
-                            val chunk = gson.fromJson(json, StreamChunk::class.java)
+                    if ( gson.fromJson(json, StreamChunk::class.java)
                             val content = chunk.choices.firstOrNull()?.delta?.content
                             if (content != null) sb.append(content)
-                        } catch (e: Exception) { }
+                        } catch (e: Exception) {
+                            // Log or handle parsing error for a stream chunk
+                        }
                     }
                 }
                 return sb.toString()
@@ -66,7 +78,7 @@ object ApiClient {
             return try {
                 val parsed = gson.fromJson(str, OpenAIResponse::class.java)
                 parsed.choices.firstOrNull()?.message?.content ?: ""
-            } catch (e: Exception) { "Parse Error" }
+            } catch (e: Exception) { "Parse Error: ${e.message}" } // Include exception message for parse errors
         }
     }
 
