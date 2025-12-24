@@ -1,0 +1,11 @@
+<idea-plugin>
+    <id>com.opengeminiai.studio.v1</id>
+    <name>OpenGeminiAI Studio</name>
+    <vendor>User</vendor>
+    <description>Professional AI Assistant. Compact, Stable, Modern UI.</description>
+    <depends>com.intellij.modules.platform</depends>
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="OpenGeminiAI Studio" secondary="false" anchor="right" icon="AllIcons.Toolwindows.ToolWindowMessages"
+                    factoryClass="com.opengeminiai.studio.client.GeminiToolWindowFactory"/>
+    </extensions>
+</idea-plugin>
