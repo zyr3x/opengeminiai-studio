@@ -7,3 +7,7 @@
 *.log
 .opengemini/
 .claude/
+.gradle/
+build/
+gradlew
+gradlew.bat
