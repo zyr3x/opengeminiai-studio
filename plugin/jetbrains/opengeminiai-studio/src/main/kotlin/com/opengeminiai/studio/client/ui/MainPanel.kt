@@ -14,7 +14,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.ui.JBSplitter
 import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
-import okhttp3.Call // Import okhttp3.Call
+import okhttp3.Call
 import java.awt.*
 import java.awt.event.*
 import java.util.UUID
@@ -32,7 +32,14 @@ class MainPanel(val project: Project) {
     private val centerPanel = JPanel(cardLayout)
 
     // -- CHAT VIEW --
-    private val chatContentPanel = JPanel()
+    private val chatContentPanel = object : JPanel(), Scrollable {
+        override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
+        override fun getScrollableUnitIncrement(visibleRect: Rectangle?, orientation: Int, direction: Int): Int = 16
+        override fun getScrollableBlockIncrement(visibleRect: Rectangle?, orientation: Int, direction: Int): Int = 16
+        override fun getScrollableTracksViewportWidth(): Boolean = true
+        override fun getScrollableTracksViewportHeight(): Boolean = false
+    }
+
     private val scrollPane = JBScrollPane(chatContentPanel)
     private val inputArea = JBTextArea()
     private val statusLabel = JLabel("Ready")
@@ -42,18 +49,19 @@ class MainPanel(val project: Project) {
     private val modeModel = DefaultComboBoxModel<String>(arrayOf("Chat", "QuickEdit"))
     private val modelComboBox = ComboBox(modelsModel)
     private val modeComboBox = ComboBox(modeModel)
-    private var sendBtn: JButton? = null // Make sendBtn a class property
-    private var currentApiCall: Call? = null // To hold the ongoing OkHttp call for cancellation
+    private var sendBtn: JButton? = null
+    private var currentApiCall: Call? = null
 
     // -- HISTORY --
     private val historyList = JBList(chatListModel)
 
     init {
         chatContentPanel.layout = BoxLayout(chatContentPanel, BoxLayout.Y_AXIS)
-        chatContentPanel.border = JBUI.Borders.empty(5)
+        chatContentPanel.border = JBUI.Borders.empty(10)
         chatContentPanel.background = JBColor.background()
 
         scrollPane.border = null
+        scrollPane.horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         scrollPane.verticalScrollBar.unitIncrement = 16
 
         // History List Renderer
@@ -120,6 +128,7 @@ class MainPanel(val project: Project) {
         bottomPanel.border = JBUI.Borders.empty(8)
 
         inputArea.lineWrap = true
+        inputArea.wrapStyleWord = true
         val inputScroll = JBScrollPane(inputArea)
         inputScroll.preferredSize = Dimension(-1, 80)
         inputScroll.border = BorderFactory.createLineBorder(JBColor.border())
@@ -139,12 +148,11 @@ class MainPanel(val project: Project) {
 
         val rightControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
 
-        // Initialize sendBtn here
         sendBtn = createIconButton(AllIcons.Actions.Execute, "Send") { sendMessage() }
 
         rightControls.add(statusLabel)
         rightControls.add(Box.createHorizontalStrut(5))
-        rightControls.add(sendBtn!!) // Add the send button
+        rightControls.add(sendBtn!!)
 
         controls.add(leftControls, BorderLayout.WEST)
         controls.add(rightControls, BorderLayout.EAST)
@@ -185,7 +193,18 @@ class MainPanel(val project: Project) {
     private fun loadChat(chat: Conversation) {
         currentConversation = chat
         chatContentPanel.removeAll()
-        chat.messages.forEach { addBubble(it.role, it.content) }
+        chat.messages.forEach { msg ->
+            addBubble(msg.role, msg.content)
+
+            // FIX: Restore change widget if the message contains stored changes
+            msg.changes?.let { changes ->
+                if (changes.isNotEmpty()) {
+                    val widget = ChatComponents.createChangeWidget(project, changes)
+                    chatContentPanel.add(widget)
+                    chatContentPanel.add(Box.createVerticalStrut(10))
+                }
+            }
+        }
         chatContentPanel.revalidate()
         chatContentPanel.repaint()
 
@@ -211,6 +230,7 @@ class MainPanel(val project: Project) {
     private fun addBubble(role: String, content: String) {
         val bubble = ChatComponents.createMessageBubble(role, content)
         chatContentPanel.add(bubble)
+        chatContentPanel.add(Box.createVerticalStrut(10))
     }
 
     private fun scrollToBottom() {
@@ -224,9 +244,8 @@ class MainPanel(val project: Project) {
         if (sendBtn == null) return
 
         if (isSending) {
-            sendBtn?.icon = AllIcons.Actions.Suspend // Use suspend icon for 'stop'
+            sendBtn?.icon = AllIcons.Actions.Suspend
             sendBtn?.toolTipText = "Stop Sending"
-            // Remove all existing listeners and add the stop action
             sendBtn?.actionListeners?.forEach { sendBtn?.removeActionListener(it) }
             sendBtn?.addActionListener { stopSending() }
             inputArea.isEnabled = false
@@ -236,18 +255,15 @@ class MainPanel(val project: Project) {
         } else {
             sendBtn?.icon = AllIcons.Actions.Execute
             sendBtn?.toolTipText = "Send"
-            // Remove all existing listeners and add the send action
             sendBtn?.actionListeners?.forEach { sendBtn?.removeActionListener(it) }
             sendBtn?.addActionListener { sendMessage() }
             inputArea.isEnabled = true
             modelComboBox.isEnabled = true
             modeComboBox.isEnabled = true
-            // statusLabel.text will be set by handleAIResponse or error handling
         }
     }
 
     private fun sendMessage() {
-        // If a call is already in progress, this click acts as a stop request
         if (currentApiCall != null) {
             stopSending()
             return
@@ -275,13 +291,13 @@ class MainPanel(val project: Project) {
         val mode = modeComboBox.item ?: "Chat"
         val prompt = if (mode == "QuickEdit") ApiClient.QUICK_EDIT_PROMPT else ApiClient.CHAT_PROMPT
 
-        updateSendButtonState(true) // Set UI to sending state
+        updateSendButtonState(true)
 
         ApplicationManager.getApplication().executeOnPooledThread {
-            var callToExecute: Call? = null // Declare a local reference to the call
+            var callToExecute: Call? = null
             try {
                 callToExecute = ApiClient.createChatCompletionCall(chat.messages, model, prompt)
-                currentApiCall = callToExecute // Assign to class member for potential cancellation
+                currentApiCall = callToExecute
 
                 val response = ApiClient.processCallResponse(callToExecute)
 
@@ -290,7 +306,6 @@ class MainPanel(val project: Project) {
                     statusLabel.text = "Ready"
                 }
             } catch (e: Exception) {
-                // Check if the exception is due to cancellation
                 if (e is java.net.SocketException && (e.message == "Canceled" || e.message?.contains("canceled", ignoreCase = true) == true)) {
                     SwingUtilities.invokeLater {
                         statusLabel.text = "Cancelled"
@@ -303,9 +318,7 @@ class MainPanel(val project: Project) {
                     }
                 }
             } finally {
-                // Ensure UI state is reset on EDT, regardless of success or failure
                 SwingUtilities.invokeLater {
-                    // Only reset if this is the call that was actually running
                     if (currentApiCall == callToExecute) {
                         currentApiCall = null
                         updateSendButtonState(false)
@@ -326,19 +339,25 @@ class MainPanel(val project: Project) {
                 try {
                     changeRequest = gson.fromJson(json, ChangeRequest::class.java)
                     textPart = response.replace(json, "").trim().replace("```json", "").replace("```", "").trim()
-                } catch (e: Exception) { /* Silently ignore JSON parsing errors for now */ }
+                } catch (e: Exception) { }
             }
         }
 
+        val changes = changeRequest?.changes
+
         if (textPart.isNotBlank()) {
             addBubble("assistant", textPart)
-            chat.messages.add(ChatMessage("assistant", textPart))
+            // FIX: Save changes into the persistent message object
+            chat.messages.add(ChatMessage("assistant", textPart, changes))
+        } else if (changes != null && changes.isNotEmpty()) {
+            // Edge case: Response has only code changes, no text
+            chat.messages.add(ChatMessage("assistant", "", changes))
         }
 
-        val changes = changeRequest?.changes
         if (changes != null && changes.isNotEmpty()) {
             val widget = ChatComponents.createChangeWidget(project, changes)
             chatContentPanel.add(widget)
+            chatContentPanel.add(Box.createVerticalStrut(10))
         }
 
         PersistenceService.save(project, chatListModel.elements().toList())
@@ -346,27 +365,16 @@ class MainPanel(val project: Project) {
     }
 
     private fun stopSending() {
-        currentApiCall?.cancel() // This will cause an exception in the executing pooled thread
-        // The finally block in sendMessage's pooled thread will handle resetting UI state.
-    }
-
-    private fun addContext() {
-        val editor = FileEditorManager.getInstance(project).selectedTextEditor
-        val file = FileEditorManager.getInstance(project).selectedFiles.firstOrNull()
-        if (editor != null && file != null) {
-            val ctx = "\n[CONTEXT: ${file.name}]\n```\n${editor.document.text}\n```\n"
-            inputArea.append(ctx)
-            statusLabel.text = "Added ${file.name}"
-        } else { statusLabel.text = "No file" }
+        currentApiCall?.cancel()
     }
 
     private fun refreshModels() {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                val models = ApiClient.getModels()
+                val modelIds = ApiClient.getModels()
                 SwingUtilities.invokeLater {
                     modelsModel.removeAllElements()
-                    if (models.isNotEmpty()) models.forEach { modelsModel.addElement(it) }
+                    if (modelIds.isNotEmpty()) modelIds.forEach { modelsModel.addElement(it) }
                     else modelsModel.addElement("gemini-2.0-flash-exp")
                     statusLabel.text = "Models refreshed"
                 }

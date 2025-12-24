@@ -8,7 +8,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
-    private val client = OkHttpClient.Builder().connectTimeout(60, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .build()
     private val gson = Gson()
     private const val BASE_URL = "http://localhost:8080"
 
@@ -35,15 +38,18 @@ object ApiClient {
     ```
     """.trimIndent()
 
-    data class ChatRequest(val model: String, val messages: List<ChatMessage>, val stream: Boolean = false)
+    // Internal DTO to send only role/content to the API (ignoring local fields like 'changes')
+    private data class ApiChatMessage(val role: String, val content: String)
+    private data class ChatRequest(val model: String, val messages: List<ApiChatMessage>, val stream: Boolean = false)
 
     /**
      * Creates an OkHttp Call object for a chat completion request.
      * The call is not executed by this function.
      */
     fun createChatCompletionCall(history: List<ChatMessage>, model: String, systemPrompt: String): Call {
-        val msgs = mutableListOf(ChatMessage("system", systemPrompt))
-        msgs.addAll(history)
+        // Map persistent ChatMessage to purely API-focused ApiChatMessage
+        val msgs = mutableListOf(ApiChatMessage("system", systemPrompt))
+        msgs.addAll(history.map { ApiChatMessage(it.role, it.content) })
 
         val body = gson.toJson(ChatRequest(model, msgs, false)).toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url("$BASE_URL/v1/chat/completions").post(body).build()
@@ -59,26 +65,36 @@ object ApiClient {
     fun processCallResponse(call: Call): String {
         call.execute().use { resp ->
             val str = resp.body?.string() ?: ""
-            if (!resp.isSuccessful) return "Error ${resp.code}: ${str.take(200)} " // Include snippet of error body
+            if (!resp.isSuccessful) return "Error ${resp.code}: ${str.take(200)} "
 
+            // Handle SSE (Streaming) response if detected
             if (str.trim().startsWith("data:")) {
                 val sb = StringBuilder()
                 str.lines().forEach { line ->
-                    if ( gson.fromJson(json, StreamChunk::class.java)
-                            val content = chunk.choices.firstOrNull()?.delta?.content
-                            if (content != null) sb.append(content)
-                        } catch (e: Exception) {
-                            // Log or handle parsing error for a stream chunk
+                    val trimmed = line.trim()
+                    if (trimmed.startsWith("data:")) {
+                        val json = trimmed.substring(5).trim()
+                        if (json != "[DONE]" && json.isNotEmpty()) {
+                            try {
+                                val chunk = gson.fromJson(json, StreamChunk::class.java)
+                                val content = chunk.choices.firstOrNull()?.delta?.content
+                                if (content != null) sb.append(content)
+                            } catch (e: Exception) {
+                                // Ignore malformed chunks
+                            }
                         }
                     }
                 }
                 return sb.toString()
             }
 
+            // Handle Standard JSON response
             return try {
                 val parsed = gson.fromJson(str, OpenAIResponse::class.java)
                 parsed.choices.firstOrNull()?.message?.content ?: ""
-            } catch (e: Exception) { "Parse Error: ${e.message}" } // Include exception message for parse errors
+            } catch (e: Exception) {
+                "Parse Error: ${e.message}"
+            }
         }
     }
 
@@ -91,6 +107,8 @@ object ApiClient {
                 val parsed = gson.fromJson(str, ModelsResponse::class.java)
                 return parsed.data.map { it.id }
             }
-        } catch (e: Exception) { return listOf("gemini-2.0-flash-exp") }
+        } catch (e: Exception) {
+            return listOf("gemini-2.0-flash-exp")
+        }
     }
 }

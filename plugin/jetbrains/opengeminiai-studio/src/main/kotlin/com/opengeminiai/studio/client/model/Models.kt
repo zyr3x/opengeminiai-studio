@@ -20,7 +20,13 @@ data class StorageWrapper(
     val conversations: List<Conversation>
 )
 
-data class ChatMessage(val role: String, val content: String)
+// FIX: Added 'changes' field to persist modified files alongside the text
+data class ChatMessage(
+    val role: String,
+    val content: String,
+    val changes: List<FileChange>? = null
+)
+
 data class ChangeRequest(val action: String?, val changes: List<FileChange>?)
 data class FileChange(val path: String, val content: String)
 

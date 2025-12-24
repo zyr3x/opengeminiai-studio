@@ -28,7 +28,7 @@ object ChatComponents {
         val bubble = RoundedPanel(isUser)
         bubble.layout = BorderLayout()
         // Compact padding inside bubble
-        bubble.border = JBUI.Borders.empty(6, 8)
+        bubble.border = JBUI.Borders.empty(8, 10)
 
         // Header
         val headerText = if (isUser) "You" else "OpenGeminiAI Studio"
@@ -36,7 +36,7 @@ object ChatComponents {
         headerLabel.font = JBUI.Fonts.smallFont().deriveFont(Font.BOLD)
         // Subtle header color
         headerLabel.foreground = if (isUser) JBColor(Color(230, 230, 230), Color(230, 230, 230)) else JBColor.GRAY
-        headerLabel.border = JBUI.Borders.emptyBottom(2)
+        headerLabel.border = JBUI.Borders.emptyBottom(4)
 
         val editorPane = JEditorPane()
         editorPane.contentType = "text/html"
@@ -64,8 +64,10 @@ object ChatComponents {
             box.add(Box.createHorizontalGlue())
         }
 
-        // Limit width
-        bubble.maximumSize = Dimension(700, Int.MAX_VALUE)
+        // FIX: Removed the hardcoded width limit of 700px.
+        // We set max width to MAX_VALUE so it can stretch, but BoxLayout
+        // combined with the glue will keep it looking like a chat bubble.
+        bubble.maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
 
         wrapper.add(box, BorderLayout.CENTER)
         return wrapper
