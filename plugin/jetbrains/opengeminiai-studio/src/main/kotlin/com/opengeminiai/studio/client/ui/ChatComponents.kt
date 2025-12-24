@@ -27,19 +27,23 @@ object ChatComponents {
         // The Bubble Background
         val bubble = RoundedPanel(isUser)
         bubble.layout = BorderLayout()
-        // Compact padding inside bubble
-        bubble.border = JBUI.Borders.empty(8, 10)
+        // Compact padding inside bubble (adjusted for native look)
+        bubble.border = JBUI.Borders.empty(6, 9)
 
         // Header
         val headerText = if (isUser) "You" else "OpenGeminiAI Studio"
         val headerLabel = JBLabel(headerText)
+        // Use standard label font for header, maybe bold
         headerLabel.font = JBUI.Fonts.smallFont().deriveFont(Font.BOLD)
+
         // Subtle header color
         headerLabel.foreground = if (isUser) JBColor(Color(230, 230, 230), Color(230, 230, 230)) else JBColor.GRAY
-        headerLabel.border = JBUI.Borders.emptyBottom(4)
+        headerLabel.border = JBUI.Borders.emptyBottom(3)
 
         val editorPane = JEditorPane()
         editorPane.contentType = "text/html"
+        // Ensure the Swing component itself has the correct native font set
+        editorPane.font = JBUI.Fonts.smallFont()
         editorPane.text = MarkdownUtils.renderHtml(content)
         editorPane.isEditable = false
         editorPane.isOpaque = false
@@ -64,9 +68,7 @@ object ChatComponents {
             box.add(Box.createHorizontalGlue())
         }
 
-        // FIX: Removed the hardcoded width limit of 700px.
-        // We set max width to MAX_VALUE so it can stretch, but BoxLayout
-        // combined with the glue will keep it looking like a chat bubble.
+        // Allow width to stretch
         bubble.maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
 
         wrapper.add(box, BorderLayout.CENTER)
@@ -89,7 +91,7 @@ object ChatComponents {
         header.border = JBUI.Borders.empty(5, 8)
 
         val title = JBLabel("${changes.size} files updated", AllIcons.Actions.Checked, SwingConstants.LEFT)
-        title.font = JBUI.Fonts.label().deriveFont(Font.BOLD)
+        title.font = JBUI.Fonts.smallFont().deriveFont(Font.BOLD) // Consistent native font
         header.add(title, BorderLayout.WEST)
 
         // Global Apply
@@ -97,12 +99,13 @@ object ChatComponents {
             isBorderPainted = false
             isContentAreaFilled = false
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            font = JBUI.Fonts.smallFont()
+            font = JBUI.Fonts.smallFont() // Consistent native font
             foreground = JBColor.BLUE
             addActionListener {
                 changes.forEach { DiffUtils.applyChangeDirectly(project, it.path, it.content) }
                 container.removeAll()
                 val success = JLabel("  All changes applied ✅")
+                success.font = JBUI.Fonts.smallFont()
                 success.border = JBUI.Borders.empty(8)
                 container.add(success, BorderLayout.CENTER)
                 container.revalidate()
@@ -122,6 +125,7 @@ object ChatComponents {
 
             val filename = change.path.substringAfterLast("/")
             val link = JLabel(filename, AllIcons.FileTypes.Any_type, SwingConstants.LEFT)
+            link.font = JBUI.Fonts.smallFont() // Consistent native font
             link.foreground = JBColor.BLUE
             link.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             link.addMouseListener(object: MouseAdapter() {
@@ -138,6 +142,7 @@ object ChatComponents {
                 DiffUtils.applyChangeDirectly(project, change.path, change.content)
                 row.removeAll()
                 val lbl = JLabel("$filename (Applied)", AllIcons.Actions.Checked, SwingConstants.LEFT)
+                lbl.font = JBUI.Fonts.smallFont()
                 lbl.foreground = JBColor.GRAY
                 row.add(lbl, BorderLayout.CENTER)
                 row.revalidate()
@@ -145,6 +150,7 @@ object ChatComponents {
             val btnNo = createIconBtn(AllIcons.Actions.Cancel, "Discard") {
                 row.removeAll()
                 val lbl = JLabel("$filename (Discarded)", AllIcons.Actions.Cancel, SwingConstants.LEFT)
+                lbl.font = JBUI.Fonts.smallFont()
                 lbl.foreground = JBColor.GRAY
                 row.add(lbl, BorderLayout.CENTER)
                 row.revalidate()
