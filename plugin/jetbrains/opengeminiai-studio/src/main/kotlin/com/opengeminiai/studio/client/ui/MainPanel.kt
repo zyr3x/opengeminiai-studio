@@ -17,7 +17,7 @@ import com.intellij.ui.JBColor
 import okhttp3.Call
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
-import java.awt.dnd.*
+import java.awt.dnd.* 
 import java.awt.event.*
 import java.io.File
 import java.util.UUID
@@ -49,7 +49,10 @@ class MainPanel(val project: Project) {
 
     private val scrollPane = JBScrollPane(chatContentPanel)
     private val inputArea = JBTextArea()
-    private val statusLabel = JLabel("Ready")
+    // private val statusLabel = JLabel("Ready") // Removed per Task 2
+
+    // -- HEADER INFO --
+    private val headerInfoLabel = JLabel("", SwingConstants.CENTER)
 
     // -- CONTROLS --
     private val modelsModel = DefaultComboBoxModel<String>(arrayOf("gemini-2.0-flash-exp"))
@@ -118,6 +121,8 @@ class MainPanel(val project: Project) {
                 listeners.forEach { modelComboBox.removeItemListener(it) }
                 modelComboBox.selectedItem = modelToRestore
                 listeners.forEach { modelComboBox.addItemListener(it) }
+                
+                updateHeaderInfo() // Update header on mode change
             }
         }
 
@@ -130,6 +135,7 @@ class MainPanel(val project: Project) {
                 } else {
                     lastQuickEditModel = currentModel
                 }
+                updateHeaderInfo() // Update header on model change
             }
         }
 
@@ -156,26 +162,51 @@ class MainPanel(val project: Project) {
         val historyBtn = createIconButton(AllIcons.Vcs.History, "History") { showHistory() }
         leftActions.add(historyBtn)
 
+        // TASK 3: Header Info Label
+        headerInfoLabel.font = JBUI.Fonts.smallFont()
+        headerInfoLabel.foreground = JBColor.GRAY
+        
         val rightActions = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0))
         val newChatBtn = createIconButton(AllIcons.General.Add, "New Chat") { createNewChat() }
         rightActions.add(newChatBtn)
 
         header.add(leftActions, BorderLayout.WEST)
+        header.add(headerInfoLabel, BorderLayout.CENTER) // Centered info
         header.add(rightActions, BorderLayout.EAST)
 
         // --- BOTTOM PANEL ---
-        val bottomPanel = JPanel(BorderLayout())
-        bottomPanel.border = JBUI.Borders.empty(8)
+        val bottomPanel = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            background = JBColor.background()
+            border = JBUI.Borders.empty(8)
+        }
 
         // Input Wrapper
-        val inputWrapper = JPanel(BorderLayout())
-        inputWrapper.border = BorderFactory.createLineBorder(JBColor.border())
-        inputWrapper.background = JBColor.background()
+        val inputWrapper = object : JPanel(BorderLayout()) {
+            init {
+                isOpaque = false // Important: JPanel itself is transparent so rounded shape is visible
+            }
+            override fun paint(g: Graphics) { // Override paint to draw background and border before children
+                val g2 = g as Graphics2D
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                val cornerRadius = 12 // A bit more rounded
+
+                // Draw background for the whole wrapper area
+                g2.color = JBColor.background() // Use system background color
+                g2.fillRoundRect(0, 0, width, height, cornerRadius, cornerRadius)
+
+                // Draw border for the whole wrapper area
+                g2.color = JBColor.border()
+                g2.drawRoundRect(0, 0, width - 1, height - 1, cornerRadius, cornerRadius)
+
+                super.paint(g) // Now paint children (attachmentsPanel, inputScroll)
+            }
+        }
 
         inputArea.lineWrap = true
         inputArea.wrapStyleWord = true
         inputArea.border = JBUI.Borders.empty(6)
-        inputArea.background = JBColor.background()
+        inputArea.isOpaque = false // Make the JTextArea itself transparent
 
         // --- KEY BINDINGS: Enter to Send, Shift+Enter for Newline ---
         val shiftEnter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, InputEvent.SHIFT_DOWN_MASK)
@@ -194,6 +225,8 @@ class MainPanel(val project: Project) {
 
         val inputScroll = JBScrollPane(inputArea)
         inputScroll.border = null
+        inputScroll.isOpaque = false // Make the JScrollPane transparent
+        inputScroll.viewport.isOpaque = false // Make the JViewport transparent
         inputScroll.preferredSize = Dimension(-1, 80)
 
         setupDragAndDrop(inputArea)
@@ -202,21 +235,45 @@ class MainPanel(val project: Project) {
         inputWrapper.add(attachmentsPanel, BorderLayout.NORTH)
         inputWrapper.add(inputScroll, BorderLayout.CENTER)
 
-        val controls = JPanel(BorderLayout())
-        controls.border = JBUI.Borders.emptyTop(4)
+        val controls = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            background = JBColor.background()
+            border = JBUI.Borders.emptyTop(4)
+        }
 
-        val leftControls = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0))
+        val leftControls = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+            isOpaque = false
+            background = JBColor.background()
+        }
+
         modelComboBox.preferredSize = Dimension(160, 28)
-        modelComboBox.font = JBUI.Fonts.label().deriveFont(14.0f)
+        modelComboBox.font = JBUI.Fonts.label().deriveFont(12.0f)
+        modelComboBox.border = null // Remove border
+        modelComboBox.isOpaque = false // Try to remove background artifacts
+        modelComboBox.background = JBColor.background() // Use panel background to blend in
+        modelComboBox.putClientProperty("ComboBox.isSquare", true) // Flat look
+        modelComboBox.renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
+                val l = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
+                if (!isSelected) l.background = JBColor.background()
+                l.foreground = if (isSelected) list?.selectionForeground ?: JBColor.foreground() else list?.foreground ?: JBColor.foreground()
+                return l
+            }
+        }
 
-        // --- MODIFIED RENDERER: TEXT + ICON (JetBrains Native Style) ---
-        // Restore width to fit text
-        modeComboBox.preferredSize = Dimension(120, 28)
+        // --- TASK 1: REMOVE TEXT FROM CHAT / QUICK EDIT & Make icons more visible ---
+        modeComboBox.preferredSize = Dimension(70, 28) // Increased size for better icon visibility
+        modeComboBox.border = null // Remove border
+        modeComboBox.isOpaque = false // Try to remove background artifacts
+        modeComboBox.background = JBColor.background() // Use panel background to blend in
+        modeComboBox.putClientProperty("ComboBox.isSquare", true) // Flat look
         modeComboBox.renderer = object : DefaultListCellRenderer() {
             override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
                 val l = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
-                // NOTE: We do NOT hide text (l.text) anymore. It will show "Chat" or "QuickEdit"
-                l.horizontalAlignment = SwingConstants.LEFT
+                l.text = "" // No text, just icon
+                l.horizontalAlignment = SwingConstants.CENTER
+                if (!isSelected) l.background = JBColor.background()
+                l.foreground = if (isSelected) list?.selectionForeground ?: JBColor.foreground() else list?.foreground ?: JBColor.foreground()
                 when (value) {
                     "Chat" -> {
                         l.icon = AllIcons.Toolwindows.ToolWindowMessages
@@ -233,15 +290,19 @@ class MainPanel(val project: Project) {
 
         val refreshBtn = createIconButton(AllIcons.Actions.Refresh, "Refresh Models") { refreshModels() }
 
-        leftControls.add(modelComboBox)
         leftControls.add(modeComboBox)
+        leftControls.add(modelComboBox)
         leftControls.add(refreshBtn)
 
-        val rightControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
+        val rightControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply {
+            isOpaque = false
+            background = JBColor.background()
+        }
 
         sendBtn = createIconButton(AllIcons.Actions.Execute, "Send") { sendMessage() }
 
-        rightControls.add(statusLabel)
+        // Task 2: Remove status text ("Ready")
+        // rightControls.add(statusLabel)
         rightControls.add(Box.createHorizontalStrut(5))
         rightControls.add(sendBtn!!)
 
@@ -256,6 +317,15 @@ class MainPanel(val project: Project) {
         mainWrapper.add(bottomPanel, BorderLayout.SOUTH)
 
         return mainWrapper
+    }
+
+    private fun updateHeaderInfo() {
+        val title = currentConversation?.title ?: "New Chat"
+        val model = modelComboBox.item as? String ?: "gemini-2.0-flash-exp"
+        val displayTitle = if (title.length > 25) title.substring(0, 22) + "..." else title
+        // Task 3: Show full model name and title at the top
+        headerInfoLabel.text = "<html><b>$displayTitle</b> <span style='color:gray'>($model)</span></html>"
+        headerInfoLabel.toolTipText = "$title using $model"
     }
 
     private fun setupDragAndDrop(component: Component) {
@@ -284,9 +354,7 @@ class MainPanel(val project: Project) {
 
         attachedFiles.add(file)
 
-        val chip = ChatComponents.createAttachmentChip(file) {
-            removeAttachment(file)
-        }
+        val chip = ChatComponents.createAttachmentChip(file, { removeAttachment(file) }, true)
         attachmentsPanel.add(chip)
         refreshAttachmentsPanel()
     }
@@ -295,7 +363,7 @@ class MainPanel(val project: Project) {
         attachedFiles.removeIf { it.absolutePath == file.absolutePath }
         attachmentsPanel.removeAll()
         attachedFiles.forEach { f ->
-            attachmentsPanel.add(ChatComponents.createAttachmentChip(f) { removeAttachment(f) })
+            attachmentsPanel.add(ChatComponents.createAttachmentChip(f, { removeAttachment(f) }, true))
         }
         refreshAttachmentsPanel()
     }
@@ -347,6 +415,7 @@ class MainPanel(val project: Project) {
 
         cardLayout.show(centerPanel, "CHAT")
         scrollToBottom()
+        updateHeaderInfo()
     }
 
     private fun createNewChat() {
@@ -388,7 +457,7 @@ class MainPanel(val project: Project) {
             inputArea.isEnabled = false
             modelComboBox.isEnabled = false
             modeComboBox.isEnabled = false
-            statusLabel.text = "Sending..."
+            // statusLabel.text = "Sending..." // Removed
         } else {
             sendBtn?.icon = AllIcons.Actions.Execute
             sendBtn?.toolTipText = "Send"
@@ -415,7 +484,18 @@ class MainPanel(val project: Project) {
         if (attachedFiles.isNotEmpty()) {
             if (sb.isNotEmpty()) sb.append("\n\n")
             attachedFiles.forEach { file ->
-                sb.append("code_path=${file.absolutePath}\n")
+                val extension = file.extension.lowercase()
+                when (extension) {
+                    "jpg", "jpeg", "png" -> {
+                        sb.append("image_path=")
+                        sb.append(file.absolutePath)
+                    }
+                    else -> {
+                        sb.append("code_path=")
+                        sb.append(file.absolutePath)
+                    }
+                }
+                sb.append("\n")
             }
         }
         val fullContent = sb.toString().trim()
@@ -427,6 +507,7 @@ class MainPanel(val project: Project) {
             val titleText = if (textInput.isNotEmpty()) textInput else "Files Analysis"
             chat.title = if (titleText.length > 30) titleText.substring(0, 27) + "..." else titleText
             historyList.repaint()
+            updateHeaderInfo()
         }
 
         inputArea.text = ""
@@ -438,8 +519,8 @@ class MainPanel(val project: Project) {
 
         PersistenceService.save(project, chatListModel.elements().toList())
 
-        val model = modelComboBox.item ?: "gemini-2.0-flash-exp"
-        val mode = modeComboBox.item ?: "Chat"
+        val model = modelComboBox.item as? String ?: "gemini-2.0-flash-exp"
+        val mode = modeComboBox.item as? String ?: "Chat"
         val prompt = if (mode == "QuickEdit") ApiClient.QUICK_EDIT_PROMPT else ApiClient.CHAT_PROMPT
 
         updateSendButtonState(true)
@@ -454,21 +535,22 @@ class MainPanel(val project: Project) {
 
                 SwingUtilities.invokeLater {
                     handleAIResponse(response, chat)
-                    statusLabel.text = "Ready"
+                    // statusLabel.text = "Ready"
                 }
             } catch (e: Exception) {
                 if (e is java.net.SocketException && (e.message == "Canceled" || e.message?.contains("canceled", ignoreCase = true) == true)) {
                     SwingUtilities.invokeLater {
-                        statusLabel.text = "Cancelled"
+                        // statusLabel.text = "Cancelled"
                         addBubble("assistant", "Request cancelled by user.")
                     }
                 } else {
                     SwingUtilities.invokeLater {
-                        statusLabel.text = "Error: ${e.message ?: "Unknown"}"
+                        // statusLabel.text = "Error: ${e.message ?: "Unknown"}"
                         addBubble("assistant", "An error occurred: ${e.message ?: "Unknown"}")
                     }
                 }
-            } finally {
+            }
+            finally {
                 SwingUtilities.invokeLater {
                     if (currentApiCall == callToExecute) {
                         currentApiCall = null
@@ -490,7 +572,7 @@ class MainPanel(val project: Project) {
                 try {
                     changeRequest = gson.fromJson(json, ChangeRequest::class.java)
                     textPart = response.replace(json, "").trim().replace("```json", "").replace("```", "").trim()
-                } catch (e: Exception) { }
+                } catch (e: Exception) { /* Ignore malformed JSON */ }
             }
         }
 
@@ -500,6 +582,7 @@ class MainPanel(val project: Project) {
             addBubble("assistant", textPart)
             chat.messages.add(ChatMessage("assistant", textPart, changes))
         } else if (changes != null && changes.isNotEmpty()) {
+            // If only changes, still add a message to history to track it
             chat.messages.add(ChatMessage("assistant", "", changes))
         }
 
@@ -531,11 +614,14 @@ class MainPanel(val project: Project) {
                     if (modelIds.contains(targetModel)) {
                          modelComboBox.selectedItem = targetModel
                     }
-
-                    statusLabel.text = "Models refreshed"
+                    
+                    updateHeaderInfo()
+                    // statusLabel.text = "Models refreshed"
                 }
             } catch (e: Exception) {
-                SwingUtilities.invokeLater { statusLabel.text = "Failed to refresh models" }
+                SwingUtilities.invokeLater { 
+                    // statusLabel.text = "Failed to refresh models" 
+                }
             }
         }
     }
