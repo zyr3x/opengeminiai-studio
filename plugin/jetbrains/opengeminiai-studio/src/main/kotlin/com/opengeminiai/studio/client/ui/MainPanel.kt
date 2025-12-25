@@ -89,8 +89,10 @@ class MainPanel(val project: Project) {
         modeComboBox.addItemListener { e ->
             if (e.stateChange == ItemEvent.SELECTED) {
                 val newMode = e.item as String
+                // FIX: Use correctly persisted models when switching
                 val modelToRestore = if (newMode == "Chat") lastChatModel else lastQuickEditModel
 
+                // Temporarily remove listener to avoid triggering model change logic
                 val listeners = modelComboBox.itemListeners
                 listeners.forEach { modelComboBox.removeItemListener(it) }
                 modelComboBox.selectedItem = modelToRestore
@@ -102,7 +104,8 @@ class MainPanel(val project: Project) {
 
         modelComboBox.addItemListener { e ->
             if (e.stateChange == ItemEvent.SELECTED) {
-                val currentMode = modeComboBox.item
+                // FIX: Use selectedItem instead of .item (which doesn't exist on ComboBox)
+                val currentMode = modeComboBox.selectedItem as? String
                 val currentModel = e.item as String
                 if (currentMode == "Chat") {
                     lastChatModel = currentModel
@@ -376,7 +379,8 @@ class MainPanel(val project: Project) {
 
     private fun updateHeaderInfo() {
         val title = currentConversation?.title ?: "New Chat"
-        val model = modelComboBox.item as? String ?: "gemini-2.5-flash"
+        // FIX: Use selectedItem
+        val model = modelComboBox.selectedItem as? String ?: "gemini-2.5-flash"
         // Title in header can be shorter
         val displayTitle = if (title.length > 25) title.substring(0, 22) + "..." else title
 
@@ -611,8 +615,9 @@ class MainPanel(val project: Project) {
         scrollToBottom()
         PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
 
-        val model = modelComboBox.item as? String ?: "gemini-2.5-flash"
-        val mode = modeComboBox.item as? String ?: "Chat"
+        // FIX: Use selectedItem instead of incorrect .item
+        val model = modelComboBox.selectedItem as? String ?: "gemini-2.5-flash"
+        val mode = modeComboBox.selectedItem as? String ?: "Chat"
 
         val prompt = if (mode == "QuickEdit") {
              ApiClient.getPromptText(appSettings.quickEditPromptKey, ApiClient.PromptType.QuickEdit)
@@ -675,40 +680,37 @@ class MainPanel(val project: Project) {
         var changes: List<FileChange>? = null
 
         // 1. Try to find JSON inside Markdown code blocks (Robust Index-based parsing)
-        val startMarker = "```json"
-        val endMarker = "```"
-        val startIndex = response.indexOf(startMarker)
+        // Improved: Support optional space after backticks
+        val startMarkerPattern = Pattern.compile("```json\\s*")
+        val matcher = startMarkerPattern.matcher(response)
 
-        if (startIndex != -1) {
-            val contentStart = startIndex + startMarker.length
+        if (matcher.find()) {
+            val contentStart = matcher.end()
+            val endMarker = "```"
             val endIndex = response.indexOf(endMarker, contentStart)
 
             if (endIndex != -1) {
                 val jsonContent = response.substring(contentStart, endIndex).trim()
                 try {
-                    // Attempt to parse the extracted content
                     val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
                     if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
                         changes = request.changes
-                        // Remove the JSON block from the visible text
-                        // We construct the new text by taking everything before and after the block
-                        textPart = (response.substring(0, startIndex) + response.substring(endIndex + endMarker.length)).trim()
+                        textPart = (response.substring(0, matcher.start()) + response.substring(endIndex + endMarker.length)).trim()
                     }
                 } catch (e: Exception) {
-                    // JSON parse error, keep text as is (will be displayed as code block)
+                    // JSON parse error, keep text as is
                 }
             }
         }
 
-        // 2. Fallback: Try to find raw JSON object if no code block match or block parsing failed
-        // Only attempt this if we haven't found changes yet
+        // 2. Fallback: Try to find raw JSON object if no code block match
         if (changes == null) {
             val jsonStart = response.indexOf("{")
             val jsonEnd = response.lastIndexOf("}")
 
             if (jsonStart != -1 && jsonEnd > jsonStart) {
                  val potentialJson = response.substring(jsonStart, jsonEnd + 1)
-                 // Quick check to see if it looks like our schema before parsing
+                 // Check if it looks like our schema
                  if (potentialJson.contains("\"propose_changes\"")) {
                      try {
                          val request = gson.fromJson(potentialJson, ChangeRequest::class.java)
@@ -726,11 +728,11 @@ class MainPanel(val project: Project) {
              // Update model
              chat.messages[chat.messages.size - 1] = ChatMessage("assistant", textPart, changes)
 
-             // Update UI Bubble (This renders clean text without the JSON block)
+             // Update UI Bubble
              val bubblePanel = chatContentPanel.getComponent(chatContentPanel.componentCount - 2) as JPanel
              ChatComponents.updateMessageBubble(bubblePanel, textPart)
 
-             // Append widget if changes exist (Valid for ANY mode)
+             // Append widget if changes exist
              if (changes != null && changes.isNotEmpty()) {
                 var widgetPanel: JPanel? = null
                 widgetPanel = ChatComponents.createChangeWidget(project, changes) {
@@ -769,7 +771,8 @@ class MainPanel(val project: Project) {
                     if (modelIds.isNotEmpty()) modelIds.forEach { modelsModel.addElement(it) }
                     else modelsModel.addElement("gemini-2.5-flash")
 
-                    val currentMode = modeComboBox.item
+                    // FIX: Use selectedItem
+                    val currentMode = modeComboBox.selectedItem as? String ?: "Chat"
                     val targetModel = if (currentMode == "Chat") lastChatModel else lastQuickEditModel
                     if (modelIds.contains(targetModel)) {
                          modelComboBox.selectedItem = targetModel
