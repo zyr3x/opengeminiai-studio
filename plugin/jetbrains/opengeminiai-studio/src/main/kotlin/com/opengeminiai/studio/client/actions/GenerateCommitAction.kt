@@ -16,7 +16,7 @@ import com.intellij.openapi.util.IconLoader
 
 class GenerateCommitAction : DumbAwareAction() {
 
-    private val pluginIcon = IconLoader.getIcon("/icons/logo.svg", GenerateCommitAction::class.java)
+    private val pluginIcon = IconLoader.getIcon("/icons/logo-light.svg", GenerateCommitAction::class.java)
 
     private fun getIncludedChanges(e: AnActionEvent): List<Change> {
         val selectedChanges = e.getData(VcsDataKeys.CHANGES)

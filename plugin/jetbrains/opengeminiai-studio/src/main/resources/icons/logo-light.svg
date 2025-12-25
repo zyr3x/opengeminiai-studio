@@ -1,0 +1,18 @@
+<svg width="16" height="16" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Ядро (Сплошной белый) -->
+        <circle cx="128" cy="128" r="40" fill="#FFFFFF"/>
+
+        <ellipse cx="128" cy="128" rx="80" ry="40" stroke="url(#orbit_fade_white)" stroke-width="12" stroke-linecap="round" transform="rotate(30 128 128)"/>
+
+        <circle cx="192.6" cy="100" r="12" fill="#FFFFFF" transform="rotate(30 128 128)"/>
+
+        <text x="220" y="225" font-family="Inter, Arial, sans-serif" font-size="72" font-weight="900" fill="#FFFFFF" text-anchor="end">AI</text>
+
+        <defs>
+            <linearGradient id="orbit_fade_white" x1="48" y1="128" x2="208" y2="128" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#FFFFFF" stop-opacity="0"/>
+                <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="1"/>
+                <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+            </linearGradient>
+        </defs>
+    </svg>

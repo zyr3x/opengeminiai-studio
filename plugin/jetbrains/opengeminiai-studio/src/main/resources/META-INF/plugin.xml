@@ -7,7 +7,7 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="OpenGeminiAI Studio" secondary="false" anchor="right"
-                    icon="/icons/logo.svg"
+                    icon="/icons/logo-light.svg"
                     factoryClass="com.opengeminiai.studio.client.GeminiToolWindowFactory"/>
     </extensions>
 
@@ -16,7 +16,7 @@
                 class="com.opengeminiai.studio.client.actions.GenerateCommitAction"
                 text="Generate Commit Message (OpenGeminiAI Studio)"
                 description="Generates a commit message using OpenGeminiAI"
-                icon="/icons/logo.svg">
+                icon="/icons/logo-light.svg">
             <add-to-group group-id="Vcs.MessageActionGroup" anchor="first"/>
         </action>
     </actions>
