@@ -61,8 +61,16 @@ class MainPanel(val project: Project) {
     private var lastChatModel: String = "gemini-2.5-flash"
     private var lastQuickEditModel: String = "gemini-2.5-flash"
 
-    // -- HISTORY --
-    private val historyList = JBList(chatListModel)
+    // -- HISTORY VIEW (Replaces JBList) --
+    private val historyContentPanel = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.Y_AXIS)
+        background = JBColor.background()
+        border = JBUI.Borders.empty(10)
+    }
+    private val historyScrollPane = JBScrollPane(historyContentPanel).apply {
+        border = null
+        horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+    }
 
     init {
         chatContentPanel.layout = BoxLayout(chatContentPanel, BoxLayout.Y_AXIS)
@@ -76,35 +84,6 @@ class MainPanel(val project: Project) {
         // Attachments setup
         attachmentsPanel.isOpaque = false
         attachmentsPanel.border = JBUI.Borders.empty(0, 4, 4, 4)
-
-        // History List Renderer
-        historyList.cellRenderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
-                val c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
-                val conv = value as Conversation
-                c.text = "<html><b>${conv.title}</b><br/><span style='color:gray; font-size: 10px'>${conv.getFormattedDate()}</span></html>"
-                c.border = JBUI.Borders.empty(5, 8)
-                return c
-            }
-        }
-
-        // Mouse Listeners
-        historyList.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                if (SwingUtilities.isLeftMouseButton(e) && e.clickCount == 2) {
-                    openSelectedChat()
-                }
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    val index = historyList.locationToIndex(e.point)
-                    historyList.selectedIndex = index
-                    val popup = JPopupMenu()
-                    val del = JMenuItem("Delete")
-                    del.addActionListener { deleteSelectedChat() }
-                    popup.add(del)
-                    popup.show(e.component, e.x, e.y)
-                }
-            }
-        })
 
         // -- LOGIC: Persist Model Selection per Mode --
         modeComboBox.addItemListener { e ->
@@ -135,7 +114,7 @@ class MainPanel(val project: Project) {
         }
 
         centerPanel.add(scrollPane, "CHAT")
-        centerPanel.add(JBScrollPane(historyList), "HISTORY")
+        centerPanel.add(historyScrollPane, "HISTORY")
 
         val wrapper = PersistenceService.load(project)
         appSettings = wrapper.settings ?: AppSettings()
@@ -149,6 +128,79 @@ class MainPanel(val project: Project) {
         else loadChat(chatListModel.firstElement())
 
         refreshModels()
+        refreshHistoryList() // Build the custom history UI
+    }
+
+    // --- HISTORY UI BUILDER ---
+
+    private fun refreshHistoryList() {
+        historyContentPanel.removeAll()
+
+        val elements = chatListModel.elements().toList()
+        elements.forEach { conversation ->
+            historyContentPanel.add(createHistoryRow(conversation))
+            historyContentPanel.add(Box.createVerticalStrut(5))
+        }
+
+        historyContentPanel.revalidate()
+        historyContentPanel.repaint()
+    }
+
+    private fun createHistoryRow(conversation: Conversation): JPanel {
+        val row = JPanel(BorderLayout())
+        row.background = JBColor.background()
+        row.border = JBUI.Borders.compound(
+            JBUI.Borders.customLine(JBColor.border(), 0, 0, 1, 0), // Bottom separator
+            JBUI.Borders.empty(8)
+        )
+        row.maximumSize = Dimension(Int.MAX_VALUE, 60)
+        row.alignmentX = Component.LEFT_ALIGNMENT
+
+        // Text Info (Left/Center)
+        val infoPanel = JPanel(BorderLayout())
+        infoPanel.isOpaque = false
+
+        val titleLabel = JLabel("<html><b>${conversation.title}</b></html>")
+        titleLabel.font = JBUI.Fonts.label()
+
+        val dateLabel = JLabel(conversation.getFormattedDate())
+        dateLabel.font = JBUI.Fonts.smallFont()
+        dateLabel.foreground = JBColor.gray
+
+        infoPanel.add(titleLabel, BorderLayout.CENTER)
+        infoPanel.add(dateLabel, BorderLayout.SOUTH)
+
+        // Interaction: Click to load
+        val mouseAdapter = object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (SwingUtilities.isLeftMouseButton(e)) {
+                    loadChat(conversation)
+                }
+            }
+            override fun mouseEntered(e: MouseEvent) {
+                row.background = UIUtil.getListSelectionBackground(true) // Highlight on hover
+            }
+            override fun mouseExited(e: MouseEvent) {
+                row.background = JBColor.background()
+            }
+        }
+        row.addMouseListener(mouseAdapter)
+        // Pass events from children to parent row
+        infoPanel.addMouseListener(mouseAdapter)
+        titleLabel.addMouseListener(mouseAdapter)
+
+        // Delete Button (Right)
+        val deleteBtn = createIconButton(AllIcons.Actions.GC, "Delete Chat") {
+             deleteSpecificChat(conversation)
+        }
+        val btnContainer = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0))
+        btnContainer.isOpaque = false
+        btnContainer.add(deleteBtn)
+
+        row.add(infoPanel, BorderLayout.CENTER)
+        row.add(btnContainer, BorderLayout.EAST)
+
+        return row
     }
 
     fun getContent(): JComponent {
@@ -325,6 +377,7 @@ class MainPanel(val project: Project) {
     private fun updateHeaderInfo() {
         val title = currentConversation?.title ?: "New Chat"
         val model = modelComboBox.item as? String ?: "gemini-2.5-flash"
+        // Title in header can be shorter
         val displayTitle = if (title.length > 25) title.substring(0, 22) + "..." else title
 
         headerInfoLabel.text = "<html><b>$displayTitle</b> <span style='color:gray'>($model)</span></html>"
@@ -390,12 +443,11 @@ class MainPanel(val project: Project) {
 
     private fun showHistory() {
         cardLayout.show(centerPanel, "HISTORY")
-        historyList.updateUI()
+        refreshHistoryList()
     }
 
     private fun openSelectedChat() {
-        val selected = historyList.selectedValue
-        if (selected != null) loadChat(selected)
+        // Now handled by row click listener
     }
 
     private fun loadChat(chat: Conversation) {
@@ -411,11 +463,9 @@ class MainPanel(val project: Project) {
 
             msg.changes?.let { changes ->
                 if (changes.isNotEmpty()) {
-                    // MODIFIED: Pass onDelete callback to createChangeWidget
-                    // We need a reference to the panel to remove it visually
                     var widgetPanel: JPanel? = null
                     widgetPanel = ChatComponents.createChangeWidget(project, changes) {
-                        // On Delete Action
+                        // On Delete Widget
                         if (index < chat.messages.size) {
                              chat.messages[index] = chat.messages[index].copy(changes = null)
                              PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
@@ -443,17 +493,22 @@ class MainPanel(val project: Project) {
     private fun createNewChat() {
         val chat = Conversation()
         chatListModel.add(0, chat)
-        historyList.selectedIndex = 0
         PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
+        refreshHistoryList()
         loadChat(chat)
     }
 
-    private fun deleteSelectedChat() {
-        val selected = historyList.selectedValue ?: return
-        chatListModel.removeElement(selected)
+    private fun deleteSpecificChat(chat: Conversation) {
+        chatListModel.removeElement(chat)
         PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
-        if (chatListModel.isEmpty) createNewChat()
-        else if (selected == currentConversation) loadChat(chatListModel.firstElement())
+
+        refreshHistoryList()
+
+        if (chatListModel.isEmpty) {
+            createNewChat()
+        } else if (chat == currentConversation) {
+            loadChat(chatListModel.firstElement())
+        }
     }
 
     private fun handleMessageDelete(index: Int) {
@@ -542,8 +597,10 @@ class MainPanel(val project: Project) {
 
         if (chat.messages.size == 1) {
             val titleText = if (textInput.isNotEmpty()) textInput else "Files Analysis"
-            chat.title = if (titleText.length > 30) titleText.substring(0, 27) + "..." else titleText
-            historyList.repaint()
+            // CHANGED: Increased truncation limit to 60 characters
+            chat.title = if (titleText.length > 60) titleText.substring(0, 57) + "..." else titleText
+
+            refreshHistoryList()
             updateHeaderInfo()
         }
 
@@ -656,7 +713,6 @@ class MainPanel(val project: Project) {
 
              // Append widget if changes exist (Valid for ANY mode)
              if (changes != null && changes.isNotEmpty()) {
-                // MODIFIED: Pass onDelete callback here as well for immediate interaction
                 var widgetPanel: JPanel? = null
                 widgetPanel = ChatComponents.createChangeWidget(project, changes) {
                     val idx = chat.messages.size - 1
