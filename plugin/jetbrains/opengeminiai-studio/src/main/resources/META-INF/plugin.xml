@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>com.opengeminiai.studio.v1</id>
     <name>OpenGeminiAI Studio</name>
-    <vendor>User</vendor>
+    <vendor>zyr3x</vendor>
     <description><![CDATA[<p><b>Professional AI Assistant for JetBrains IDEs.</b></p>
         <p>OpenGeminiAI Studio integrates powerful LLMs (Gemini, OpenRouter) directly into your workflow via a high-performance local proxy.</p>
 
