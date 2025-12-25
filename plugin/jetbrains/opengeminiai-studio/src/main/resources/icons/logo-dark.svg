@@ -1,18 +1,6 @@
-<svg width="24" height="24" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Ядро (Сплошной белый) -->
-        <circle cx="128" cy="128" r="40" fill="#FFFFFF"/>
-
-        <ellipse cx="128" cy="128" rx="80" ry="40" stroke="url(#orbit_fade_white)" stroke-width="12" stroke-linecap="round" transform="rotate(30 128 128)"/>
-
-        <circle cx="192.6" cy="100" r="12" fill="#FFFFFF" transform="rotate(30 128 128)"/>
-
-        <text x="220" y="225" font-family="Inter, Arial, sans-serif" font-size="72" font-weight="900" fill="#FFFFFF" text-anchor="end">AI</text>
-
-        <defs>
-            <linearGradient id="orbit_fade_white" x1="48" y1="128" x2="208" y2="128" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#FFFFFF" stop-opacity="0"/>
-                <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="1"/>
-                <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-            </linearGradient>
-        </defs>
-    </svg>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="3.5" fill="#AFB1B3"/>
+    <path d="M18.8 8.5C17.5 6.2 15 4.5 12 4.5C6.48 4.5 2 7.86 2 12C2 13.5 2.6 14.9 3.6 16.1" stroke="#AFB1B3" stroke-width="2" stroke-linecap="round"/>
+    <path d="M5.2 15.5C6.5 17.8 9 19.5 12 19.5C17.52 19.5 22 16.14 22 12C22 10.5 21.4 9.1 20.4 7.9" stroke="#AFB1B3" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="19" cy="9" r="2" fill="#AFB1B3"/>
+</svg>
