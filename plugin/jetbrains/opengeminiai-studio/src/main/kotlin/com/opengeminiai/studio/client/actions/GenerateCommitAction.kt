@@ -1,9 +1,9 @@
 package com.opengeminiai.studio.client.actions
 
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.vcs.VcsDataKeys
-import com.intellij.openapi.vcs.ui.CommitMessage
+import com.intellij.openapi.vcs.changes.Change
+import com.intellij.openapi.vcs.changes.ChangeListManager
 import com.intellij.openapi.application.ApplicationManager
 import com.opengeminiai.studio.client.service.ApiClient
 import com.opengeminiai.studio.client.service.PersistenceService
@@ -12,25 +12,59 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.DumbAwareAction
+import com.intellij.openapi.util.IconLoader
 
 class GenerateCommitAction : DumbAwareAction() {
+
+    private val pluginIcon = IconLoader.getIcon("/icons/logo.svg", GenerateCommitAction::class.java)
+
+    private fun getIncludedChanges(e: AnActionEvent): List<Change> {
+        val selectedChanges = e.getData(VcsDataKeys.CHANGES)
+        if (!selectedChanges.isNullOrEmpty()) {
+            return selectedChanges.toList()
+        }
+
+        val selectedLists = e.getData(VcsDataKeys.CHANGE_LISTS)
+        if (!selectedLists.isNullOrEmpty()) {
+            return selectedLists.flatMap { it.changes }
+        }
+
+        val project = e.project
+        if (project != null) {
+            val changeListManager = ChangeListManager.getInstance(project)
+            val defaultList = changeListManager.defaultChangeList
+            if (defaultList != null) {
+                return defaultList.changes.toList()
+            }
+        }
+
+        return emptyList()
+    }
+
     override fun update(e: AnActionEvent) {
         val project = e.project
         val commitMessageControl = e.getData(VcsDataKeys.COMMIT_MESSAGE_CONTROL)
-        val changes = e.getData(VcsDataKeys.CHANGES)
-        e.presentation.isEnabledAndVisible = project != null && commitMessageControl != null && !changes.isNullOrEmpty()
-        e.presentation.text = "Generate Commit Message (AI)"
-        e.presentation.icon = com.intellij.icons.AllIcons.Actions.Commit
+
+        e.presentation.isVisible = project != null && commitMessageControl != null
+        e.presentation.isEnabled = project != null
+
+        e.presentation.text = "Generate Commit Message (OpenGeminiAI Studio)"
+        e.presentation.icon = pluginIcon
     }
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val commitMessageControl = e.getData(VcsDataKeys.COMMIT_MESSAGE_CONTROL) ?: return
-        val changes = e.getData(VcsDataKeys.CHANGES) ?: return
-        
-        // Load settings to get the model
+
+        val changes = getIncludedChanges(e)
+
+        if (changes.isEmpty()) {
+            commitMessageControl.setCommitMessage("Error: No changes detected. Make sure you have modified files in the active changelist.")
+            return
+        }
+
         val wrapper = PersistenceService.load(project)
-        val model = wrapper.settings?.defaultCommitModel ?: "gemini-2.0-flash-exp"
+        val model = wrapper.settings?.defaultCommitModel ?: "gemini-2.5-flash-lite"
 
         val contentBuilder = StringBuilder()
         changes.take(20).forEach { change ->

@@ -27,9 +27,9 @@ const val DEFAULT_SYSTEM_PROMPT = """You are an expert developer.
 ```"""
 
 data class AppSettings(
-    var defaultChatModel: String = "gemini-2.0-flash-exp",
-    var defaultQuickEditModel: String = "gemini-2.0-flash-exp",
-    var defaultCommitModel: String = "gemini-2.0-flash-exp",
+    var defaultChatModel: String = "gemini-2.5-flash",
+    var defaultQuickEditModel: String = "gemini-2.5-flash",
+    var defaultCommitModel: String = "gemini-2.5-flash",
     var systemPrompt: String = DEFAULT_SYSTEM_PROMPT
 )
 

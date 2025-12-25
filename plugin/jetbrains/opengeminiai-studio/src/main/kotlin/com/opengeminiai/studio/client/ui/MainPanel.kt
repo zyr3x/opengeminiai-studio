@@ -51,7 +51,7 @@ class MainPanel(val project: Project) {
     private val headerInfoLabel = JLabel("", SwingConstants.CENTER)
 
     // -- CONTROLS --
-    private val modelsModel = DefaultComboBoxModel<String>(arrayOf("gemini-2.0-flash-exp"))
+    private val modelsModel = DefaultComboBoxModel<String>(arrayOf("gemini-2.5-flash"))
     private val modeModel = DefaultComboBoxModel<String>(arrayOf("Chat", "QuickEdit"))
     private val modelComboBox = ComboBox(modelsModel)
     private val modeComboBox = ComboBox(modeModel)
@@ -59,8 +59,8 @@ class MainPanel(val project: Project) {
     private var currentApiCall: Call? = null
 
     // -- STATE FOR MODES --
-    private var lastChatModel: String = "gemini-2.0-flash-exp"
-    private var lastQuickEditModel: String = "gemini-2.0-flash-exp"
+    private var lastChatModel: String = "gemini-2.5-flash"
+    private var lastQuickEditModel: String = "gemini-2.5-flash"
 
     // -- HISTORY --
     private val historyList = JBList(chatListModel)
@@ -328,7 +328,7 @@ class MainPanel(val project: Project) {
 
     private fun updateHeaderInfo() {
         val title = currentConversation?.title ?: "New Chat"
-        val model = modelComboBox.item as? String ?: "gemini-2.0-flash-exp"
+        val model = modelComboBox.item as? String ?: "gemini-2.5-flash"
         val displayTitle = if (title.length > 25) title.substring(0, 22) + "..." else title
         headerInfoLabel.text = "<html><b>$displayTitle</b> <span style='color:gray'>($model)</span></html>"
         headerInfoLabel.toolTipText = "$title using $model"
@@ -547,7 +547,7 @@ class MainPanel(val project: Project) {
 
         PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
 
-        val model = modelComboBox.item as? String ?: "gemini-2.0-flash-exp"
+        val model = modelComboBox.item as? String ?: "gemini-2.5-flash"
         val mode = modeComboBox.item as? String ?: "Chat"
         // Use System Prompt from settings for Chat, or hardcoded for QuickEdit
         val prompt = if (mode == "QuickEdit") ApiClient.QUICK_EDIT_PROMPT else appSettings.systemPrompt
@@ -637,7 +637,7 @@ class MainPanel(val project: Project) {
                 SwingUtilities.invokeLater {
                     modelsModel.removeAllElements()
                     if (modelIds.isNotEmpty()) modelIds.forEach { modelsModel.addElement(it) }
-                    else modelsModel.addElement("gemini-2.0-flash-exp")
+                    else modelsModel.addElement("gemini-2.5-flash")
 
                     val currentMode = modeComboBox.item
                     val targetModel = if (currentMode == "Chat") lastChatModel else lastQuickEditModel

@@ -102,13 +102,13 @@ object ApiClient {
         try {
             val req = Request.Builder().url("$BASE_URL/v1/models").get().build()
             client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return listOf("gemini-2.0-flash-exp")
+                if (!resp.isSuccessful) return listOf("gemini-2.5-flash")
                 val str = resp.body?.string() ?: return listOf()
                 val parsed = gson.fromJson(str, ModelsResponse::class.java)
                 return parsed.data.map { it.id }
             }
         } catch (e: Exception) {
-            return listOf("gemini-2.0-flash-exp")
+            return listOf("gemini-2.5-flash")
         }
     }
 }

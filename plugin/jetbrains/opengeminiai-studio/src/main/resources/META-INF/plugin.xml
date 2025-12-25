@@ -4,9 +4,20 @@
     <vendor>User</vendor>
     <description>Professional AI Assistant. Compact, Stable, Modern UI.</description>
     <depends>com.intellij.modules.platform</depends>
+
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="OpenGeminiAI Studio" secondary="false" anchor="right"
                     icon="/icons/logo.svg"
                     factoryClass="com.opengeminiai.studio.client.GeminiToolWindowFactory"/>
     </extensions>
+
+    <actions>
+        <action id="com.opengeminiai.studio.client.actions.GenerateCommitAction"
+                class="com.opengeminiai.studio.client.actions.GenerateCommitAction"
+                text="Generate Commit Message (OpenGeminiAI Studio)"
+                description="Generates a commit message using OpenGeminiAI"
+                icon="/icons/logo.svg">
+            <add-to-group group-id="Vcs.MessageActionGroup" anchor="first"/>
+        </action>
+    </actions>
 </idea-plugin>
