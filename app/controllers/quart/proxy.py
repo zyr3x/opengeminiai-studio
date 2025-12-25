@@ -672,3 +672,24 @@ async def async_list_models():
 
     except Exception as e:
         return jsonify({"error": f"Error fetching models: {e}"}), 500
+
+@async_proxy_bp.route('/v1/system_prompts', methods=['GET'])
+async def async_list_system_prompts():
+    try:
+        from app.utils.core.prompt_loader import load_default_system_prompts
+        current_system_prompts_str = ""
+        if os.path.exists(utils.SYSTEM_PROMPTS_FILE):
+            with open(utils.SYSTEM_PROMPTS_FILE, 'r') as f:
+                current_system_prompts_str = f.read()
+
+        default_system_prompts = load_default_system_prompts()
+        system_prompt_profiles = default_system_prompts
+        if current_system_prompts_str.strip():
+            try:
+                system_prompt_profiles = json.loads(current_system_prompts_str)
+            except json.JSONDecodeError:
+                pass
+        return jsonify(system_prompt_profiles)
+    except Exception as e:
+        utils.log(f"Error fetching system prompts: {e}")
+        return jsonify({"error": f"Error fetching system prompts: {e}"}), 500
