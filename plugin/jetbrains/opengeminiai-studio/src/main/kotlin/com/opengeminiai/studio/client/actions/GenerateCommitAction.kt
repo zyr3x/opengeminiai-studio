@@ -8,6 +8,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.opengeminiai.studio.client.service.ApiClient
 import com.opengeminiai.studio.client.service.PersistenceService
 import com.opengeminiai.studio.client.model.ChatMessage
+import com.opengeminiai.studio.client.Icons
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.progress.ProgressIndicator
@@ -16,7 +17,7 @@ import com.intellij.openapi.util.IconLoader
 
 class GenerateCommitAction : DumbAwareAction() {
 
-    private val pluginIcon = IconLoader.getIcon("/icons/logo-light.svg", GenerateCommitAction::class.java)
+    private val pluginIcon = Icons.Logo
 
     private fun getIncludedChanges(e: AnActionEvent): List<Change> {
         val selectedChanges = e.getData(VcsDataKeys.CHANGES)

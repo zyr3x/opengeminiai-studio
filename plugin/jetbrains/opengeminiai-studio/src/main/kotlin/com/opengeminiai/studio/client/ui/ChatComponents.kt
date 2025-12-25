@@ -3,10 +3,12 @@ package com.opengeminiai.studio.client.ui
 import com.opengeminiai.studio.client.model.FileChange
 import com.opengeminiai.studio.client.utils.DiffUtils
 import com.opengeminiai.studio.client.utils.MarkdownUtils
+import com.opengeminiai.studio.client.Icons
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
 import com.intellij.icons.AllIcons
 import java.awt.*
 import java.awt.event.MouseAdapter
@@ -19,63 +21,48 @@ object ChatComponents {
     fun createMessageBubble(role: String, content: String, messageIndex: Int? = null, onDelete: ((Int) -> Unit)? = null): JPanel {
         val isUser = role == "user"
 
-        // Outer wrapper for alignment
+        // Main Wrapper
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        wrapper.border = JBUI.Borders.empty(2, 5)
+        wrapper.border = JBUI.Borders.empty(4, 0) // Minimal vertical spacing
 
-        // The Bubble Background
+        // --- AVATAR ---
+        // Use Plugin Logo for AI, User Icon for User
+        val avatarIcon = if (isUser) AllIcons.General.User else Icons.Logo
+        val avatarLabel = JLabel(avatarIcon)
+        avatarLabel.verticalAlignment = SwingConstants.TOP
+        avatarLabel.border = JBUI.Borders.empty(0, 8) // Spacing around avatar
+
+        // --- BUBBLE CONTENT ---
         val bubble = RoundedPanel(isUser)
-        bubble.layout = BoxLayout(bubble, BoxLayout.Y_AXIS) // Changed to Y_AXIS to stack header, text, and attachments
-        // Compact padding inside bubble (adjusted for native look)
-        bubble.border = JBUI.Borders.empty(6, 9)
+        bubble.layout = BoxLayout(bubble, BoxLayout.Y_AXIS)
+        // Compact padding inside bubble
+        bubble.border = JBUI.Borders.empty(8, 10)
 
-        // Header
-        val headerPanel = JPanel(BorderLayout())
-        headerPanel.isOpaque = false
-        headerPanel.border = JBUI.Borders.emptyBottom(3)
-
-        val headerText = if (isUser) "You" else "OpenGeminiAI Studio"
-        val headerLabel = JBLabel(headerText)
-        headerLabel.font = JBUI.Fonts.smallFont().deriveFont(Font.BOLD)
-        headerLabel.foreground = if (isUser) JBColor(Color(230, 230, 230), Color(230, 230, 230)) else JBColor.GRAY
-
-        if (isUser) {
-            headerPanel.add(headerLabel, BorderLayout.EAST)
-        } else {
-            headerPanel.add(headerLabel, BorderLayout.WEST)
-        }
-        bubble.add(headerPanel)
-
-        // --- NEW: Parse content for attachments and text ---
+        // Parse content
         val textContentBuilder = StringBuilder()
         val attachedFilesForDisplay = mutableListOf<File>()
-        val lines = content.lines()
-
-        for (line in lines) {
-            val trimmedLine = line.trim()
-            if (trimmedLine.startsWith("image_path=")) {
-                val path = trimmedLine.substringAfter("image_path=")
-                attachedFilesForDisplay.add(File(path))
-            } else if (trimmedLine.startsWith("code_path=")) {
-                val path = trimmedLine.substringAfter("code_path=")
-                attachedFilesForDisplay.add(File(path))
+        content.lines().forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.startsWith("image_path=")) {
+                attachedFilesForDisplay.add(File(trimmed.substringAfter("image_path=")))
+            } else if (trimmed.startsWith("code_path=")) {
+                attachedFilesForDisplay.add(File(trimmed.substringAfter("code_path=")))
             } else {
-                textContentBuilder.append(line).append("\n") // Keep original line breaks for markdown
+                textContentBuilder.append(line).append("\n")
             }
         }
-
         val actualTextContent = textContentBuilder.toString().trim()
 
-        // Editor pane for Markdown text
+        // Markdown Text
         if (actualTextContent.isNotBlank()) {
             val editorPane = JEditorPane()
             editorPane.contentType = "text/html"
-            editorPane.font = JBUI.Fonts.smallFont()
             editorPane.text = MarkdownUtils.renderHtml(actualTextContent)
             editorPane.isEditable = false
             editorPane.isOpaque = false
             editorPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
+            // Fix: Text color handling is done in MarkdownUtils, but we ensure component is transparent
             editorPane.addHyperlinkListener { e ->
                 if (e.eventType == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
                     try { Desktop.getDesktop().browse(e.url.toURI()) } catch (err: Exception) {}
@@ -84,79 +71,81 @@ object ChatComponents {
             bubble.add(editorPane)
         }
 
-        // Panel to display attachment chips
+        // Attachments
         if (attachedFilesForDisplay.isNotEmpty()) {
-            val displayAttachmentsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 4))
-            displayAttachmentsPanel.isOpaque = false
-            // Add padding above chips only if there was text content too
-            if (actualTextContent.isNotBlank()) {
-                 displayAttachmentsPanel.border = JBUI.Borders.empty(4, 0, 0, 0)
-            }
-
-            // Add attachment chips (not removable in display)
+            val attachmentsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 4))
+            attachmentsPanel.isOpaque = false
+            if (actualTextContent.isNotBlank()) attachmentsPanel.border = JBUI.Borders.emptyTop(5)
             attachedFilesForDisplay.forEach { file ->
-                val chip = ChatComponents.createAttachmentChip(file, {}, isRemovable = false)
-                displayAttachmentsPanel.add(chip)
+                attachmentsPanel.add(createAttachmentChip(file, {}, false))
             }
-            bubble.add(displayAttachmentsPanel)
-        }
-        // --- END NEW ---
-
-        val box = Box.createHorizontalBox()
-        if (isUser) {
-            box.add(Box.createHorizontalGlue())
-            box.add(bubble)
-        } else {
-            box.add(bubble)
-            box.add(Box.createHorizontalGlue())
+            bubble.add(attachmentsPanel)
         }
 
-        bubble.maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
-
-        wrapper.add(box, BorderLayout.CENTER)
-
-        // Add right-click context menu for deletion
+        // --- DELETE BUTTON ---
+        // Visible small trash icon
+        val deleteBtn = JLabel(AllIcons.Actions.GC)
+        deleteBtn.toolTipText = "Delete Message"
+        deleteBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        deleteBtn.border = JBUI.Borders.empty(6) // Easier to click
         if (messageIndex != null && onDelete != null) {
-            wrapper.addMouseListener(object : MouseAdapter() {
-                override fun mouseReleased(e: MouseEvent) {
-                    if (e.isPopupTrigger) {
-                        val popupMenu = JPopupMenu()
-                        val deleteItem = JMenuItem("Delete Message")
-                        deleteItem.addActionListener { onDelete.invoke(messageIndex) }
-                        popupMenu.add(deleteItem)
-                        popupMenu.show(e.component, e.x, e.y)
-                    }
+            deleteBtn.addMouseListener(object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    onDelete(messageIndex)
+                }
+                override fun mouseEntered(e: MouseEvent) {
+                    deleteBtn.icon = AllIcons.Actions.Cancel // Change icon on hover for effect
+                }
+                override fun mouseExited(e: MouseEvent) {
+                    deleteBtn.icon = AllIcons.Actions.GC
                 }
             })
+        } else {
+            deleteBtn.isVisible = false
         }
 
+        // --- LAYOUT ASSEMBLY ---
+        val box = Box.createHorizontalBox()
+
+        if (isUser) {
+            // User Layout: [Glue] [Delete] [Bubble] [Avatar]
+            box.add(Box.createHorizontalGlue())
+            box.add(deleteBtn)
+            box.add(bubble)
+            box.add(avatarLabel)
+        } else {
+            // AI Layout: [Avatar] [Bubble] [Delete] [Glue]
+            box.add(avatarLabel)
+            box.add(bubble)
+            box.add(deleteBtn)
+            box.add(Box.createHorizontalGlue())
+        }
+
+        wrapper.add(box, BorderLayout.CENTER)
         return wrapper
     }
 
-    // --- NEW: Attachment Chip UI ---
+    // --- UTILS ---
+
     fun createAttachmentChip(file: File, onClose: () -> Unit, isRemovable: Boolean = true): JPanel {
         val chip = JPanel(BorderLayout())
         chip.isOpaque = false
 
-        // Chip background panel
         val bg = object : JPanel(BorderLayout()) {
             override fun paintComponent(g: Graphics) {
                 val g2 = g as Graphics2D
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                // Darker background for chip
                 g2.color = JBColor(Color(230, 230, 230), Color(60, 63, 65))
-                g2.fillRoundRect(0, 0, width - 1, height - 1, 10, 10)
+                g2.fillRoundRect(0, 0, width - 1, height - 1, 8, 8) // Slightly sharper corners
                 g2.color = JBColor.border()
-                g2.drawRoundRect(0, 0, width - 1, height - 1, 10, 10)
+                g2.drawRoundRect(0, 0, width - 1, height - 1, 8, 8)
                 super.paintComponent(g)
             }
         }
         bg.isOpaque = false
         bg.border = JBUI.Borders.empty(2, 6, 2, 4)
 
-        // Determine icon based on folder or file
         val icon = if (file.isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
-
         val label = JBLabel(file.name, icon, SwingConstants.LEFT)
         label.font = JBUI.Fonts.smallFont()
         bg.add(label, BorderLayout.CENTER)
@@ -165,26 +154,20 @@ object ChatComponents {
             val closeBtn = JButton(AllIcons.Actions.Close)
             closeBtn.isBorderPainted = false
             closeBtn.isContentAreaFilled = false
-            closeBtn.isFocusPainted = false
             closeBtn.preferredSize = Dimension(16, 16)
             closeBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             closeBtn.addActionListener { onClose() }
-
-            val btnPanel = JPanel(BorderLayout())
-            btnPanel.isOpaque = false
-            btnPanel.border = JBUI.Borders.emptyLeft(4)
-            btnPanel.add(closeBtn, BorderLayout.CENTER)
-
-            bg.add(btnPanel, BorderLayout.EAST)
+            bg.add(closeBtn, BorderLayout.EAST)
         }
         chip.add(bg, BorderLayout.CENTER)
         return chip
     }
 
     fun createChangeWidget(project: Project, changes: List<FileChange>): JPanel {
+        // Keeping previous widget logic, just wrapping for safety
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        wrapper.border = JBUI.Borders.empty(2, 5)
+        wrapper.border = JBUI.Borders.empty(2, 38, 2, 5) // Indent to align with text bubbles
 
         val container = RoundedChangeWidgetPanel().apply { layout = BorderLayout() }
 
@@ -221,7 +204,6 @@ object ChatComponents {
             val row = JPanel(BorderLayout())
             row.isOpaque = false
             row.border = JBUI.Borders.empty(2, 8)
-            row.maximumSize = Dimension(Int.MAX_VALUE, 28)
 
             val filename = change.path.substringAfterLast("/")
             val link = JLabel(filename, AllIcons.FileTypes.Any_type, SwingConstants.LEFT)
@@ -236,48 +218,18 @@ object ChatComponents {
 
             val actions = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0))
             actions.isOpaque = false
-
-            val btnOk = createIconBtn(AllIcons.Actions.Checked, "Apply") {
-                DiffUtils.applyChangeDirectly(project, change.path, change.content)
-                row.removeAll()
-                val lbl = JLabel("$filename (Applied)", AllIcons.Actions.Checked, SwingConstants.LEFT)
-                lbl.font = JBUI.Fonts.smallFont()
-                lbl.foreground = JBColor.GRAY
-                row.add(lbl, BorderLayout.CENTER)
-                row.revalidate()
+            val btnOk = JButton(AllIcons.Actions.Checked).apply {
+                preferredSize = Dimension(20, 20); isBorderPainted=false; isContentAreaFilled=false; addActionListener { DiffUtils.applyChangeDirectly(project, change.path, change.content) }
             }
-            val btnNo = createIconBtn(AllIcons.Actions.Cancel, "Discard") {
-                row.removeAll()
-                val lbl = JLabel("$filename (Discarded)", AllIcons.Actions.Cancel, SwingConstants.LEFT)
-                lbl.font = JBUI.Fonts.smallFont()
-                lbl.foreground = JBColor.GRAY
-                row.add(lbl, BorderLayout.CENTER)
-                row.revalidate()
-            }
-
             actions.add(btnOk)
-            actions.add(Box.createHorizontalStrut(2))
-            actions.add(btnNo)
 
             row.add(link, BorderLayout.CENTER)
             row.add(actions, BorderLayout.EAST)
             fileList.add(row)
         }
-
         container.add(fileList, BorderLayout.CENTER)
         wrapper.add(container, BorderLayout.CENTER)
         return wrapper
-    }
-
-    private fun createIconBtn(icon: Icon, tip: String, action: () -> Unit): JButton {
-        return JButton(icon).apply {
-            toolTipText = tip
-            preferredSize = Dimension(22, 22)
-            isBorderPainted = false
-            isContentAreaFilled = false
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            addActionListener { action() }
-        }
     }
 
     class RoundedPanel(private val isUser: Boolean) : JPanel() {
@@ -285,33 +237,39 @@ object ChatComponents {
         override fun paintComponent(g: Graphics) {
             val g2 = g as Graphics2D
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+
+            // --- COLOR CUSTOMIZATION ---
             if (isUser) {
-                g2.color = JBColor(Color(225, 245, 254), Color(45, 55, 65))
+                // Purple tint for User
+                // Light Mode: Very light purple/blue | Dark Mode: Muted Purple
+                val lightColor = Color(235, 240, 255)
+                val darkColor = Color(70, 50, 90) // Muted purple for dark mode
+                g2.color = JBColor(lightColor, darkColor)
             } else {
+                // Standard Gray for Assistant
                 g2.color = JBColor(Color(255, 255, 255), Color(60, 63, 65))
             }
-            g2.fillRoundRect(0, 0, width - 1, height - 1, 10, 10)
 
-            g2.color = JBColor.border()
-            g2.drawRoundRect(0, 0, width - 1, height - 1, 10, 10)
+            g2.fillRoundRect(0, 0, width - 1, height - 1, 16, 16) // More rounded (16px)
+
+            // Subtle Border
+            g2.color = if(isUser) JBColor(Color(200, 210, 240), Color(85, 65, 105)) else JBColor.border()
+            g2.drawRoundRect(0, 0, width - 1, height - 1, 16, 16)
+
             super.paintComponent(g)
         }
     }
 
-    // New class for the change widget background with rounded corners
     class RoundedChangeWidgetPanel : JPanel() {
-        init {
-            isOpaque = false // Paint manually
-        }
+        init { isOpaque = false }
         override fun paintComponent(g: Graphics) {
             val g2 = g as Graphics2D
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            val cornerRadius = 10 // Consistent radius
-            g2.color = JBColor(Color(245, 245, 245), Color(40, 42, 44)) // Same background as before
-            g2.fillRoundRect(0, 0, width - 1, height - 1, cornerRadius, cornerRadius)
-            g2.color = JBColor.border() // Same border color
-            g2.drawRoundRect(0, 0, width - 1, height - 1, cornerRadius, cornerRadius)
-            super.paintComponent(g) // Paint children
+            g2.color = JBColor(Color(248, 248, 248), Color(40, 42, 44))
+            g2.fillRoundRect(0, 0, width - 1, height - 1, 12, 12)
+            g2.color = JBColor.border()
+            g2.drawRoundRect(0, 0, width - 1, height - 1, 12, 12)
+            super.paintComponent(g)
         }
     }
 }

@@ -12,15 +12,16 @@ object MarkdownUtils {
     fun renderHtml(markdown: String): String {
         val isDark = UIUtil.isUnderDarcula()
 
-        // Цвета
+        // Colors configured for better contrast against chat bubbles
         val textColor = if (isDark) "#BBBBBB" else "#222222"
         val linkColor = if (isDark) "#589DF6" else "#285CC4"
-        val codeBg = if (isDark) "#3C3F41" else "#F0F0F0"
 
-        // ВАЖНО: Мы убрали явную установку font-family и font-size в CSS для body.
-        // JEditorPane с флагом HONOR_DISPLAY_PROPERTIES (установленным в ChatComponents)
-        // сам использует шрифт компонента. Это предотвращает NPE в CSS-парсере Swing,
-        // который может падать на некоторых системных именах шрифтов.
+        // Distinct background and border for code blocks
+        val codeBg = if (isDark) "#2B2D30" else "#F2F4F5"
+        val borderColor = if (isDark) "#45484A" else "#D1D1D1"
+
+        // IMPORTANT: We keep body font flexible (handled by JEditorPane),
+        // but enforce monospace for code blocks.
 
         val document = parser.parse(markdown)
         val htmlBody = renderer.render(document)
@@ -32,16 +33,18 @@ object MarkdownUtils {
                 body {
                     color: $textColor;
                     margin: 0;
-                    overflow-wrap: break-word; /* Добавлено: перенос длинных слов */
+                    overflow-wrap: break-word;
                 }
                 pre {
                     background-color: $codeBg;
-                    padding: 8px;
-                    margin-top: 6px;
-                    margin-bottom: 6px;
+                    border: 1px solid $borderColor;
+                    padding: 10px;
+                    margin-top: 8px;
+                    margin-bottom: 8px;
                 }
                 code {
-                    font-family: monospace;
+                    font-family: "JetBrains Mono", "Consolas", "Monospaced", monospace;
+                    font-size: 0.95em;
                     background-color: $codeBg;
                 }
                 p { margin-top: 0; margin-bottom: 6px; }

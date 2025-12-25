@@ -8,6 +8,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.* import com.intellij.openapi.ui.ComboBox
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil // Added for UI colors
 import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
 import okhttp3.Call
@@ -240,45 +241,50 @@ class MainPanel(val project: Project) {
             background = JBColor.background()
         }
 
+        // --- MODIFIED: Model Combo Box Styling (Transparent) ---
         modelComboBox.preferredSize = Dimension(160, 28)
         modelComboBox.font = JBUI.Fonts.label().deriveFont(12.0f)
-        modelComboBox.border = null
-        modelComboBox.isOpaque = true
-        modelComboBox.background = JBColor.background()
+        modelComboBox.border = JBUI.Borders.empty()
+        modelComboBox.isOpaque = false // Transparent background
         modelComboBox.putClientProperty("ComboBox.isSquare", true)
+
         modelComboBox.renderer = object : DefaultListCellRenderer() {
             override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
                 val l = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
-                l.isOpaque = true
+                // Only opaque when highlighted in the dropdown list
+                l.isOpaque = isSelected
                 if (isSelected) {
-                    l.background = JBColor.background().darker()
-                    l.foreground = JBColor.foreground()
+                    l.background = UIUtil.getListSelectionBackground(true)
+                    l.foreground = UIUtil.getListSelectionForeground(true)
                 } else {
-                    l.background = JBColor.background()
-                    l.foreground = JBColor.foreground()
+                    l.background = UIUtil.getPanelBackground()
+                    l.foreground = UIUtil.getLabelForeground()
                 }
                 return l
             }
         }
 
+        // --- MODIFIED: Mode Combo Box Styling (Transparent) ---
         modeComboBox.preferredSize = Dimension(70, 28)
-        modeComboBox.border = null
-        modeComboBox.isOpaque = true
-        modeComboBox.background = JBColor.background()
+        modeComboBox.border = JBUI.Borders.empty()
+        modeComboBox.isOpaque = false // Transparent background
         modeComboBox.putClientProperty("ComboBox.isSquare", true)
+
         modeComboBox.renderer = object : DefaultListCellRenderer() {
             override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
                 val l = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
                 l.text = ""
                 l.horizontalAlignment = SwingConstants.CENTER
-                l.isOpaque = true
+
+                // Only opaque when highlighted in the dropdown list
+                l.isOpaque = isSelected
 
                 if (isSelected) {
-                    l.background = JBColor.background().darker()
-                    l.foreground = JBColor.foreground()
+                    l.background = UIUtil.getListSelectionBackground(true)
+                    l.foreground = UIUtil.getListSelectionForeground(true)
                 } else {
-                    l.background = JBColor.background()
-                    l.foreground = JBColor.foreground()
+                    l.background = UIUtil.getPanelBackground()
+                    l.foreground = UIUtil.getLabelForeground()
                 }
                 when (value) {
                     "Chat" -> {
