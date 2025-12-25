@@ -38,6 +38,8 @@
         <toolWindow id="OpenGeminiAI Studio" secondary="false" anchor="right"
                     icon="/icons/logo-light.svg"
                     factoryClass="com.opengeminiai.studio.client.GeminiToolWindowFactory"/>
+
+        <projectService serviceImplementation="com.opengeminiai.studio.client.service.ChatInterfaceService"/>
     </extensions>
 
     <actions>
@@ -48,5 +50,16 @@
                 icon="/icons/logo-light.svg">
             <add-to-group group-id="Vcs.MessageActionGroup" anchor="first"/>
         </action>
+        <group id="OpenGeminiAI.EditorContext" text="OpenGeminiAI Studio" popup="true" icon="/icons/logo-light.svg">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ConsoleEditorPopupMenu" anchor="last"/>
+
+            <action id="OpenGeminiAI.Explain" class="com.opengeminiai.studio.client.actions.ExplainCodeAction" text="Explain Code"/>
+            <action id="OpenGeminiAI.Refactor" class="com.opengeminiai.studio.client.actions.RefactorCodeAction" text="Refactor / Optimize"/>
+            <action id="OpenGeminiAI.Tests" class="com.opengeminiai.studio.client.actions.GenerateTestsAction" text="Generate Tests"/>
+            <action id="OpenGeminiAI.Bugs" class="com.opengeminiai.studio.client.actions.FindBugsAction" text="Find Bugs"/>
+            <separator/>
+            <action id="OpenGeminiAI.AnalyzeError" class="com.opengeminiai.studio.client.actions.AnalyzeErrorAction" text="Analyze Error / Log"/>
+        </group>
     </actions>
 </idea-plugin>
