@@ -37,7 +37,11 @@ data class AppSettings(
     // Prompt Selections (Keys from the API or "Default")
     var chatPromptKey: String = "Default",
     var quickEditPromptKey: String = "Default",
-    var commitPromptKey: String = "Default"
+    var commitPromptKey: String = "Default",
+
+    // Context Filters (Comma-separated)
+    var ignoredDirectories: String = "__pycache__, node_modules, .git, .idea, .vscode, venv, .venv, env, build, target, out, dist, coverage, .gradle, .DS_Store, vendor, bin, obj, .nuxt, .next",
+    var ignoredExtensions: String = "pyc, pyo, pyd, class, o, so, dll, exe, dylib, jar, war, ear, zip, tar, gz, 7z, rar, iso, img, db, sqlite"
 )
 
 data class StorageWrapper(

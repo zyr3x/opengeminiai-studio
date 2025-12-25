@@ -461,7 +461,9 @@ class MainPanel(val project: Project) {
         // 3. Project Structure
         actions.add(object : AnAction("Project Structure", "Paste current project directory tree into chat", AllIcons.Actions.ListFiles) {
             override fun actionPerformed(e: AnActionEvent) {
-                val sb = StringBuilder("Project Structure:\n")
+                val sb = StringBuilder()
+                sb.append("Project Root: ${project.basePath}\n") // Added Absolute Path
+                sb.append("Project Structure:\n")
                 val roots = ProjectRootManager.getInstance(project).contentRoots
                 roots.forEach { root ->
                     buildFileTree(root, "", sb, 0)
@@ -542,15 +544,30 @@ class MainPanel(val project: Project) {
         popup.showUnderneathOf(component)
     }
 
+    private fun isIgnored(file: com.intellij.openapi.vfs.VirtualFile): Boolean {
+        // Read settings from AppSettings
+        val ignoredDirs = appSettings.ignoredDirectories.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        val ignoredExts = appSettings.ignoredExtensions.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+
+        if (file.isDirectory && ignoredDirs.contains(file.name)) return true
+        if (!file.isDirectory && (ignoredDirs.contains(file.name) || ignoredExts.contains(file.extension))) return true
+
+        return false
+    }
+
     private fun buildFileTree(file: com.intellij.openapi.vfs.VirtualFile, indent: String, sb: StringBuilder, depth: Int) {
-        if (depth > 5) return // Safety cap
+        if (depth > 8) return // Safety cap
+
         sb.append("$indent- ${file.name}\n")
+
         if (file.isDirectory) {
-            file.children.take(20).forEach { child -> // Limit children per node
-                if (!child.name.startsWith(".")) { // Skip dotfiles
+            file.children
+                .filter { !it.name.startsWith(".") && !isIgnored(it) } // Skip dotfiles and ignored items
+                .sortedBy { if (it.isDirectory) 0 else 1 } // Folders first
+                .take(50) // Limit children count per node
+                .forEach { child ->
                     buildFileTree(child, "$indent  ", sb, depth + 1)
                 }
-            }
         }
     }
 
@@ -882,9 +899,14 @@ class MainPanel(val project: Project) {
 
             // Text Context logic (append as pure text)
             attachments.filterIsInstance<TextContext>().forEach { item ->
-                sb.append("\n\n--- ${item.name} ---\n")
+                val type = when {
+                    item.name.startsWith("Commit", true) -> "commit"
+                    item.name.contains("Structure", true) -> "structure"
+                    else -> "text"
+                }
+                sb.append("\n\n:::CTX:${item.name}:$type:::\n")
                 sb.append(item.content)
-                sb.append("\n--- End of ${item.name} ---\n")
+                sb.append("\n:::END:::")
             }
         }
         val fullContent = sb.toString().trim()

@@ -77,6 +77,20 @@ class SettingsDialog(
                     comboBox(availablePrompts).bindItem(::commitPrompt)
                 }
             }
+            group("Context Filters") {
+                row("Ignored Directories (comma-separated):") {
+                    textField()
+                        .bindText(settings::ignoredDirectories)
+                        .align(Align.FILL)
+                        .comment("Folders like node_modules, __pycache__, etc.")
+                }
+                row("Ignored Extensions (comma-separated):") {
+                    textField()
+                        .bindText(settings::ignoredExtensions)
+                        .align(Align.FILL)
+                        .comment("Binary files, logs, etc.")
+                }
+            }
         }
         return mainPanel
     }

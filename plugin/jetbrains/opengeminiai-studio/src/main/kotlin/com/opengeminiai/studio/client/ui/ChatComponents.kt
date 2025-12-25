@@ -11,6 +11,7 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.ui.DialogWrapper
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -21,34 +22,28 @@ import kotlin.math.min
 
 object ChatComponents {
 
-    // Cache to store original file content for Undo functionality (Session based)
     private val undoCache = mutableMapOf<String, String>()
     private val appliedStatus = mutableSetOf<String>()
 
     fun createMessageBubble(role: String, content: String, messageIndex: Int? = null, onDelete: ((Int) -> Unit)? = null): JPanel {
         val isUser = role == "user"
-
-        // Main Wrapper
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        wrapper.border = JBUI.Borders.empty(4, 0) // Minimal vertical spacing
+        wrapper.border = JBUI.Borders.empty(4, 0)
 
-        // --- AVATAR ---
-        // Use Plugin Logo for AI, User Icon for User
         val avatarIcon = if (isUser) AllIcons.General.User else Icons.Logo
         val avatarLabel = JLabel(avatarIcon)
         avatarLabel.verticalAlignment = SwingConstants.TOP
-        avatarLabel.border = JBUI.Borders.empty(0, 8) // Spacing around avatar
+        avatarLabel.border = JBUI.Borders.empty(0, 8)
 
-        // --- BUBBLE CONTENT ---
         val bubble = RoundedPanel(isUser)
         bubble.layout = BoxLayout(bubble, BoxLayout.Y_AXIS)
-        // Compact padding inside bubble
         bubble.border = JBUI.Borders.empty(8, 10)
 
-        // Parse content
         val textContentBuilder = StringBuilder()
         val attachedFilesForDisplay = mutableListOf<File>()
+
+        // Pre-process markers to extract files and keep other content
         content.lines().forEach { line ->
             val trimmed = line.trim()
             if (trimmed.startsWith("image_path=")) {
@@ -61,16 +56,13 @@ object ChatComponents {
         }
         val actualTextContent = textContentBuilder.toString().trim()
 
-        // Populate Bubble with Text and Code segments
         populateBubbleContent(bubble, actualTextContent)
 
-        // Attachments
         if (attachedFilesForDisplay.isNotEmpty()) {
             val attachmentsPanel = JPanel()
             attachmentsPanel.layout = BoxLayout(attachmentsPanel, BoxLayout.Y_AXIS)
             attachmentsPanel.isOpaque = false
 
-            // Add spacing between text and files if text exists
             if (actualTextContent.isNotBlank()) {
                  attachmentsPanel.add(Box.createVerticalStrut(8))
             }
@@ -86,30 +78,21 @@ object ChatComponents {
             bubble.add(attachmentsPanel)
         }
 
-        // --- DELETE BUTTON ---
         val deleteBtn = JLabel(AllIcons.Actions.GC)
         deleteBtn.toolTipText = "Delete Message"
         deleteBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        deleteBtn.border = JBUI.Borders.empty(6) // Easier to click
+        deleteBtn.border = JBUI.Borders.empty(6)
         if (messageIndex != null && onDelete != null) {
             deleteBtn.addMouseListener(object : MouseAdapter() {
-                override fun mouseClicked(e: MouseEvent) {
-                    onDelete(messageIndex)
-                }
-                override fun mouseEntered(e: MouseEvent) {
-                    deleteBtn.icon = AllIcons.Actions.Cancel // Change icon on hover for effect
-                }
-                override fun mouseExited(e: MouseEvent) {
-                    deleteBtn.icon = AllIcons.Actions.GC
-                }
+                override fun mouseClicked(e: MouseEvent) { onDelete(messageIndex) }
+                override fun mouseEntered(e: MouseEvent) { deleteBtn.icon = AllIcons.Actions.Cancel }
+                override fun mouseExited(e: MouseEvent) { deleteBtn.icon = AllIcons.Actions.GC }
             })
         } else {
             deleteBtn.isVisible = false
         }
 
-        // --- LAYOUT ASSEMBLY ---
         val box = Box.createHorizontalBox()
-
         if (isUser) {
             box.add(Box.createHorizontalGlue())
             box.add(deleteBtn)
@@ -126,10 +109,7 @@ object ChatComponents {
         return wrapper
     }
 
-    // --- UTILS ---
-
     fun updateMessageBubble(bubbleWrapper: JPanel, content: String) {
-        // Find the RoundedPanel inside the wrapper
         val bubble = findChildComponentRecursive(bubbleWrapper, RoundedPanel::class.java)
         if (bubble != null) {
             bubble.removeAll()
@@ -147,50 +127,103 @@ object ChatComponents {
 
         val segments = parseSegments(content)
         segments.forEach { segment ->
-            if (segment.isCode) {
-                panel.add(createCodePanel(segment.content))
-            } else {
-                if (segment.content.isNotBlank()) {
-                    panel.add(createTextPanel(segment.content))
+            when (segment.type) {
+                SegmentType.CODE -> panel.add(createCodePanel(segment.content))
+                SegmentType.CONTEXT -> {
+                    val ctxPanel = createContextPanel(segment.title!!, segment.contentType!!, segment.content)
+                    panel.add(ctxPanel)
+                    // Add small spacing after context item
+                    panel.add(Box.createVerticalStrut(4))
+                }
+                SegmentType.TEXT -> {
+                    if (segment.content.isNotBlank()) {
+                        panel.add(createTextPanel(segment.content))
+                    }
                 }
             }
         }
     }
 
-    private data class MessageSegment(val content: String, val isCode: Boolean)
+    enum class SegmentType { TEXT, CODE, CONTEXT }
+    private data class MessageSegment(val content: String, val type: SegmentType, val title: String? = null, val contentType: String? = null)
 
     private fun parseSegments(text: String): List<MessageSegment> {
         val segments = mutableListOf<MessageSegment>()
-        // Regex matches fenced code blocks: ```lang ... ```
-        val matcher = Pattern.compile("```(?:\\w*)\\n?([\\s\\S]*?)```").matcher(text)
+
+        // Group 1: Code block content
+        // Group 2: Context title, Group 3: Context type, Group 4: Context content
+        val pattern = Pattern.compile("```(?:\\w*)\\n?([\\s\\S]*?)```|:::CTX:(.*?):(.*?):::\\n([\\s\\S]*?)\\n:::END:::")
+        val matcher = pattern.matcher(text)
         var lastIndex = 0
 
         while (matcher.find()) {
             if (matcher.start() > lastIndex) {
                 val textPart = text.substring(lastIndex, matcher.start())
-                if (textPart.isNotBlank()) {
-                    segments.add(MessageSegment(textPart, false))
-                }
+                if (textPart.isNotBlank()) segments.add(MessageSegment(textPart, SegmentType.TEXT))
             }
-            val code = matcher.group(1) ?: ""
-            segments.add(MessageSegment(code.trim(), true))
+
+            if (matcher.group(1) != null) {
+                segments.add(MessageSegment(matcher.group(1).trim(), SegmentType.CODE))
+            } else {
+                val title = matcher.group(2)
+                val type = matcher.group(3)
+                val content = matcher.group(4)
+                segments.add(MessageSegment(content, SegmentType.CONTEXT, title, type))
+            }
             lastIndex = matcher.end()
         }
 
         if (lastIndex < text.length) {
             val tail = text.substring(lastIndex)
-            if (tail.isNotEmpty()) {
-                segments.add(MessageSegment(tail, false))
-            }
+            if (tail.isNotEmpty()) segments.add(MessageSegment(tail, SegmentType.TEXT))
         }
         return segments
+    }
+
+    private fun createContextPanel(title: String, type: String, content: String): JComponent {
+        val icon = when (type) {
+            "commit" -> AllIcons.Vcs.CommitNode
+            "structure" -> AllIcons.Actions.ListFiles
+            else -> AllIcons.FileTypes.Text
+        }
+
+        // Limit title length to avoid super wide chips
+        val displayTitle = if (title.length > 40) title.take(37) + "..." else title
+
+        val chip = createGenericChip(displayTitle, icon, {}, {
+            showContentDialog(title, content)
+        }, false)
+
+        chip.alignmentX = Component.LEFT_ALIGNMENT
+        // FIX: Ensure it doesn't stretch to full width
+        chip.maximumSize = chip.preferredSize
+
+        return chip
+    }
+
+    private fun showContentDialog(title: String, content: String) {
+        val dialog = object : DialogWrapper(true) {
+            init {
+                this.title = title
+                init()
+            }
+            override fun createCenterPanel(): JComponent {
+                val textArea = JTextArea(content)
+                textArea.isEditable = false
+                textArea.font = JBUI.Fonts.create("JetBrains Mono", 12)
+                val scroll = JBScrollPane(textArea)
+                scroll.preferredSize = Dimension(600, 400)
+                return scroll
+            }
+            override fun createActions(): Array<Action> = arrayOf(okAction)
+        }
+        dialog.show()
     }
 
     private fun createCodePanel(code: String): JComponent {
         val textArea = JTextArea(code)
         textArea.font = JBUI.Fonts.create("JetBrains Mono", 12)
         textArea.isEditable = false
-        // Make code blocks significantly darker for better separation
         textArea.background = if (UIUtil.isUnderDarcula()) Color(30, 31, 33) else Color(242, 244, 245)
         textArea.foreground = if (UIUtil.isUnderDarcula()) Color(169, 183, 198) else Color(8, 8, 8)
         textArea.margin = JBUI.insets(8)
@@ -199,12 +232,11 @@ object ChatComponents {
         scroll.border = JBUI.Borders.customLine(if (UIUtil.isUnderDarcula()) Color(50, 50, 50) else Color(200, 200, 200))
         scroll.viewportBorder = null
 
-        // Height Logic: Cap at ~300px to allow vertical scrolling
         val metrics = textArea.getFontMetrics(textArea.font)
         val lineHeight = metrics.height
         val lines = code.lines().size
         val maxHeight = 300
-        val prefHeight = min(maxHeight, (lines * lineHeight) + 24) // + padding
+        val prefHeight = min(maxHeight, (lines * lineHeight) + 24)
 
         scroll.preferredSize = Dimension(-1, prefHeight)
         scroll.maximumSize = Dimension(Int.MAX_VALUE, prefHeight)
@@ -244,7 +276,6 @@ object ChatComponents {
         return null
     }
 
-    // Generalized chip creation
     fun createGenericChip(text: String, icon: Icon, onClose: () -> Unit, onClick: (() -> Unit)? = null, isRemovable: Boolean = true): JPanel {
         val chip = JPanel(BorderLayout())
         chip.isOpaque = false
@@ -253,7 +284,6 @@ object ChatComponents {
             override fun paintComponent(g: Graphics) {
                 val g2 = g as Graphics2D
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                // Darker chip background in dark mode
                 g2.color = JBColor(Color(230, 230, 230), Color(45, 47, 49))
                 g2.fillRoundRect(0, 0, width - 1, height - 1, 8, 8)
                 g2.color = JBColor.border()
@@ -293,13 +323,11 @@ object ChatComponents {
         return chip
     }
 
-    // Keep compatibility for File signature, delegating to generic
     fun createAttachmentChip(file: File, onClose: () -> Unit, isRemovable: Boolean = true): JPanel {
         val icon = if (file.isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
         return createGenericChip(file.name, icon, onClose, null, isRemovable)
     }
 
-    // MODIFIED: Added onDelete callback
     fun createChangeWidget(project: Project, changes: List<FileChange>, onDelete: () -> Unit): JPanel {
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
@@ -438,8 +466,6 @@ object ChatComponents {
                 val darkColor = Color(70, 50, 90)
                 g2.color = JBColor(lightColor, darkColor)
             } else {
-                // Modified: Darker background for AI response to improve text readability
-                // Light Mode: White, Dark Mode: Color(35, 37, 39) (Darker than standard panel)
                 g2.color = JBColor(Color(255, 255, 255), Color(35, 37, 39))
             }
             g2.fillRoundRect(0, 0, width - 1, height - 1, 16, 16)
