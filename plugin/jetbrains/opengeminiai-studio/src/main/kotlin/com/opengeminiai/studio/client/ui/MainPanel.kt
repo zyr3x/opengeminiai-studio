@@ -886,8 +886,5 @@ class MainPanel(val project: Project) {
         val displayTitle = if (title.length > 25) title.substring(0, 22) + "..." else title
         headerInfoLabel.text = "<html><b>$displayTitle</b> <span style='color:gray'>($model)</span></html>"
         headerInfoLabel.toolTipText = "$title using $model"
-
-        // FIX: Restored the icon (was explicitly set to null)
-        headerInfoLabel.icon = Icons.Logo
     }
 }
