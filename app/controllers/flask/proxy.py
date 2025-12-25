@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import fnmatch
 import requests
 from flask import Blueprint, request, jsonify, Response
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
@@ -14,7 +15,6 @@ from app.utils.core.optimization_utils import can_execute_parallel
 
 import traceback
 from app.utils.core import file_processing_utils
-from app.utils.core import patch_utils
 proxy_bp = Blueprint('proxy', __name__)
 @proxy_bp.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
@@ -29,7 +29,6 @@ def chat_completions():
         enable_native_tools = False
         project_system_context_text = None
         profile_selected_mcp_tools = []
-        editing_mode = False
 
         if mcp_handler.disable_all_mcp_tools:
             utils.log("All MCP tools globally disabled via general settings.")
@@ -71,8 +70,6 @@ def chat_completions():
                         processed_content, project_path_found, new_system_context = file_processing_utils.process_message_for_paths(
                             content, processed_code_paths
                         )
-                        if config.QUICK_EDIT_ENABLED and 'code_path=' in content:
-                            editing_mode = True
 
                         message['content'] = processed_content
                         if new_system_context:
@@ -90,6 +87,148 @@ def chat_completions():
             full_prompt_text = ""
 
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
+        provider = utils.get_provider_for_model(COMPLETION_MODEL)
+
+        if provider == 'openai':
+            def generate_openai():
+                current_messages = messages.copy()
+                # Inject system prompt if needed
+                if project_system_context_text:
+                    current_messages.insert(0, {"role": "system", "content": project_system_context_text})
+
+                while True:
+                    request_data = {
+                        "model": COMPLETION_MODEL,
+                        "messages": current_messages,
+                        "stream": True,
+                        "temperature": 0.7
+                    }
+
+                    # Tools setup for OpenAI
+                    openai_tools = []
+                    builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
+
+                    if project_context_tools_requested and not disable_mcp_tools:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+                    elif not disable_mcp_tools and profile_selected_mcp_tools:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
+                    elif not disable_mcp_tools:
+                         # For all tools, we need names. Using context aware is harder here without refactoring, 
+                         # so we enable all allowed or relevant. Let's enable all available declarations.
+                         # Or we can reuse mcp_handler.create_tool_declarations but need names
+                         # Simplified: enable builtin if no profile
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+
+                    if enable_native_tools:
+                        pass # Native tools are Gemini specific
+
+                    if openai_tools:
+                        request_data["tools"] = openai_tools
+                        request_data["tool_choice"] = "auto"
+
+                    try:
+                        headers = {
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {config.OPENAI_API_KEY}",
+                            # OpenRouter specific headers
+                            "HTTP-Referer": "https://github.com/zyr3x/gemini-proxy",
+                            "X-Title": "OpenGeminiAI Studio"
+                        }
+                        response = requests.post(
+                            f"{config.OPENAI_BASE_URL}/chat/completions",
+                            headers=headers,
+                            json=request_data,
+                            stream=True,
+                            timeout=300
+                        )
+                        response.raise_for_status()
+                    except Exception as e:
+                        err_msg = f"OpenAI Provider Error: {e}"
+                        utils.log(err_msg)
+                        error_chunk = {
+                            "id": f"chatcmpl-{os.urandom(12).hex()}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": COMPLETION_MODEL,
+                            "choices": [{"index": 0, "delta": {"content": err_msg}, "finish_reason": "stop"}]
+                        }
+                        yield f"data: {json.dumps(error_chunk)}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+
+                    tool_calls = []
+                    current_tool_call = None
+                    full_response_text = ""
+
+                    for line in response.iter_lines():
+                        if not line: continue
+                        decoded_line = line.decode('utf-8')
+                        if decoded_line.startswith('data: '):
+                            if decoded_line == 'data: [DONE]': break
+                            try:
+                                chunk = json.loads(decoded_line[6:])
+                                delta = chunk['choices'][0]['delta']
+                                finish_reason = chunk['choices'][0].get('finish_reason')
+
+                                if 'content' in delta and delta['content']:
+                                    content_chunk = delta['content']
+                                    full_response_text += content_chunk
+                                    # Yield text content immediately
+                                    yield f"data: {json.dumps(chunk)}\n\n"
+                                elif finish_reason and finish_reason != 'tool_calls':
+                                    yield f"data: {json.dumps(chunk)}\n\n"
+
+                                if 'tool_calls' in delta:
+                                    for tc in delta['tool_calls']:
+                                        if tc.get('id'):
+                                            if current_tool_call:
+                                                tool_calls.append(current_tool_call)
+                                            current_tool_call = {
+                                                'id': tc['id'],
+                                                'function': {
+                                                    'name': tc['function'].get('name', ''),
+                                                    'arguments': tc['function'].get('arguments', '')
+                                                },
+                                                'type': 'function'
+                                            }
+                                        elif current_tool_call:
+                                            if 'name' in tc['function']:
+                                                current_tool_call['function']['name'] += tc['function']['name']
+                                            if 'arguments' in tc['function']:
+                                                current_tool_call['function']['arguments'] += tc['function']['arguments']
+                            except Exception:
+                                pass
+
+                    if current_tool_call:
+                        tool_calls.append(current_tool_call)
+
+                    if not tool_calls:
+                        yield "data: [DONE]\n\n"
+                        break
+
+                    # Process tool calls
+                    current_messages.append({"role": "assistant", "content": full_response_text, "tool_calls": tool_calls})
+
+                    for tool_call in tool_calls:
+                        func_name = tool_call['function']['name']
+                        func_args_str = tool_call['function']['arguments']
+                        try:
+                            func_args = json.loads(func_args_str)
+                        except:
+                            func_args = {}
+
+                        utils.log(f"Executing tool: {func_name}")
+                        tool_result = mcp_handler.execute_mcp_tool(func_name, func_args, project_context_root)
+
+                        current_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call['id'],
+                            "name": func_name,
+                            "content": str(tool_result)
+                        })
+
+            return Response(generate_openai(), mimetype='text/event-stream')
+
         system_instruction = None
 
         gemini_contents = []
@@ -101,28 +240,6 @@ def chat_completions():
             elif messages[0].get("role") == "system" or 'JetBrains' in messages[0].get("content"):
                 system_instruction = {"parts": [{"text": messages[0].get("content", "")}]}
                 messages = messages[1:]
-
-            if editing_mode:
-                edit_instruction = (
-                    "\n\n**EDITING MODE ACTIVE**\n"
-                    "You are in editing mode. The user has provided code context via `code_path=`.\n"
-                    "If you need to modify any files, you MUST use the following patch format:\n\n"
-                    "File: `path/to/file`\n"
-                    "<<<<<<< SEARCH\n"
-                    "[exact content to replace]\n"
-                    "=======\n"
-                    "[new content]\n"
-                    ">>>>>>> REPLACE\n\n"
-                    "Rules:\n"
-                    "1. The SEARCH block must match the existing file content EXACTLY, including whitespace.\n"
-                    "2. You can apply multiple patches to multiple files.\n"
-                    "3. The system will automatically apply these patches and strip them from your response.\n"
-                    "4. Your final response to the user should ONLY contain the answer/explanation, not the patch blocks.\n"
-                )
-                if system_instruction:
-                    system_instruction['parts'][0]['text'] += edit_instruction
-                else:
-                    system_instruction = {"parts": [{"text": edit_instruction}]}
 
             mapped_messages = []
             for message in messages:
@@ -349,7 +466,10 @@ def chat_completions():
                             if 'usageMetadata' in json_data:
                                 final_usage_metadata.update(json_data['usageMetadata'])
 
-                            parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+                            candidates = json_data.get('candidates', [{}])
+                            if not candidates: continue
+                            
+                            parts = candidates[0].get('content', {}).get('parts', [])
 
                             if not parts and 'usageMetadata' in json_data:
                                 continue
@@ -487,37 +607,6 @@ def chat_completions():
 
             record_token_usage(api_key_header, model_name, input_tokens, output_tokens)
 
-            if editing_mode:
-                # In editing mode, we buffer the entire response to apply patches
-                full_response_text = ""
-                for content in current_contents:
-                    if content.get('role') == 'model':
-                        for part in content.get('parts', []):
-                            if 'text' in part:
-                                full_response_text += part['text']
-
-                # Apply patches
-                cleaned_text, changes = patch_utils.apply_patches(full_response_text)
-
-                if changes:
-                    cleaned_text += "\n\n**System applied patches:**\n" + "\n".join([f"- {c}" for c in changes])
-
-                # Send the cleaned response
-                final_chunk = {
-                    "id": f"chatcmpl-{os.urandom(12).hex()}",
-                    "object": "chat.completion.chunk",
-                    "created": int(time.time()),
-                    "model": COMPLETION_MODEL,
-                    "choices": [{
-                        "index": 0,
-                        "delta": {"content": cleaned_text},
-                        "finish_reason": "stop"
-                    }]
-                }
-                yield f"data: {json.dumps(final_chunk)}\n\n"
-                yield "data: [DONE]\n\n"
-                return
-
             final_chunk = {
                 "id": f"chatcmpl-{os.urandom(12).hex()}",
                 "object": "chat.completion.chunk",
@@ -544,24 +633,85 @@ def list_models():
         if utils.cached_models_response:
             return jsonify(utils.cached_models_response)
 
-        params = {"key": config.API_KEY}
-        GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
-        response = requests.get(GEMINI_MODELS_URL, params=params)
-        response.raise_for_status()
-        gemini_models_data = response.json()
-
         openai_models_list = []
-        for model in gemini_models_data.get("models", []):
-            if "generateContent" in model.get("supportedGenerationMethods", []):
-                openai_models_list.append({
-                    "id": model["name"].split("/")[-1], "object": "model",
-                    "created": 1677649553, "owned_by": "google", "permission": []
-                })
+
+        # 1. Fetch Gemini Models
+        try:
+            params = {"key": config.API_KEY}
+            GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
+            response = requests.get(GEMINI_MODELS_URL, params=params, timeout=10)
+            response.raise_for_status()
+            gemini_models_data = response.json()
+
+            for model in gemini_models_data.get("models", []):
+                if "generateContent" in model.get("supportedGenerationMethods", []):
+                    openai_models_list.append({
+                        "id": model["name"].split("/")[-1], "object": "model",
+                        "created": 1677649553, "owned_by": "google", "permission": []
+                    })
+        except Exception as e:
+            utils.log(f"Error fetching Gemini models: {e}")
+
+        # 2. Fetch OpenAI/OpenRouter Models
+        if config.OPENAI_API_KEY and config.OPENAI_BASE_URL:
+            try:
+                OPENAI_MODELS_URL = f"{config.OPENAI_BASE_URL}/models"
+                headers = {
+                    "Authorization": f"Bearer {config.OPENAI_API_KEY}",
+                    "HTTP-Referer": "https://github.com/zyr3x/gemini-proxy",
+                    "X-Title": "OpenGeminiAI Studio"
+                }
+                response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    openai_models_data = response.json()
+                    for model in openai_models_data.get("data", []):
+                        openai_models_list.append({
+                            "id": model.get("id"), "object": "model",
+                            "created": model.get("created", 1677649553),
+                            "owned_by": model.get("owned_by", "openai-compatible"),
+                            "permission": []
+                        })
+                else:
+                    utils.log(f"Error fetching OpenAI models: Status {response.status_code}")
+            except Exception as e:
+                utils.log(f"Error fetching OpenAI models: {e}")
+
+        if config.ALLOWED_MODELS and '*' not in config.ALLOWED_MODELS:
+            openai_models_list = [
+                m for m in openai_models_list
+                if any(fnmatch.fnmatch(m['id'], pattern) for pattern in config.ALLOWED_MODELS)
+            ]
+
+        if config.IGNORED_MODELS:
+            openai_models_list = [
+                m for m in openai_models_list
+                if not any(fnmatch.fnmatch(m['id'], pattern) for pattern in config.IGNORED_MODELS)
+            ]
+
         openai_response = {"object": "list", "data": openai_models_list}
         utils.cached_models_response = openai_response
         return jsonify(openai_response)
 
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Error fetching models from Gemini API: {e}"}), 500
     except Exception as e:
+        return jsonify({"error": f"Internal server error: {e}"}), 500
+
+@proxy_bp.route('/v1/system_prompts', methods=['GET'])
+def list_system_prompts():
+    try:
+        from app.utils.core.prompt_loader import load_default_system_prompts
+        current_system_prompts_str = ""
+        if os.path.exists(utils.SYSTEM_PROMPTS_FILE):
+            with open(utils.SYSTEM_PROMPTS_FILE, 'r') as f:
+                current_system_prompts_str = f.read()
+
+        default_system_prompts = load_default_system_prompts()
+        system_prompt_profiles = default_system_prompts
+        if current_system_prompts_str.strip():
+            try:
+                system_prompt_profiles = json.loads(current_system_prompts_str)
+            except json.JSONDecodeError:
+                pass
+        return jsonify(system_prompt_profiles)
+    except Exception as e:
+        utils.log(f"Error fetching system prompts: {e}")
         return jsonify({"error": f"Internal server error: {e}"}), 500

@@ -256,7 +256,34 @@ class AuxModelEnhanced:
     
     def _call_aux_model(self, prompt: str, strategy_config: Dict) -> str:
         """Make actual API call to aux model"""
-        from app.utils.core.tools import make_request_with_retry
+        from app.utils.core.tools import make_request_with_retry, get_provider_for_model
+        import requests
+
+        provider = get_provider_for_model(config.AGENT_AUX_MODEL_NAME)
+
+        if provider == 'openai':
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': f"Bearer {config.OPENAI_API_KEY}"
+            }
+            request_data = {
+                "model": config.OPENAI_MODEL_NAME,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": strategy_config['temperature'],
+                "max_tokens": strategy_config['max_output']
+            }
+            try:
+                response = requests.post(
+                    f"{config.OPENAI_BASE_URL}/chat/completions",
+                    headers=headers,
+                    json=request_data,
+                    timeout=120
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data['choices'][0]['message']['content']
+            except Exception as e:
+                raise ValueError(f"OpenAI API Error: {e}")
         
         GEMINI_URL = f"{config.UPSTREAM_URL}/v1beta/models/{config.AGENT_AUX_MODEL_NAME}:generateContent"
         

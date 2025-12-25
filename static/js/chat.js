@@ -862,11 +862,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!response.ok) throw new Error('Failed to load models');
             const data = await response.json();
             // Include gemini, veo, and imagen models
-            const models = data.data.filter(m =>
-                m.id.includes('gemini') ||
-                m.id.includes('veo') ||
-                m.id.includes('imagen')
-            );
+            const models = data.data;
             modelSelect.innerHTML = '';
             models.forEach(model => {
                 const option = document.createElement('option');

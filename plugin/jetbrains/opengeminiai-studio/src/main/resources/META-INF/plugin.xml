@@ -1,0 +1,52 @@
+<idea-plugin>
+    <id>com.opengeminiai.studio.v1</id>
+    <name>OpenGeminiAI Studio</name>
+    <vendor>zyr3x</vendor>
+    <description><![CDATA[<p><b>Professional AI Assistant for JetBrains IDEs.</b></p>
+        <p>OpenGeminiAI Studio integrates powerful LLMs (Gemini, OpenRouter) directly into your workflow via a high-performance local proxy.</p>
+
+        <h3>✨ Key Features:</h3>
+        <ul>
+            <li><b>Advanced Chat:</b> Professional chat interface with persistent history and Markdown support.</li>
+            <li><b>Quick Edit:</b> Allow the AI to suggest and apply code modifications directly to your files with a built-in diff viewer.</li>
+            <li><b>AI Commit Messages:</b> Generate concise, conventional commit messages based on your staged changes with one click.</li>
+            <li><b>Context Aware:</b> Seamlessly attach local files and images to your prompts via drag-and-drop.</li>
+            <li><b>Multi-Provider:</b> Support for Gemini and OpenRouter models (Claude 3.7, GPT-4o, DeepSeek) through a unified interface.</li>
+        </ul>
+
+        <h3>🚀 Getting Started:</h3>
+        <ol>
+            <li>Ensure your OpenGeminiAI Studio proxy is running (default: http://localhost:8080).</li>
+            <li>Go to <b>Settings > Tools > OpenGeminiAI Studio</b> to configure your Base URL.</li>
+            <li>Open the tool window on the right sidebar and start coding with AI!</li>
+        </ol>
+    ]]></description>
+    <change-notes><![CDATA[<ul>
+    <li><b>v1.0.0</b>: Initial Release.
+        <ul>
+            <li>Native Chat interface with Markdown and History.</li>
+            <li>Quick Edit mode for direct code patching.</li>
+            <li>Conventional Commit Message generator.</li>
+            <li>File and Image attachment support.</li>
+            <li>Custom System Prompt profiles.</li>
+        </ul>
+    </li>
+</ul>]]></change-notes>
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="OpenGeminiAI Studio" secondary="false" anchor="right"
+                    icon="/icons/logo-light.svg"
+                    factoryClass="com.opengeminiai.studio.client.GeminiToolWindowFactory"/>
+    </extensions>
+
+    <actions>
+        <action id="com.opengeminiai.studio.client.actions.GenerateCommitAction"
+                class="com.opengeminiai.studio.client.actions.GenerateCommitAction"
+                text="Generate Commit Message (OpenGeminiAI Studio)"
+                description="Generates a commit message using OpenGeminiAI"
+                icon="/icons/logo-light.svg">
+            <add-to-group group-id="Vcs.MessageActionGroup" anchor="first"/>
+        </action>
+    </actions>
+</idea-plugin>

@@ -1,5 +1,6 @@
 import json
 import os
+import fnmatch
 from quart import Blueprint, request, jsonify, Response, send_from_directory
 from app.config import config
 from app.utils.core import mcp_handler
@@ -46,6 +47,86 @@ def delete_message(message_id):
     except Exception as e:
         tools.log(f"Error deleting message {message_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
+@web_ui_chat_bp.route('/api/models', methods=['GET'])
+async def list_models():
+    if not config.API_KEY:
+        return jsonify({
+            "error": {
+                "message": "API key not configured.",
+                "type": "invalid_request_error",
+                "code": "api_key_not_set"
+            }
+        }), 401
+
+    try:
+        if tools.cached_models_response:
+            return jsonify(tools.cached_models_response)
+
+        openai_models_list = []
+        session = await quart_utils.get_async_session()
+
+        # 1. Fetch Gemini Models
+        try:
+            params = {"key": config.API_KEY}
+            GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
+
+            async with session.get(GEMINI_MODELS_URL, params=params) as response:
+                response.raise_for_status()
+                gemini_models_data = await response.json()
+
+            for model in gemini_models_data.get("models", []):
+                if "generateContent" in model.get("supportedGenerationMethods", []):
+                    openai_models_list.append({
+                        "id": model["name"].split("/")[-1],
+                        "object": "model",
+                        "created": 1677649553,
+                        "owned_by": "google",
+                        "permission": []
+                    })
+        except Exception as e:
+            tools.log(f"Error fetching Gemini models: {e}")
+
+        # 2. Fetch OpenAI Models
+        if config.OPENAI_API_KEY and config.OPENAI_BASE_URL:
+            try:
+                OPENAI_MODELS_URL = f"{config.OPENAI_BASE_URL}/models"
+                headers = {"Authorization": f"Bearer {config.OPENAI_API_KEY}"}
+
+                async with session.get(OPENAI_MODELS_URL, headers=headers) as response:
+                    response.raise_for_status()
+                    openai_models_data = await response.json()
+
+                for model in openai_models_data.get("data", []):
+                    openai_models_list.append({
+                        "id": model.get("id"),
+                        "object": "model",
+                        "created": model.get("created", 1677649553),
+                        "owned_by": model.get("owned_by", "openai-compatible"),
+                        "permission": []
+                    })
+            except Exception as e:
+                tools.log(f"Error fetching OpenAI models: {e}")
+
+        if config.ALLOWED_MODELS and '*' not in config.ALLOWED_MODELS:
+            openai_models_list = [
+                m for m in openai_models_list
+                if any(fnmatch.fnmatch(m['id'], pattern) for pattern in config.ALLOWED_MODELS)
+            ]
+
+        if config.IGNORED_MODELS:
+            openai_models_list = [
+                m for m in openai_models_list
+                if not any(fnmatch.fnmatch(m['id'], pattern) for pattern in config.IGNORED_MODELS)
+            ]
+
+        openai_response = {"object": "list", "data": openai_models_list}
+        tools.cached_models_response = openai_response
+        return jsonify(openai_response)
+
+    except Exception as e:
+        return jsonify({"error": f"Error fetching models: {e}"}), 500
+
 @web_ui_chat_bp.route('/api/generate_image', methods=['POST'])
 async def generate_image_api():
     form = await request.form
@@ -74,6 +155,136 @@ async def chat_api():
         profile_selected_mcp_tools = data['profile_selected_mcp_tools']
         disable_mcp_tools = data['disable_mcp_tools']
         enable_native_tools = data['enable_native_tools']
+
+        if tools.get_provider_for_model(model) == 'openai':
+            async def generate_openai():
+                # Reconstruct OpenAI style messages from gemini_contents
+                # This is an approximation as gemini_contents are already converted.
+                # Ideally we should use raw input but it was processed.
+                # Assuming simple conversion back for user/model roles.
+                messages = []
+                for content in gemini_contents:
+                    role = 'user' if content['role'] == 'user' else 'assistant'
+                    text = " ".join([p.get('text', '') for p in content['parts'] if 'text' in p])
+                    if text:
+                        messages.append({"role": role, "content": text})
+
+                # Add system prompt if available (it was injected into first user message in logic usually, 
+                # but here we might just prepend if we have access, or it is already in contents)
+
+                while True:
+                    request_data = {
+                        "model": model,
+                        "messages": messages,
+                        "stream": True,
+                        "temperature": 0.7
+                    }
+
+                    # Tools
+                    openai_tools = []
+                    builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
+                    if project_context_tools_requested:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+                    elif selected_mcp_tools:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(selected_mcp_tools))
+                    elif profile_selected_mcp_tools:
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
+                    elif not disable_mcp_tools:
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+
+                    if openai_tools:
+                        request_data["tools"] = openai_tools
+                        request_data["tool_choice"] = "auto"
+
+                    try:
+                        session = await quart_utils.get_async_session()
+                        headers = {
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {config.OPENAI_API_KEY}"
+                        }
+                        
+                        async with session.post(
+                            f"{config.OPENAI_BASE_URL}/chat/completions",
+                            headers=headers,
+                            json=request_data,
+                            timeout=300
+                        ) as response:
+                            response.raise_for_status()
+                            
+                            tool_calls = []
+                            current_tool_call = None
+                            full_response_text = ""
+                            
+                            async for line in response.content:
+                                if not line: continue
+                                decoded_line = line.decode('utf-8').strip()
+                                if decoded_line.startswith('data: '):
+                                    if decoded_line == 'data: [DONE]': break
+                                    try:
+                                        chunk = json.loads(decoded_line[6:])
+                                        delta = chunk['choices'][0]['delta']
+                                        
+                                        if 'content' in delta and delta['content']:
+                                            content_chunk = delta['content']
+                                            full_response_text += content_chunk
+                                            yield content_chunk
+                                        
+                                        if 'tool_calls' in delta:
+                                            for tc in delta['tool_calls']:
+                                                if tc.get('id'):
+                                                    if current_tool_call: tool_calls.append(current_tool_call)
+                                                    current_tool_call = {
+                                                        'id': tc['id'],
+                                                        'function': {'name': tc['function'].get('name', ''), 'arguments': tc['function'].get('arguments', '')},
+                                                        'type': 'function'
+                                                    }
+                                                elif current_tool_call:
+                                                    if 'name' in tc['function']: current_tool_call['function']['name'] += tc['function']['name']
+                                                    if 'arguments' in tc['function']: current_tool_call['function']['arguments'] += tc['function']['arguments']
+                                    except: pass
+                            
+                            if current_tool_call: tool_calls.append(current_tool_call)
+                            
+                            if full_response_text:
+                                tools.add_message_to_db(chat_id, 'model', [{"text": full_response_text}])
+                                messages.append({"role": "assistant", "content": full_response_text})
+                            
+                            if not tool_calls:
+                                break
+                                
+                            # Process tools
+                            tool_response_parts = []
+                            messages.append({"role": "assistant", "tool_calls": tool_calls})
+                            
+                            tool_calls_list = [{'name': tc['function']['name'], 'args': json.loads(tc['function']['arguments'])} for tc in tool_calls]
+                            
+                            tool_results = await async_mcp_handler.execute_multiple_tools_async(tool_calls_list, project_context_root)
+                            
+                            for i, result_part in enumerate(tool_results):
+                                func_name = tool_calls[i]['function']['name']
+                                output = result_part['functionResponse']['response']
+                                if isinstance(output, dict) and 'content' in output:
+                                    output = output['content']
+                                else:
+                                    output = json.dumps(output)
+                                    
+                                tool_response_parts.append({"functionResponse": {"name": func_name, "response": json.loads(output) if output.startswith('{') else {"content": output}}})
+                                
+                                messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": tool_calls[i]['id'],
+                                    "name": func_name,
+                                    "content": str(output)
+                                })
+                            
+                            if tool_response_parts:
+                                tools.add_message_to_db(chat_id, 'tool', tool_response_parts)
+
+                    except Exception as e:
+                        yield f"ERROR: OpenAI Provider: {e}"
+                        return
+
+            return Response(generate_openai(), mimetype='text/event-stream')
 
         async def generate():
             headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}

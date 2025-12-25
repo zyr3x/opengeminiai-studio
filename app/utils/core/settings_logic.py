@@ -85,10 +85,14 @@ def handle_set_streaming_settings(form):
 def handle_set_security_settings(form):
     allowed_code_paths = form.get('allowed_code_paths', '').strip()
     max_code_injection_size_kb = form.get('max_code_injection_size_kb', '128')
+    allowed_models = form.get('allowed_models', '').strip()
+    ignored_models = form.get('ignored_models', '').strip()
 
     env_file = '.env'
     set_key(env_file, 'ALLOWED_CODE_PATHS', allowed_code_paths)
     set_key(env_file, 'MAX_CODE_INJECTION_SIZE_KB', str(max_code_injection_size_kb))
+    set_key(env_file, 'ALLOWED_MODELS', allowed_models)
+    set_key(env_file, 'IGNORED_MODELS', ignored_models)
 
     if allowed_code_paths:
         config.ALLOWED_CODE_PATHS = [
@@ -99,8 +103,20 @@ def handle_set_security_settings(form):
     else:
         config.ALLOWED_CODE_PATHS = []
 
+    if allowed_models:
+        config.ALLOWED_MODELS = [m.strip() for m in allowed_models.split(',') if m.strip()]
+    else:
+        config.ALLOWED_MODELS = []
+
+    if ignored_models:
+        config.IGNORED_MODELS = [m.strip() for m in ignored_models.split(',') if m.strip()]
+    else:
+        config.IGNORED_MODELS = []
+
+    utils.cached_models_response = None
+
     config.MAX_CODE_INJECTION_SIZE_KB = int(max_code_injection_size_kb)
-    utils.log(f"Security settings updated: allowed_code_paths={config.ALLOWED_CODE_PATHS}, max_code_injection_size_kb={config.MAX_CODE_INJECTION_SIZE_KB}")
+    utils.log(f"Security settings updated: allowed_code_paths={config.ALLOWED_CODE_PATHS}, allowed_models={config.ALLOWED_MODELS}, ignored_models={config.IGNORED_MODELS}, max_code_injection_size_kb={config.MAX_CODE_INJECTION_SIZE_KB}")
 def handle_set_mcp_config(form):
     config_str = form.get('mcp_config', '')
     try:
@@ -210,12 +226,18 @@ def handle_set_aux_model_enhanced_settings(form):
     
     utils.log(f"Enhanced Aux Model settings updated: cache_size={aux_model_cache_size}, min_tokens={aux_model_min_tokens}, max_tokens={aux_model_max_tokens}")
 
+def handle_set_ai_provider_settings(form):
+    openai_base_url = form.get('openai_base_url', '').strip()
+    openai_api_key = form.get('openai_api_key', '').strip()
+    openai_model_name = form.get('openai_model_name', '').strip()
 
-def handle_set_quick_edit_settings(form):
-    quick_edit_enabled = form.get('quick_edit_enabled') == 'on'
-    
     env_file = '.env'
-    set_key(env_file, 'QUICK_EDIT_ENABLED', 'true' if quick_edit_enabled else 'false')
-    
-    config.QUICK_EDIT_ENABLED = quick_edit_enabled
-    utils.log(f"Quick Edit settings updated: enabled={quick_edit_enabled}")
+    set_key(env_file, 'OPENAI_BASE_URL', openai_base_url)
+    set_key(env_file, 'OPENAI_API_KEY', openai_api_key)
+    set_key(env_file, 'OPENAI_MODEL_NAME', openai_model_name)
+
+    config.OPENAI_BASE_URL = openai_base_url
+    config.OPENAI_API_KEY = openai_api_key
+    config.OPENAI_MODEL_NAME = openai_model_name
+
+    utils.log(f"AI Provider settings updated: base_url={openai_base_url}, model={openai_model_name}")

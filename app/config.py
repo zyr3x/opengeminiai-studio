@@ -20,8 +20,14 @@ class AppConfig:
         self.MAX_CODE_INJECTION_SIZE_KB = int(os.getenv("MAX_CODE_INJECTION_SIZE_KB", "256"))
         self.AGENT_AUX_MODEL_ENABLED = os.getenv("AGENT_AUX_MODEL_ENABLED", "false").lower() == "true"
         self.AGENT_AUX_MODEL_NAME = os.getenv("AGENT_AUX_MODEL_NAME", "gemini-flash-latest")
-        self.QUICK_EDIT_ENABLED = os.getenv("QUICK_EDIT_ENABLED", "false").lower() == "true"
         
+        # AI Provider settings
+        # Provider is determined automatically from model name.
+        # These settings are used when the detected provider is 'openai'
+        self.OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+        self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+        self.OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
+
         # Agent Intelligence settings
         self.AGENT_INTELLIGENCE_ENABLED = os.getenv("AGENT_INTELLIGENCE_ENABLED", "true").lower() == "true"
         self.AGENT_MEMORY_SIZE = int(os.getenv("AGENT_MEMORY_SIZE", "100"))
@@ -47,6 +53,17 @@ class AppConfig:
             ]
         else:
             self.ALLOWED_CODE_PATHS = []
+
+        self.ALLOWED_MODELS = []
+        allowed_models_str = os.getenv("ALLOWED_MODELS", "")
+        if allowed_models_str:
+            self.ALLOWED_MODELS = [m.strip() for m in allowed_models_str.split(',') if m.strip()]
+
+        self.IGNORED_MODELS = []
+        ignored_models_str = os.getenv("IGNORED_MODELS", "")
+        if ignored_models_str:
+            self.IGNORED_MODELS = [m.strip() for m in ignored_models_str.split(',') if m.strip()]
+
         self.FAVICON = ''
         with open(os.path.realpath(os.path.expanduser("static/img/logo.svg")), 'r', encoding='utf-8', errors='ignore') as f:
             self.FAVICON = f.read()

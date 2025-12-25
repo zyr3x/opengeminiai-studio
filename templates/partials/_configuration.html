@@ -75,6 +75,31 @@
 
     <div class="card mt-3">
         <div class="card-body">
+            <h5 class="card-title">🔌 Secondary AI Provider (OpenAI Compatible)</h5>
+            <p class="card-text">Configure a secondary provider (like OpenRouter, OpenAI, or local models) to use when non-Gemini models are requested.</p>
+            <form action="/set_ai_provider_settings" method="POST">
+                <div class="mb-3">
+                    <label for="openai_base_url" class="form-label">Base URL</label>
+                    <input type="text" class="form-control" id="openai_base_url" name="openai_base_url"
+                        value="{{ openai_base_url }}" placeholder="https://openrouter.ai/api/v1">
+                </div>
+                <div class="mb-3">
+                    <label for="openai_api_key" class="form-label">API Key</label>
+                    <input type="password" class="form-control" id="openai_api_key" name="openai_api_key"
+                        value="{{ openai_api_key }}" placeholder="sk-...">
+                </div>
+                <div class="mb-3">
+                    <label for="openai_model_name" class="form-label">Default Model Name</label>
+                    <input type="text" class="form-control" id="openai_model_name" name="openai_model_name"
+                        value="{{ openai_model_name }}" placeholder="openai/gpt-4o-mini">
+                </div>
+                <button type="submit" class="btn btn-primary">Save Provider Settings</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
             <h5 class="card-title">🧠 Context Management</h5>
             <form action="/set_context_settings" method="POST">
                 <div class="form-check form-switch">
@@ -164,21 +189,6 @@
 
     <div class="card mt-3">
         <div class="card-body">
-            <h5 class="card-title">✏️ Quick Edit Settings</h5>
-            <form action="/set_quick_edit_settings" method="POST">
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" role="switch" id="quick_edit_enabled"
-                        name="quick_edit_enabled" {% if quick_edit_enabled %}checked{% endif %}
-                        onchange="this.form.submit()">
-                    <label class="form-check-label" for="quick_edit_enabled">Enable Quick Edit</label>
-                </div>
-                <div class="form-text">When enabled, activates editing mode when code context is provided, allowing the model to apply patches.</div>
-            </form>
-        </div>
-    </div>
-
-    <div class="card mt-3">
-        <div class="card-body">
             <h5 class="card-title">🔒 Security Settings</h5>
             <form action="/set_security_settings" method="POST">
                 <div class="mb-3">
@@ -189,6 +199,24 @@
                         Comma-separated list of root directories that builtin tools can access.
                         Leave empty to allow all paths. Example: <code>/home/user/projects,/opt/workspace</code>
                         <br><strong>Note:</strong> Tools will only access files within these directories when specified.
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="allowed_models" class="form-label">Allowed Models</label>
+                    <textarea class="form-control" id="allowed_models" name="allowed_models" rows="2"
+                        placeholder="gemini-2.0-flash, openai/gpt-4o-mini">{{ allowed_models }}</textarea>
+                    <div class="form-text">
+                        Comma-separated list of allowed model IDs to appear in the list.
+                        Leave empty or use <code>*</code> to allow all models.
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="ignored_models" class="form-label">Ignored Models</label>
+                    <textarea class="form-control" id="ignored_models" name="ignored_models" rows="2"
+                        placeholder="*-image-*, google/*">{{ ignored_models }}</textarea>
+                    <div class="form-text">
+                        Comma-separated list of model IDs to exclude (denylist).
+                        Supports wildcards (e.g. <code>*-image-*, google/*</code>).
                     </div>
                 </div>
                 <div class="mb-3">
