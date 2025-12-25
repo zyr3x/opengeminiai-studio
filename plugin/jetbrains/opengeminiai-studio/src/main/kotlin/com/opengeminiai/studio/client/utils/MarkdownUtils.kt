@@ -12,12 +12,14 @@ object MarkdownUtils {
     fun renderHtml(markdown: String): String {
         val isDark = UIUtil.isUnderDarcula()
 
-        // Colors configured for better contrast against chat bubbles
-        val textColor = if (isDark) "#BBBBBB" else "#222222"
+        // Colors configured for better contrast against darker chat bubbles
+        // Changed: Lighter text color in dark mode (#E2E2E2) for readability against #232527
+        val textColor = if (isDark) "#E2E2E2" else "#222222"
         val linkColor = if (isDark) "#589DF6" else "#285CC4"
 
         // Distinct background and border for code blocks
-        val codeBg = if (isDark) "#2B2D30" else "#F2F4F5"
+        // Changed: Darker code background to separate from bubble
+        val codeBg = if (isDark) "#1E1F22" else "#F2F4F5"
         val borderColor = if (isDark) "#45484A" else "#D1D1D1"
 
         // IMPORTANT: We keep body font flexible (handled by JEditorPane),

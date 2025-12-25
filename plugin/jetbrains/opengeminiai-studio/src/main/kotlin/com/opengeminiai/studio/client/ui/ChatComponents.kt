@@ -66,17 +66,21 @@ object ChatComponents {
 
         // Attachments
         if (attachedFilesForDisplay.isNotEmpty()) {
-            val attachmentsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 4))
+            val attachmentsPanel = JPanel()
+            attachmentsPanel.layout = BoxLayout(attachmentsPanel, BoxLayout.Y_AXIS)
             attachmentsPanel.isOpaque = false
-            // If there is text content, add top spacing to separate attachments
+
+            // Add spacing between text and files if text exists
             if (actualTextContent.isNotBlank()) {
-                 val spacer = JPanel()
-                 spacer.isOpaque = false
-                 spacer.preferredSize = Dimension(1, 5)
-                 bubble.add(spacer)
+                 attachmentsPanel.add(Box.createVerticalStrut(8))
             }
+
             attachedFilesForDisplay.forEach { file ->
-                attachmentsPanel.add(createAttachmentChip(file, {}, false))
+                val chip = createAttachmentChip(file, {}, false)
+                chip.alignmentX = Component.LEFT_ALIGNMENT
+                chip.maximumSize = chip.preferredSize
+                attachmentsPanel.add(chip)
+                attachmentsPanel.add(Box.createVerticalStrut(4))
             }
             attachmentsPanel.alignmentX = Component.LEFT_ALIGNMENT
             bubble.add(attachmentsPanel)
@@ -186,12 +190,13 @@ object ChatComponents {
         val textArea = JTextArea(code)
         textArea.font = JBUI.Fonts.create("JetBrains Mono", 12)
         textArea.isEditable = false
-        textArea.background = if (UIUtil.isUnderDarcula()) Color(43, 45, 48) else Color(242, 244, 245)
+        // Make code blocks significantly darker for better separation
+        textArea.background = if (UIUtil.isUnderDarcula()) Color(30, 31, 33) else Color(242, 244, 245)
         textArea.foreground = if (UIUtil.isUnderDarcula()) Color(169, 183, 198) else Color(8, 8, 8)
         textArea.margin = JBUI.insets(8)
 
         val scroll = JBScrollPane(textArea)
-        scroll.border = JBUI.Borders.customLine(if (UIUtil.isUnderDarcula()) Color(70, 70, 70) else Color(200, 200, 200))
+        scroll.border = JBUI.Borders.customLine(if (UIUtil.isUnderDarcula()) Color(50, 50, 50) else Color(200, 200, 200))
         scroll.viewportBorder = null
 
         // Height Logic: Cap at ~300px to allow vertical scrolling
@@ -239,7 +244,8 @@ object ChatComponents {
         return null
     }
 
-    fun createAttachmentChip(file: File, onClose: () -> Unit, isRemovable: Boolean = true): JPanel {
+    // Generalized chip creation
+    fun createGenericChip(text: String, icon: Icon, onClose: () -> Unit, onClick: (() -> Unit)? = null, isRemovable: Boolean = true): JPanel {
         val chip = JPanel(BorderLayout())
         chip.isOpaque = false
 
@@ -247,7 +253,8 @@ object ChatComponents {
             override fun paintComponent(g: Graphics) {
                 val g2 = g as Graphics2D
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                g2.color = JBColor(Color(230, 230, 230), Color(60, 63, 65))
+                // Darker chip background in dark mode
+                g2.color = JBColor(Color(230, 230, 230), Color(45, 47, 49))
                 g2.fillRoundRect(0, 0, width - 1, height - 1, 8, 8)
                 g2.color = JBColor.border()
                 g2.drawRoundRect(0, 0, width - 1, height - 1, 8, 8)
@@ -257,9 +264,20 @@ object ChatComponents {
         bg.isOpaque = false
         bg.border = JBUI.Borders.empty(2, 6, 2, 4)
 
-        val icon = if (file.isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
-        val label = JBLabel(file.name, icon, SwingConstants.LEFT)
+        val label = JBLabel(text, icon, SwingConstants.LEFT)
         label.font = JBUI.Fonts.smallFont()
+
+        if (onClick != null) {
+            bg.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            val mouseAdapter = object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    if (SwingUtilities.isLeftMouseButton(e)) onClick()
+                }
+            }
+            bg.addMouseListener(mouseAdapter)
+            label.addMouseListener(mouseAdapter)
+        }
+
         bg.add(label, BorderLayout.CENTER)
 
         if (isRemovable) {
@@ -273,6 +291,12 @@ object ChatComponents {
         }
         chip.add(bg, BorderLayout.CENTER)
         return chip
+    }
+
+    // Keep compatibility for File signature, delegating to generic
+    fun createAttachmentChip(file: File, onClose: () -> Unit, isRemovable: Boolean = true): JPanel {
+        val icon = if (file.isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
+        return createGenericChip(file.name, icon, onClose, null, isRemovable)
     }
 
     // MODIFIED: Added onDelete callback
@@ -414,7 +438,9 @@ object ChatComponents {
                 val darkColor = Color(70, 50, 90)
                 g2.color = JBColor(lightColor, darkColor)
             } else {
-                g2.color = JBColor(Color(255, 255, 255), Color(60, 63, 65))
+                // Modified: Darker background for AI response to improve text readability
+                // Light Mode: White, Dark Mode: Color(35, 37, 39) (Darker than standard panel)
+                g2.color = JBColor(Color(255, 255, 255), Color(35, 37, 39))
             }
             g2.fillRoundRect(0, 0, width - 1, height - 1, 16, 16)
             g2.color = if(isUser) JBColor(Color(200, 210, 240), Color(85, 65, 105)) else JBColor.border()

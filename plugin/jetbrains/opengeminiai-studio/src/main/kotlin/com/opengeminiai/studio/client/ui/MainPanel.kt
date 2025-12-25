@@ -5,13 +5,28 @@ import com.opengeminiai.studio.client.service.ApiClient
 import com.opengeminiai.studio.client.service.PersistenceService
 import com.opengeminiai.studio.client.Icons
 import com.google.gson.Gson
+import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.util.ExecUtil
+import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileChooser.FileChooser
+import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.ui.components.* import com.intellij.openapi.ui.ComboBox
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.intellij.icons.AllIcons
+import com.intellij.ide.DataManager
+import com.intellij.openapi.ui.popup.JBPopup
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.JBColor
+import com.intellij.ui.ColoredListCellRenderer
+import com.intellij.ui.SimpleTextAttributes
+import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.builder.Align
 import okhttp3.Call
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
@@ -27,8 +42,23 @@ class MainPanel(val project: Project) {
     private var appSettings: AppSettings = AppSettings()
 
     // -- ATTACHMENTS --
-    private val attachedFiles = ArrayList<File>()
-    private val attachmentsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 4))
+    private sealed class ContextItem {
+        abstract val name: String
+        abstract val icon: Icon
+    }
+    private data class FileContext(val file: File) : ContextItem() {
+        override val name: String = file.name
+        override val icon: Icon = if (file.isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
+    }
+    private data class TextContext(override var name: String, var content: String, override val icon: Icon) : ContextItem()
+
+    private val attachments = ArrayList<ContextItem>()
+
+    private val attachmentsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+        isOpaque = false
+        border = JBUI.Borders.empty(4, 8, 0, 8)
+        isVisible = false
+    }
 
     // -- LAYOUTS --
     private val cardLayout = CardLayout()
@@ -80,10 +110,6 @@ class MainPanel(val project: Project) {
         scrollPane.border = null
         scrollPane.horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         scrollPane.verticalScrollBar.unitIncrement = 16
-
-        // Attachments setup
-        attachmentsPanel.isOpaque = false
-        attachmentsPanel.border = JBUI.Borders.empty(0, 4, 4, 4)
 
         // -- LOGIC: Persist Model Selection per Mode --
         modeComboBox.addItemListener { e ->
@@ -349,11 +375,14 @@ class MainPanel(val project: Project) {
             }
         }
 
-        val refreshBtn = createIconButton(AllIcons.Actions.Refresh, "Refresh Models") { refreshModels() }
+        // Removed Refresh Button as requested
+        val addContextBtn = createIconButton(AllIcons.General.Add, "Add Context (Files, Images, Structure)") { e ->
+            showAddContextPopup(e.source as Component)
+        }
 
+        leftControls.add(addContextBtn)
         leftControls.add(modeComboBox)
         leftControls.add(modelComboBox)
-        leftControls.add(refreshBtn)
 
         val rightControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply {
             isOpaque = false
@@ -377,6 +406,154 @@ class MainPanel(val project: Project) {
         return mainWrapper
     }
 
+    private data class CommitItem(val hash: String, val message: String, val time: String)
+
+    private fun getRecentCommits(project: Project): List<CommitItem> {
+        val list = mutableListOf<CommitItem>()
+        val basePath = project.basePath ?: return list
+        try {
+            val cmd = GeneralCommandLine("git", "log", "-n", "30", "--pretty=format:%h|%s|%ar")
+            cmd.workDirectory = File(basePath)
+
+            val output = ExecUtil.execAndGetOutput(cmd)
+            if (output.exitCode == 0) {
+                output.stdout.lines().forEach { line ->
+                    if (line.isNotBlank()) {
+                        val parts = line.split("|", limit = 3)
+                        if (parts.size == 3) {
+                            list.add(CommitItem(parts[0], parts[1], parts[2]))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Silently fail if git not found or error
+        }
+        return list
+    }
+
+    private fun showAddContextPopup(component: Component) {
+        val actions = DefaultActionGroup()
+
+        // 1. Files and Folders
+        actions.add(object : AnAction("Files and Folders", "Attach specific files or folders to context", AllIcons.Nodes.Folder) {
+            override fun actionPerformed(e: AnActionEvent) {
+                val descriptor = FileChooserDescriptorFactory.createMultipleFilesNoJarsDescriptor()
+                FileChooser.chooseFiles(descriptor, project, null) { files ->
+                    files.forEach { file -> File(file.path).let { addAttachment(FileContext(it)) } }
+                }
+            }
+        })
+
+        // 2. Add Image
+        actions.add(object : AnAction("Add Image...", "Attach an image for multimodal analysis", AllIcons.FileTypes.Image) {
+            override fun actionPerformed(e: AnActionEvent) {
+                val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor()
+                    .withFileFilter { it.extension?.lowercase() in listOf("jpg", "jpeg", "png", "webp") }
+                FileChooser.chooseFiles(descriptor, project, null) { files ->
+                    files.firstOrNull()?.let { addAttachment(FileContext(File(it.path))) }
+                }
+            }
+        })
+
+        actions.addSeparator()
+
+        // 3. Project Structure
+        actions.add(object : AnAction("Project Structure", "Paste current project directory tree into chat", AllIcons.Actions.ListFiles) {
+            override fun actionPerformed(e: AnActionEvent) {
+                val sb = StringBuilder("Project Structure:\n")
+                val roots = ProjectRootManager.getInstance(project).contentRoots
+                roots.forEach { root ->
+                    buildFileTree(root, "", sb, 0)
+                }
+
+                addAttachment(TextContext("Project Structure", sb.toString(), AllIcons.Actions.ListFiles))
+            }
+        })
+
+        // 4. Commits (Multi-select)
+        actions.add(object : AnAction("Commits", "Reference recent git commits", AllIcons.Vcs.CommitNode) {
+            override fun actionPerformed(e: AnActionEvent) {
+                val commits = getRecentCommits(project)
+                if (commits.isEmpty()) {
+                    Messages.showInfoMessage(project, "No recent commits found (or git not configured).", "Commits")
+                    return
+                }
+
+                val list = JBList(commits)
+                list.selectionMode = ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
+                list.cellRenderer = object : ColoredListCellRenderer<CommitItem>() {
+                    override fun customizeCellRenderer(list: JList<out CommitItem>, value: CommitItem, index: Int, selected: Boolean, hasFocus: Boolean) {
+                        append(value.hash, SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                        append("  ")
+                        append(value.message, SimpleTextAttributes.REGULAR_ATTRIBUTES)
+                        append("  ")
+                        append(value.time, SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+                    }
+                }
+
+                val popup = JBPopupFactory.getInstance().createListPopupBuilder(list)
+                    .setTitle("Select Commits")
+                    .setResizable(true)
+                    .setMovable(true)
+                    .setItemChoosenCallback {
+                        ApplicationManager.getApplication().executeOnPooledThread {
+                            val selected = list.selectedValuesList
+                            if (selected.isEmpty()) return@executeOnPooledThread
+
+                            selected.forEach { commit ->
+                                val sb = StringBuilder()
+                                sb.append("Commit: ${commit.hash} - ${commit.message}\n")
+                                try {
+                                    val cmd = GeneralCommandLine("git", "show", commit.hash)
+                                    cmd.workDirectory = File(project.basePath ?: "")
+                                    val out = ExecUtil.execAndGetOutput(cmd)
+                                    if (out.exitCode == 0) {
+                                        val content = out.stdout
+                                        val maxLen = 5000
+                                        if (content.length > maxLen) {
+                                            sb.append(content.take(maxLen)).append("\n...(truncated)...\n")
+                                        } else {
+                                            sb.append(content).append("\n")
+                                        }
+                                    }
+                                } catch (ex: Exception) {}
+
+                                val commitText = sb.toString()
+                                SwingUtilities.invokeLater {
+                                    addAttachment(TextContext("Commit ${commit.hash.take(7)}", commitText, AllIcons.Vcs.CommitNode))
+                                }
+                            }
+                        }
+                    }
+                    .createPopup()
+
+                popup.showUnderneathOf(component)
+            }
+        })
+
+        val popup = JBPopupFactory.getInstance().createActionGroupPopup(
+            "Add Context",
+            actions,
+            DataManager.getInstance().getDataContext(component),
+            JBPopupFactory.ActionSelectionAid.SPEEDSEARCH,
+            true
+        )
+        popup.showUnderneathOf(component)
+    }
+
+    private fun buildFileTree(file: com.intellij.openapi.vfs.VirtualFile, indent: String, sb: StringBuilder, depth: Int) {
+        if (depth > 5) return // Safety cap
+        sb.append("$indent- ${file.name}\n")
+        if (file.isDirectory) {
+            file.children.take(20).forEach { child -> // Limit children per node
+                if (!child.name.startsWith(".")) { // Skip dotfiles
+                    buildFileTree(child, "$indent  ", sb, depth + 1)
+                }
+            }
+        }
+    }
+
     private fun updateHeaderInfo() {
         val title = currentConversation?.title ?: "New Chat"
         // FIX: Use selectedItem
@@ -397,7 +574,7 @@ class MainPanel(val project: Project) {
                     val transferable = dtde.transferable
                     if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                         val files = transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>
-                        files.forEach { addAttachment(it) }
+                        files.forEach { addAttachment(FileContext(it)) }
                         dtde.dropComplete(true)
                     } else {
                         dtde.rejectDrop()
@@ -410,29 +587,134 @@ class MainPanel(val project: Project) {
         DropTarget(component, target)
     }
 
-    private fun addAttachment(file: File) {
-        if (attachedFiles.any { it.absolutePath == file.absolutePath }) return
-        attachedFiles.add(file)
-        val chip = ChatComponents.createAttachmentChip(file, { removeAttachment(file) }, true)
-        attachmentsPanel.add(chip)
+    private fun addAttachment(item: ContextItem) {
+        if (item is FileContext && attachments.filterIsInstance<FileContext>().any { it.file.absolutePath == item.file.absolutePath }) return
+        attachments.add(item)
         refreshAttachmentsPanel()
     }
 
-    private fun removeAttachment(file: File) {
-        attachedFiles.removeIf { it.absolutePath == file.absolutePath }
-        attachmentsPanel.removeAll()
-        attachedFiles.forEach { f ->
-            attachmentsPanel.add(ChatComponents.createAttachmentChip(f, { removeAttachment(f) }, true))
-        }
+    private fun removeAttachment(item: ContextItem) {
+        attachments.remove(item)
         refreshAttachmentsPanel()
     }
 
     private fun refreshAttachmentsPanel() {
+        attachmentsPanel.removeAll()
+        if (attachments.isEmpty()) {
+            attachmentsPanel.isVisible = false
+        } else {
+            attachmentsPanel.isVisible = true
+
+            val count = attachments.size
+            val labelText = "$count item${if (count > 1) "s" else ""} attached"
+
+            val summaryBtn = JButton(labelText, AllIcons.FileTypes.Any_type)
+            summaryBtn.isBorderPainted = false
+            summaryBtn.isContentAreaFilled = false
+            summaryBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            summaryBtn.toolTipText = "Click to view and manage context"
+            summaryBtn.addActionListener { showAttachmentsPopup(summaryBtn) }
+
+            attachmentsPanel.add(summaryBtn)
+        }
         attachmentsPanel.revalidate()
         attachmentsPanel.repaint()
     }
 
-    private fun createIconButton(icon: Icon, tooltip: String, action: () -> Unit): JButton {
+    private fun showAttachmentsPopup(anchor: Component) {
+        val panel = JPanel()
+        panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
+        panel.border = JBUI.Borders.empty(8)
+        panel.background = JBColor.background()
+
+        var popup: JBPopup? = null
+
+        fun reload() {
+            panel.removeAll()
+            if (attachments.isEmpty()) {
+                popup?.cancel()
+                return
+            }
+
+            attachments.forEach { item ->
+                val row = JPanel(BorderLayout())
+                row.isOpaque = false
+                row.alignmentX = Component.LEFT_ALIGNMENT
+                row.maximumSize = Dimension(400, 32)
+                row.border = JBUI.Borders.empty(2, 0)
+
+                val name = if (item.name.length > 35) item.name.take(32) + "..." else item.name
+                val label = JLabel(name, item.icon, SwingConstants.LEFT)
+                label.border = JBUI.Borders.emptyRight(12)
+
+                // Allow edit for text context
+                if (item is TextContext) {
+                    label.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                    label.toolTipText = "Click to edit"
+                    label.addMouseListener(object : MouseAdapter() {
+                        override fun mouseClicked(e: MouseEvent) {
+                            showEditContextDialog(item) {
+                                // Refresh logic if needed, but item is mutable
+                            }
+                        }
+                    })
+                }
+
+                val delBtn = JButton(AllIcons.Actions.Close)
+                delBtn.preferredSize = Dimension(22, 22)
+                delBtn.isBorderPainted = false
+                delBtn.isContentAreaFilled = false
+                delBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                delBtn.addActionListener {
+                    removeAttachment(item)
+                    reload()
+                    panel.revalidate()
+                    panel.repaint()
+                    popup?.pack(true, true)
+                }
+
+                row.add(label, BorderLayout.CENTER)
+                row.add(delBtn, BorderLayout.EAST)
+                panel.add(row)
+            }
+        }
+
+        reload()
+
+        popup = JBPopupFactory.getInstance()
+            .createComponentPopupBuilder(panel, null)
+            .setTitle("Attached Context")
+            .setResizable(false)
+            .setMovable(true)
+            .setRequestFocus(true)
+            .createPopup()
+
+        popup?.showUnderneathOf(anchor)
+    }
+
+    private fun showEditContextDialog(item: TextContext, onClose: () -> Unit) {
+        val dialog = object : DialogWrapper(project) {
+            val textArea = JTextArea(item.content)
+            init {
+                title = "Edit ${item.name}"
+                init()
+            }
+            override fun createCenterPanel(): JComponent {
+                return JBScrollPane(textArea).apply {
+                    preferredSize = Dimension(500, 400)
+                }
+            }
+            override fun doOKAction() {
+                item.content = textArea.text
+                super.doOKAction()
+                onClose()
+            }
+        }
+        dialog.show()
+    }
+
+    // Changed signature to pass ActionEvent, fixing 'Unresolved reference: source' in lambda
+    private fun createIconButton(icon: Icon, tooltip: String, action: (ActionEvent) -> Unit): JButton {
         val btn = JButton(icon)
         btn.toolTipText = tooltip
         btn.preferredSize = Dimension(28, 28)
@@ -441,7 +723,7 @@ class MainPanel(val project: Project) {
         btn.isFocusPainted = false
         btn.isOpaque = false
         btn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        btn.addActionListener { action() }
+        btn.addActionListener { action(it) }
         return btn
     }
 
@@ -574,25 +856,35 @@ class MainPanel(val project: Project) {
         }
 
         val textInput = inputArea.text.trim()
-        if ((textInput.isEmpty() && attachedFiles.isEmpty()) || currentConversation == null) return
+        if ((textInput.isEmpty() && attachments.isEmpty()) || currentConversation == null) return
 
         val chat = currentConversation!!
         val sb = StringBuilder(textInput)
-        if (attachedFiles.isNotEmpty()) {
+
+        if (attachments.isNotEmpty()) {
             if (sb.isNotEmpty()) sb.append("\n\n")
-            attachedFiles.forEach { file ->
-                val extension = file.extension.lowercase()
+
+            // Files logic
+            attachments.filterIsInstance<FileContext>().forEach { item ->
+                val extension = item.file.extension.lowercase()
                 when (extension) {
                     "jpg", "jpeg", "png" -> {
                         sb.append("image_path=")
-                        sb.append(file.absolutePath)
+                        sb.append(item.file.absolutePath)
                     }
                     else -> {
                         sb.append("code_path=")
-                        sb.append(file.absolutePath)
+                        sb.append(item.file.absolutePath)
                     }
                 }
                 sb.append("\n")
+            }
+
+            // Text Context logic (append as pure text)
+            attachments.filterIsInstance<TextContext>().forEach { item ->
+                sb.append("\n\n--- ${item.name} ---\n")
+                sb.append(item.content)
+                sb.append("\n--- End of ${item.name} ---\n")
             }
         }
         val fullContent = sb.toString().trim()
@@ -609,7 +901,7 @@ class MainPanel(val project: Project) {
         }
 
         inputArea.text = ""
-        attachedFiles.clear()
+        attachments.clear()
         attachmentsPanel.removeAll()
         refreshAttachmentsPanel()
         scrollToBottom()
