@@ -3,12 +3,13 @@ package com.opengeminiai.studio.client.ui
 import com.opengeminiai.studio.client.model.*
 import com.opengeminiai.studio.client.service.ApiClient
 import com.opengeminiai.studio.client.service.PersistenceService
+import com.opengeminiai.studio.client.Icons
 import com.google.gson.Gson
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.* import com.intellij.openapi.ui.ComboBox
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UIUtil // Added for UI colors
+import com.intellij.util.ui.UIUtil
 import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
 import okhttp3.Call
@@ -163,8 +164,9 @@ class MainPanel(val project: Project) {
         leftActions.add(historyBtn)
         leftActions.add(settingsBtn)
 
-        headerInfoLabel.font = JBUI.Fonts.smallFont()
-        headerInfoLabel.foreground = JBColor.GRAY
+        // UPDATED: Use standard label font (larger than smallFont) and remove fixed gray color
+        headerInfoLabel.font = JBUI.Fonts.label()
+        headerInfoLabel.foreground = JBColor.foreground()
 
         val rightActions = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0))
         val newChatBtn = createIconButton(AllIcons.General.Add, "New Chat") { createNewChat() }
@@ -332,8 +334,12 @@ class MainPanel(val project: Project) {
         val title = currentConversation?.title ?: "New Chat"
         val model = modelComboBox.item as? String ?: "gemini-2.5-flash"
         val displayTitle = if (title.length > 25) title.substring(0, 22) + "..." else title
+
+        // UPDATED: Removed icon logic, improved spacing and size
         headerInfoLabel.text = "<html><b>$displayTitle</b> <span style='color:gray'>($model)</span></html>"
         headerInfoLabel.toolTipText = "$title using $model"
+        // Ensure no icon is set
+        headerInfoLabel.icon = null
     }
 
     private fun setupDragAndDrop(component: Component) {

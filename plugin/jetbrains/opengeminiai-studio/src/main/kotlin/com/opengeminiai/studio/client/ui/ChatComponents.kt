@@ -8,7 +8,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UIUtil
 import com.intellij.icons.AllIcons
 import java.awt.*
 import java.awt.event.MouseAdapter
@@ -201,9 +200,9 @@ object ChatComponents {
 
         val fileList = Box.createVerticalBox()
         changes.forEach { change ->
-            val row = JPanel(BorderLayout())
-            row.isOpaque = false
-            row.border = JBUI.Borders.empty(2, 8)
+            val changeRow = JPanel(BorderLayout())
+            changeRow.isOpaque = false
+            changeRow.border = JBUI.Borders.empty(2, 8)
 
             val filename = change.path.substringAfterLast("/")
             val link = JLabel(filename, AllIcons.FileTypes.Any_type, SwingConstants.LEFT)
@@ -223,9 +222,9 @@ object ChatComponents {
             }
             actions.add(btnOk)
 
-            row.add(link, BorderLayout.CENTER)
-            row.add(actions, BorderLayout.EAST)
-            fileList.add(row)
+            changeRow.add(link, BorderLayout.CENTER)
+            changeRow.add(actions, BorderLayout.EAST)
+            fileList.add(changeRow)
         }
         container.add(fileList, BorderLayout.CENTER)
         wrapper.add(container, BorderLayout.CENTER)

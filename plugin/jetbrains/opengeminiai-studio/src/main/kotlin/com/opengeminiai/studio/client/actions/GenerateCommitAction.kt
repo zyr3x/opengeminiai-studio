@@ -17,8 +17,6 @@ import com.intellij.openapi.util.IconLoader
 
 class GenerateCommitAction : DumbAwareAction() {
 
-    private val pluginIcon = Icons.Logo
-
     private fun getIncludedChanges(e: AnActionEvent): List<Change> {
         val selectedChanges = e.getData(VcsDataKeys.CHANGES)
         if (!selectedChanges.isNullOrEmpty()) {
@@ -51,7 +49,7 @@ class GenerateCommitAction : DumbAwareAction() {
 
         // Only set if not already set by plugin.xml, but here we enforce consistency
         e.presentation.text = "Generate Commit Message (OpenGeminiAI Studio)"
-        e.presentation.icon = pluginIcon
+        e.presentation.icon = Icons.Logo
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -74,12 +72,12 @@ class GenerateCommitAction : DumbAwareAction() {
         val systemPrompt = ApiClient.getPromptText(settings.commitPromptKey, ApiClient.PromptType.Commit)
 
         val contentBuilder = StringBuilder()
-        
+
         // Limit total processed files to avoid timeout/too large request
         changes.take(30).forEach { change ->
              val path = change.afterRevision?.file?.name ?: change.beforeRevision?.file?.name ?: "unknown"
              val isDirectory = change.afterRevision?.file?.isDirectory == true || change.beforeRevision?.file?.isDirectory == true
-             
+
              if (isDirectory) return@forEach
 
              // Skip binary files check attempt (simple check via extension or virtualFile if available)
@@ -96,7 +94,7 @@ class GenerateCommitAction : DumbAwareAction() {
 
                  when {
                      before != null && after != null -> {
-                         // Modification: sending only 'after' content to save tokens, 
+                         // Modification: sending only 'after' content to save tokens,
                          // or ideally we would send a diff, but full content is often safer for context if small.
                          // Truncating large files is crucial.
                          val cleanContent = after.take(2000)
@@ -132,7 +130,7 @@ class GenerateCommitAction : DumbAwareAction() {
                     val msgs = listOf(ChatMessage("user", fullPrompt))
                     val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt, baseUrl)
                     val response = ApiClient.processCallResponse(call)
-                    
+
                     ApplicationManager.getApplication().invokeLater {
                          if (!project.isDisposed) {
                              commitMessageControl.setCommitMessage(response.trim())
