@@ -226,16 +226,6 @@ def handle_set_aux_model_enhanced_settings(form):
     
     utils.log(f"Enhanced Aux Model settings updated: cache_size={aux_model_cache_size}, min_tokens={aux_model_min_tokens}, max_tokens={aux_model_max_tokens}")
 
-
-def handle_set_quick_edit_settings(form):
-    quick_edit_enabled = form.get('quick_edit_enabled') == 'on'
-    
-    env_file = '.env'
-    set_key(env_file, 'QUICK_EDIT_ENABLED', 'true' if quick_edit_enabled else 'false')
-    
-    config.QUICK_EDIT_ENABLED = quick_edit_enabled
-    utils.log(f"Quick Edit settings updated: enabled={quick_edit_enabled}")
-
 def handle_set_ai_provider_settings(form):
     openai_base_url = form.get('openai_base_url', '').strip()
     openai_api_key = form.get('openai_api_key', '').strip()
