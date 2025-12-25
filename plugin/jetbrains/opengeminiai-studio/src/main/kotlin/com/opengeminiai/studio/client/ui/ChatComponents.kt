@@ -17,6 +17,10 @@ import javax.swing.*
 
 object ChatComponents {
 
+    // Cache to store original file content for Undo functionality (Session based)
+    private val undoCache = mutableMapOf<String, String>()
+    private val appliedStatus = mutableSetOf<String>()
+
     fun createMessageBubble(role: String, content: String, messageIndex: Int? = null, onDelete: ((Int) -> Unit)? = null): JPanel {
         val isUser = role == "user"
 
@@ -54,21 +58,19 @@ object ChatComponents {
         val actualTextContent = textContentBuilder.toString().trim()
 
         // Markdown Text
-        if (actualTextContent.isNotBlank()) {
-            val editorPane = JEditorPane()
-            editorPane.contentType = "text/html"
-            editorPane.text = MarkdownUtils.renderHtml(actualTextContent)
-            editorPane.isEditable = false
-            editorPane.isOpaque = false
-            editorPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
-            // Fix: Text color handling is done in MarkdownUtils, but we ensure component is transparent
-            editorPane.addHyperlinkListener { e ->
-                if (e.eventType == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
-                    try { Desktop.getDesktop().browse(e.url.toURI()) } catch (err: Exception) {}
-                }
+        // ALWAYS create JEditorPane to allow streaming updates, even if empty initially
+        val editorPane = JEditorPane()
+        editorPane.contentType = "text/html"
+        editorPane.text = MarkdownUtils.renderHtml(if (actualTextContent.isEmpty()) "&nbsp;" else actualTextContent)
+        editorPane.isEditable = false
+        editorPane.isOpaque = false
+        editorPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
+        editorPane.addHyperlinkListener { e ->
+            if (e.eventType == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
+                try { Desktop.getDesktop().browse(e.url.toURI()) } catch (err: Exception) {}
             }
-            bubble.add(editorPane)
         }
+        bubble.add(editorPane)
 
         // Attachments
         if (attachedFilesForDisplay.isNotEmpty()) {
@@ -82,7 +84,6 @@ object ChatComponents {
         }
 
         // --- DELETE BUTTON ---
-        // Visible small trash icon
         val deleteBtn = JLabel(AllIcons.Actions.GC)
         deleteBtn.toolTipText = "Delete Message"
         deleteBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
@@ -107,13 +108,11 @@ object ChatComponents {
         val box = Box.createHorizontalBox()
 
         if (isUser) {
-            // User Layout: [Glue] [Delete] [Bubble] [Avatar]
             box.add(Box.createHorizontalGlue())
             box.add(deleteBtn)
             box.add(bubble)
             box.add(avatarLabel)
         } else {
-            // AI Layout: [Avatar] [Bubble] [Delete] [Glue]
             box.add(avatarLabel)
             box.add(bubble)
             box.add(deleteBtn)
@@ -125,6 +124,32 @@ object ChatComponents {
     }
 
     // --- UTILS ---
+
+    fun updateMessageBubble(bubbleWrapper: JPanel, content: String) {
+        val editor = findChildComponent<JEditorPane>(bubbleWrapper)
+        if (editor != null) {
+            val safeContent = if (content.isEmpty()) "&nbsp;" else content
+            editor.text = MarkdownUtils.renderHtml(safeContent)
+            bubbleWrapper.revalidate()
+            bubbleWrapper.repaint()
+        }
+    }
+
+    private inline fun <reified T : Component> findChildComponent(parent: Container): T? {
+        // Delegate to a non-inline recursive function to avoid compiler error
+        return findChildComponentRecursive(parent, T::class.java)
+    }
+
+    private fun <T : Component> findChildComponentRecursive(parent: Container, clazz: Class<T>): T? {
+        for (comp in parent.components) {
+            if (clazz.isInstance(comp)) return clazz.cast(comp)
+            if (comp is Container) {
+                val found = findChildComponentRecursive(comp, clazz)
+                if (found != null) return found
+            }
+        }
+        return null
+    }
 
     fun createAttachmentChip(file: File, onClose: () -> Unit, isRemovable: Boolean = true): JPanel {
         val chip = JPanel(BorderLayout())
@@ -162,8 +187,8 @@ object ChatComponents {
         return chip
     }
 
-    fun createChangeWidget(project: Project, changes: List<FileChange>): JPanel {
-        // Keeping previous widget logic, just wrapping for safety
+    // MODIFIED: Added onDelete callback
+    fun createChangeWidget(project: Project, changes: List<FileChange>, onDelete: () -> Unit): JPanel {
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
         wrapper.border = JBUI.Borders.empty(2, 38, 2, 5) // Indent to align with text bubbles
@@ -178,24 +203,66 @@ object ChatComponents {
         title.font = JBUI.Fonts.smallFont().deriveFont(Font.BOLD)
         header.add(title, BorderLayout.WEST)
 
-        val applyAllBtn = JButton("Apply All").apply {
+        // Wrapper for Right side buttons (Apply All + Delete)
+        val headerActions = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
+        headerActions.isOpaque = false
+
+        // Logic to refresh the UI after an action
+        fun refreshUI() {
+             wrapper.removeAll()
+             wrapper.add(createChangeWidget(project, changes, onDelete), BorderLayout.CENTER)
+             wrapper.revalidate()
+             wrapper.repaint()
+        }
+
+        // Global Apply/Undo Logic
+        val allApplied = changes.all { appliedStatus.contains(it.path) }
+        val globalActionText = if (allApplied) "Undo All" else "Apply All"
+        val globalActionColor = if (allApplied) JBColor.RED else JBColor.BLUE
+
+        val actionAllBtn = JButton(globalActionText).apply {
             isBorderPainted = false
             isContentAreaFilled = false
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             font = JBUI.Fonts.smallFont()
-            foreground = JBColor.BLUE
+            foreground = globalActionColor
+
             addActionListener {
-                changes.forEach { DiffUtils.applyChangeDirectly(project, it.path, it.content) }
-                container.removeAll()
-                val success = JLabel("  All changes applied ✅")
-                success.font = JBUI.Fonts.smallFont()
-                success.border = JBUI.Borders.empty(8)
-                container.add(success, BorderLayout.CENTER)
-                container.revalidate()
-                container.repaint()
+                changes.forEach { change ->
+                    val isApplied = appliedStatus.contains(change.path)
+
+                    if (allApplied && isApplied) {
+                        // REVERT Logic
+                        val backup = undoCache[change.path]
+                        if (backup != null) {
+                            DiffUtils.applyChangeDirectly(project, change.path, backup)
+                            appliedStatus.remove(change.path)
+                        }
+                    } else if (!allApplied && !isApplied) {
+                        // APPLY Logic
+                        val previous = DiffUtils.applyChangeDirectly(project, change.path, change.content)
+                        if (previous != null) undoCache[change.path] = previous
+                        appliedStatus.add(change.path)
+                    }
+                }
+                refreshUI()
             }
         }
-        header.add(applyAllBtn, BorderLayout.EAST)
+
+        // NEW: Widget Delete Button
+        val deleteWidgetBtn = JButton(AllIcons.Actions.GC).apply {
+            toolTipText = "Remove this widget"
+            preferredSize = Dimension(22, 22)
+            isBorderPainted = false
+            isContentAreaFilled = false
+            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            addActionListener { onDelete() }
+        }
+
+        headerActions.add(actionAllBtn)
+        headerActions.add(deleteWidgetBtn)
+        header.add(headerActions, BorderLayout.EAST)
+
         container.add(header, BorderLayout.NORTH)
 
         val fileList = Box.createVerticalBox()
@@ -217,10 +284,36 @@ object ChatComponents {
 
             val actions = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0))
             actions.isOpaque = false
-            val btnOk = JButton(AllIcons.Actions.Checked).apply {
-                preferredSize = Dimension(20, 20); isBorderPainted=false; isContentAreaFilled=false; addActionListener { DiffUtils.applyChangeDirectly(project, change.path, change.content) }
+
+            val isApplied = appliedStatus.contains(change.path)
+            val btnIcon = if (isApplied) AllIcons.Actions.Rollback else AllIcons.Actions.Checked
+            val btnToolTip = if (isApplied) "Undo changes" else "Apply changes"
+
+            val btnAction = JButton(btnIcon).apply {
+                preferredSize = Dimension(20, 20)
+                toolTipText = btnToolTip
+                isBorderPainted = false
+                isContentAreaFilled = false
+                cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+
+                addActionListener {
+                    if (isApplied) {
+                         // Undo
+                         val backup = undoCache[change.path]
+                         if (backup != null) {
+                             DiffUtils.applyChangeDirectly(project, change.path, backup)
+                             appliedStatus.remove(change.path)
+                         }
+                    } else {
+                        // Apply
+                        val previous = DiffUtils.applyChangeDirectly(project, change.path, change.content)
+                        if (previous != null) undoCache[change.path] = previous
+                        appliedStatus.add(change.path)
+                    }
+                    refreshUI()
+                }
             }
-            actions.add(btnOk)
+            actions.add(btnAction)
 
             changeRow.add(link, BorderLayout.CENTER)
             changeRow.add(actions, BorderLayout.EAST)
@@ -240,7 +333,6 @@ object ChatComponents {
             // --- COLOR CUSTOMIZATION ---
             if (isUser) {
                 // Purple tint for User
-                // Light Mode: Very light purple/blue | Dark Mode: Muted Purple
                 val lightColor = Color(235, 240, 255)
                 val darkColor = Color(70, 50, 90) // Muted purple for dark mode
                 g2.color = JBColor(lightColor, darkColor)

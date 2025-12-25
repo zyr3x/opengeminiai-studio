@@ -164,7 +164,6 @@ class MainPanel(val project: Project) {
         leftActions.add(historyBtn)
         leftActions.add(settingsBtn)
 
-        // UPDATED: Use standard label font (larger than smallFont) and remove fixed gray color
         headerInfoLabel.font = JBUI.Fonts.label()
         headerInfoLabel.foreground = JBColor.foreground()
 
@@ -185,9 +184,7 @@ class MainPanel(val project: Project) {
 
         // Input Wrapper
         val inputWrapper = object : JPanel(BorderLayout()) {
-            init {
-                isOpaque = false
-            }
+            init { isOpaque = false }
             override fun paint(g: Graphics) {
                 val g2 = g as Graphics2D
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
@@ -243,17 +240,15 @@ class MainPanel(val project: Project) {
             background = JBColor.background()
         }
 
-        // --- MODIFIED: Model Combo Box Styling (Transparent) ---
         modelComboBox.preferredSize = Dimension(160, 28)
         modelComboBox.font = JBUI.Fonts.label().deriveFont(12.0f)
         modelComboBox.border = JBUI.Borders.empty()
-        modelComboBox.isOpaque = false // Transparent background
+        modelComboBox.isOpaque = false
         modelComboBox.putClientProperty("ComboBox.isSquare", true)
 
         modelComboBox.renderer = object : DefaultListCellRenderer() {
             override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
                 val l = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
-                // Only opaque when highlighted in the dropdown list
                 l.isOpaque = isSelected
                 if (isSelected) {
                     l.background = UIUtil.getListSelectionBackground(true)
@@ -266,10 +261,9 @@ class MainPanel(val project: Project) {
             }
         }
 
-        // --- MODIFIED: Mode Combo Box Styling (Transparent) ---
         modeComboBox.preferredSize = Dimension(70, 28)
         modeComboBox.border = JBUI.Borders.empty()
-        modeComboBox.isOpaque = false // Transparent background
+        modeComboBox.isOpaque = false
         modeComboBox.putClientProperty("ComboBox.isSquare", true)
 
         modeComboBox.renderer = object : DefaultListCellRenderer() {
@@ -277,8 +271,6 @@ class MainPanel(val project: Project) {
                 val l = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
                 l.text = ""
                 l.horizontalAlignment = SwingConstants.CENTER
-
-                // Only opaque when highlighted in the dropdown list
                 l.isOpaque = isSelected
 
                 if (isSelected) {
@@ -335,10 +327,8 @@ class MainPanel(val project: Project) {
         val model = modelComboBox.item as? String ?: "gemini-2.5-flash"
         val displayTitle = if (title.length > 25) title.substring(0, 22) + "..." else title
 
-        // UPDATED: Removed icon logic, improved spacing and size
         headerInfoLabel.text = "<html><b>$displayTitle</b> <span style='color:gray'>($model)</span></html>"
         headerInfoLabel.toolTipText = "$title using $model"
-        // Ensure no icon is set
         headerInfoLabel.icon = null
     }
 
@@ -365,9 +355,7 @@ class MainPanel(val project: Project) {
 
     private fun addAttachment(file: File) {
         if (attachedFiles.any { it.absolutePath == file.absolutePath }) return
-
         attachedFiles.add(file)
-
         val chip = ChatComponents.createAttachmentChip(file, { removeAttachment(file) }, true)
         attachmentsPanel.add(chip)
         refreshAttachmentsPanel()
@@ -414,19 +402,32 @@ class MainPanel(val project: Project) {
         currentConversation = chat
         chatContentPanel.removeAll()
 
-        var messageDisplayIndex = 0
         chat.messages.forEachIndexed { index, msg ->
             val bubble = ChatComponents.createMessageBubble(msg.role, msg.content, index) { idxToDelete ->
                 handleMessageDelete(idxToDelete)
             }
             chatContentPanel.add(bubble)
             chatContentPanel.add(Box.createVerticalStrut(10))
-            messageDisplayIndex++
 
             msg.changes?.let { changes ->
                 if (changes.isNotEmpty()) {
-                    val widget = ChatComponents.createChangeWidget(project, changes)
-                    chatContentPanel.add(widget)
+                    // MODIFIED: Pass onDelete callback to createChangeWidget
+                    // We need a reference to the panel to remove it visually
+                    var widgetPanel: JPanel? = null
+                    widgetPanel = ChatComponents.createChangeWidget(project, changes) {
+                        // On Delete Action
+                        if (index < chat.messages.size) {
+                             chat.messages[index] = chat.messages[index].copy(changes = null)
+                             PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
+
+                             if (widgetPanel != null) {
+                                 chatContentPanel.remove(widgetPanel)
+                                 chatContentPanel.revalidate()
+                                 chatContentPanel.repaint()
+                             }
+                        }
+                    }
+                    chatContentPanel.add(widgetPanel)
                     chatContentPanel.add(Box.createVerticalStrut(10))
                 }
             }
@@ -464,7 +465,7 @@ class MainPanel(val project: Project) {
         }
     }
 
-    private fun addBubble(role: String, content: String) {
+    private fun addBubble(role: String, content: String): JPanel {
         val chat = currentConversation!!
         val newMessage = ChatMessage(role, content)
         chat.messages.add(newMessage)
@@ -475,6 +476,7 @@ class MainPanel(val project: Project) {
         }
         chatContentPanel.add(bubble)
         chatContentPanel.add(Box.createVerticalStrut(10))
+        return bubble
     }
 
     private fun scrollToBottom() {
@@ -516,7 +518,6 @@ class MainPanel(val project: Project) {
         if ((textInput.isEmpty() && attachedFiles.isEmpty()) || currentConversation == null) return
 
         val chat = currentConversation!!
-
         val sb = StringBuilder(textInput)
         if (attachedFiles.isNotEmpty()) {
             if (sb.isNotEmpty()) sb.append("\n\n")
@@ -550,9 +551,7 @@ class MainPanel(val project: Project) {
         attachedFiles.clear()
         attachmentsPanel.removeAll()
         refreshAttachmentsPanel()
-
         scrollToBottom()
-
         PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
 
         val model = modelComboBox.item as? String ?: "gemini-2.5-flash"
@@ -566,26 +565,40 @@ class MainPanel(val project: Project) {
 
         updateSendButtonState(true)
 
+        // Create Assistant Bubble with placeholder text immediately
+        val assistantBubblePanel = addBubble("assistant", "_Generating content..._")
+        scrollToBottom()
+        val targetBubble = assistantBubblePanel
+
         ApplicationManager.getApplication().executeOnPooledThread {
             var callToExecute: Call? = null
             try {
-                // Pass baseUrl from settings
-                callToExecute = ApiClient.createChatCompletionCall(chat.messages, model, prompt, appSettings.baseUrl)
+                // Prevent sending empty assistant messages to API
+                val msgToSend = chat.messages.removeAt(chat.messages.size - 1)
+                callToExecute = ApiClient.createChatCompletionCall(chat.messages, model, prompt, appSettings.baseUrl, true)
                 currentApiCall = callToExecute
+                chat.messages.add(msgToSend)
 
-                val response = ApiClient.processCallResponse(callToExecute)
+                var currentText = ""
+                val fullResponse = ApiClient.streamChatCompletion(callToExecute) { chunk ->
+                    currentText += chunk
+                    SwingUtilities.invokeLater {
+                        ChatComponents.updateMessageBubble(targetBubble, currentText)
+                        scrollToBottom()
+                    }
+                }
 
                 SwingUtilities.invokeLater {
-                    handleAIResponse(response, chat)
+                    handleFinalResponse(fullResponse, chat)
                 }
             } catch (e: Exception) {
-                if (e is java.net.SocketException && (e.message == "Canceled" || e.message?.contains("canceled", ignoreCase = true) == true)) {
+                // Filter out standard socket closure messages which happen on normal completion or user cancel
+                val msg = e.message ?: ""
+                val isSocketClosed = e is java.net.SocketException && (msg == "Socket closed" || msg == "Canceled")
+
+                if (!isSocketClosed) {
                     SwingUtilities.invokeLater {
-                        addBubble("assistant", "Request cancelled by user.")
-                    }
-                } else {
-                    SwingUtilities.invokeLater {
-                        addBubble("assistant", "An error occurred: ${e.message ?: "Unknown"}")
+                        ChatComponents.updateMessageBubble(targetBubble, "An error occurred: $msg")
                     }
                 }
             }
@@ -600,39 +613,66 @@ class MainPanel(val project: Project) {
         }
     }
 
-    private fun handleAIResponse(response: String, chat: Conversation) {
-        val matcher = Pattern.compile("[{].*[}]", Pattern.DOTALL).matcher(response)
+    private fun handleFinalResponse(response: String, chat: Conversation) {
         var textPart = response
-        var changeRequest: ChangeRequest? = null
+        var changes: List<FileChange>? = null
 
-        if (matcher.find()) {
-            val json = matcher.group()
-            if (json.contains("propose_changes")) {
+        // 1. Try to find JSON inside Markdown code blocks first (Most Reliable)
+        val codeBlockMatcher = Pattern.compile("```json\\s*(\\{.*?\\})\\s*```", Pattern.DOTALL).matcher(response)
+        if (codeBlockMatcher.find()) {
+            val jsonContent = codeBlockMatcher.group(1)
+            try {
+                val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
+                if (request.action == "propose_changes") {
+                    changes = request.changes
+                    // Remove the entire code block from the text
+                    textPart = response.replace(codeBlockMatcher.group(0), "").trim()
+                }
+            } catch (e: Exception) { /* Invalid JSON in block */ }
+        }
+
+        // 2. Fallback: Try to find raw JSON object if no code block match
+        if (changes == null) {
+            // Greedy match for a JSON-like structure containing "propose_changes"
+            val rawJsonMatcher = Pattern.compile("\\{.*\\\"action\\\"\\s*:\\s*\\\"propose_changes\\\".*\\}", Pattern.DOTALL).matcher(response)
+            if (rawJsonMatcher.find()) {
+                val jsonContent = rawJsonMatcher.group()
                 try {
-                    changeRequest = gson.fromJson(json, ChangeRequest::class.java)
-                    textPart = response.replace(json, "").trim().replace("```json", "").replace("```", "").trim()
-                } catch (e: Exception) { /* Ignore malformed JSON */ }
+                    val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
+                    changes = request.changes
+                    textPart = response.replace(jsonContent, "").trim()
+                } catch (e: Exception) { /* Invalid JSON */ }
             }
         }
 
-        val changes = changeRequest?.changes
+        val lastMsg = chat.messages.lastOrNull()
+        if (lastMsg != null && lastMsg.role == "assistant") {
+             // Update model
+             chat.messages[chat.messages.size - 1] = ChatMessage("assistant", textPart, changes)
 
-        if (textPart.isNotBlank()) {
-            val newIndex = chat.messages.size
-            val bubble = ChatComponents.createMessageBubble("assistant", textPart, newIndex) { idxToDelete ->
-                handleMessageDelete(idxToDelete)
-            }
-            chatContentPanel.add(bubble)
-            chatContentPanel.add(Box.createVerticalStrut(10))
-            chat.messages.add(ChatMessage("assistant", textPart, changes))
-        } else if (changes != null && changes.isNotEmpty()) {
-            chat.messages.add(ChatMessage("assistant", "", changes))
-        }
+             // Update UI Bubble (This renders clean text without the JSON block)
+             val bubblePanel = chatContentPanel.getComponent(chatContentPanel.componentCount - 2) as JPanel
+             ChatComponents.updateMessageBubble(bubblePanel, textPart)
 
-        if (changes != null && changes.isNotEmpty()) {
-            val widget = ChatComponents.createChangeWidget(project, changes)
-            chatContentPanel.add(widget)
-            chatContentPanel.add(Box.createVerticalStrut(10))
+             // Append widget if changes exist (Valid for ANY mode)
+             if (changes != null && changes.isNotEmpty()) {
+                // MODIFIED: Pass onDelete callback here as well for immediate interaction
+                var widgetPanel: JPanel? = null
+                widgetPanel = ChatComponents.createChangeWidget(project, changes) {
+                    val idx = chat.messages.size - 1
+                    if (idx >= 0) {
+                         chat.messages[idx] = chat.messages[idx].copy(changes = null)
+                         PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
+                         if (widgetPanel != null) {
+                             chatContentPanel.remove(widgetPanel)
+                             chatContentPanel.revalidate()
+                             chatContentPanel.repaint()
+                         }
+                    }
+                }
+                chatContentPanel.add(widgetPanel)
+                chatContentPanel.add(Box.createVerticalStrut(10))
+             }
         }
 
         PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
@@ -646,7 +686,6 @@ class MainPanel(val project: Project) {
     private fun refreshModels() {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                // Fetch using current settings URL
                 ApiClient.fetchSystemPrompts(appSettings.baseUrl)
                 val modelIds = ApiClient.getModels(appSettings.baseUrl)
 
@@ -660,24 +699,20 @@ class MainPanel(val project: Project) {
                     if (modelIds.contains(targetModel)) {
                          modelComboBox.selectedItem = targetModel
                     }
-
                     updateHeaderInfo()
                 }
-            } catch (e: Exception) {
-            }
+            } catch (e: Exception) { }
         }
     }
 
     private fun openSettings() {
         ApplicationManager.getApplication().executeOnPooledThread {
-             // Ensure prompts are loaded before opening settings
              ApiClient.fetchSystemPrompts(appSettings.baseUrl)
              SwingUtilities.invokeLater {
                  val models = (0 until modelsModel.size).map { modelsModel.getElementAt(it) }
                  val dialog = SettingsDialog(project, appSettings, models)
                  if (dialog.showAndGet()) {
                      PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
-                     // Refresh with new settings (URL might have changed)
                      refreshModels()
                  }
              }

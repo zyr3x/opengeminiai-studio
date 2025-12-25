@@ -1,4 +1,5 @@
 package com.opengeminiai.studio.client.utils
+
 import com.intellij.diff.*
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.openapi.application.ApplicationManager
@@ -7,6 +8,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
+import java.util.concurrent.atomic.AtomicReference
 
 object DiffUtils {
     fun showDiff(project: Project, path: String, newContent: String) {
@@ -21,11 +23,20 @@ object DiffUtils {
         }
     }
 
-    fun applyChangeDirectly(project: Project, path: String, content: String) {
-        ApplicationManager.getApplication().invokeLater {
+    // Now returns the ORIGINAL content (if file existed) to allow Undo functionality
+    fun applyChangeDirectly(project: Project, path: String, content: String): String? {
+        val originalContent = AtomicReference<String?>(null)
+
+        ApplicationManager.getApplication().invokeAndWait {
             WriteCommandAction.runWriteCommandAction(project) {
                 try {
                     var file = LocalFileSystem.getInstance().findFileByPath(path)
+
+                    // Capture original content before overwriting
+                    if (file != null && file.exists()) {
+                         originalContent.set(String(file.contentsToByteArray()))
+                    }
+
                     if (file == null) {
                         val ioFile = File(path)
                         ioFile.parentFile?.mkdirs()
@@ -38,5 +49,6 @@ object DiffUtils {
                 }
             }
         }
+        return originalContent.get()
     }
 }

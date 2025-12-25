@@ -34,16 +34,49 @@ object ApiClient {
     private data class ApiChatMessage(val role: String, val content: String)
     private data class ChatRequest(val model: String, val messages: List<ApiChatMessage>, val stream: Boolean = false)
 
-    fun createChatCompletionCall(history: List<ChatMessage>, model: String, systemPrompt: String, baseUrl: String): Call {
+    fun createChatCompletionCall(history: List<ChatMessage>, model: String, systemPrompt: String, baseUrl: String, stream: Boolean = false): Call {
         val msgs = mutableListOf(ApiChatMessage("system", systemPrompt))
         msgs.addAll(history.map { ApiChatMessage(it.role, it.content) })
 
         // Remove trailing slash if present to avoid double slashes
         val cleanUrl = baseUrl.trimEnd('/')
 
-        val body = gson.toJson(ChatRequest(model, msgs, false)).toRequestBody("application/json".toMediaType())
+        val body = gson.toJson(ChatRequest(model, msgs, stream)).toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url("$cleanUrl/v1/chat/completions").post(body).build()
         return client.newCall(request)
+    }
+
+    fun streamChatCompletion(call: Call, onChunk: (String) -> Unit): String {
+        val fullContent = StringBuilder()
+        call.execute().use { resp ->
+            if (!resp.isSuccessful) {
+                val err = "Error ${resp.code}: ${resp.message}"
+                onChunk(err)
+                return err
+            }
+
+            val source = resp.body?.source()
+            if (source == null) return ""
+
+            while (!source.exhausted()) {
+                val line = source.readUtf8Line() ?: break
+                if (line.trim().startsWith("data:")) {
+                    val json = line.trim().substring(5).trim()
+                    if (json == "[DONE]") break
+                    if (json.isNotEmpty()) {
+                        try {
+                            val chunk = gson.fromJson(json, StreamChunk::class.java)
+                            val delta = chunk.choices.firstOrNull()?.delta?.content
+                            if (!delta.isNullOrEmpty()) {
+                                onChunk(delta)
+                                fullContent.append(delta)
+                            }
+                        } catch (e: Exception) { }
+                    }
+                }
+            }
+        }
+        return fullContent.toString()
     }
 
     fun processCallResponse(call: Call): String {
