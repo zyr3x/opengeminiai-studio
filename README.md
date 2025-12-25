@@ -1,25 +1,33 @@
-# OpenGeminiAI Studio V3.1
+# OpenGeminiAI Studio V3.2
 
-<!-- TODO: Add a real project logo -->
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/zyr3x/opengeminiai-studio)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 
-An advanced, high-performance proxy that enables seamless integration of Google's Gemini API with any client or tool built for the OpenAI API. Now featuring **async/await architecture** for 3-5x performance improvements on concurrent workloads.
-
-This proxy includes a web interface for easy configuration, chat, and management of MCP (Multi-Tool Communication Protocol) tools for advanced function calling.
+An advanced, high-performance proxy that enables seamless integration of Google's Gemini API with any client or tool built for the OpenAI API. Now featuring first-class **OpenRouter** support, a native JetBrains IDE plugin, and 24 autonomous development tools.
 
 ## 🤔 Why OpenGeminiAI Studio?
 
 In a world of AI coding assistants, OpenGeminiAI Studio stands out by combining the power of Google's state-of-the-art Gemini models with a robust, locally-hosted toolkit designed for professional developers. It's more than just a proxy; it's a complete, extensible, and secure development environment.
 
--   **Go Beyond Chat:** While other tools stop at generating code snippets, OpenGeminiAI Studio acts as an **autonomous agent**. It can understand your project structure, read and write files, execute tests, manage git history, and apply patches. It doesn't just suggest code; it *implements* it.
--   **Your Tools, Your Workflow:** Seamlessly integrate with any OpenAI-compatible client, including the JetBrains AI Assistant, VS Code, or your own scripts. Keep your preferred development environment without sacrificing power.
--   **Total Control & Privacy:** Host it on your own machine or private network. Your code and API keys never leave your control. Sandbox the AI's access to specific project directories for complete peace of mind.
--   **Extensible & Open:** Built with a modular MCP architecture, you can easily add your own custom tools to extend its capabilities. The project is open and transparent.
--   **Cost-Effective:** Leverage powerful optimization features like selective context, prompt caching, and tool output summarization to significantly reduce token usage and lower your API costs.
+-   **Go Beyond Chat:** While other tools stop at generating code snippets, OpenGeminiAI Studio acts as an **autonomous agent**. It can understand your project structure, read and write files, execute tests, manage git history, and apply patches.
+-   **Multi-Provider Freedom:** Use Gemini via Google AI Studio OR switch to **OpenRouter** to access Claude 3.7, GPT-4o, and DeepSeek via the same interface.
+-   **Total Control & Privacy:** Host it on your own machine. Sandbox the AI's access to specific project directories for complete peace of mind.
+-   **Cost-Effective:** Leverage powerful optimization features like selective context, prompt caching, and tool output summarization to significantly reduce token usage.
+
+## 🚀 What's New in V3.2 - OpenRouter Integration & JetBrains Plugin
+
+Version 3.2 is a major update focusing on **provider diversity** and **IDE integration**. We've added native support for OpenRouter, allowing you to seamlessly switch between the world's most powerful LLMs.
+
+-   **🌐 First-Class OpenRouter Support (NEW):** Optimized integration for OpenRouter as a secondary provider.
+    - Access **Claude 3.7**, **GPT-4o**, and **DeepSeek** via unified OpenAI-compatible routing.
+    - Includes specialized headers (`HTTP-Referer`, `X-Title`) for OpenRouter ranking visibility.
+-   **🔌 JetBrains IDE Plugin (NEW):** A dedicated plugin for IntelliJ, PyCharm, and other JetBrains IDEs.
+    - **AI-Powered Commit Messages:** Generate professional commit messages from staged changes.
+    - **Integrated Chat & Quick Edit:** Access agentic tools directly within your IDE panel.
+-   **📝 Fuzzy Patching (REPLACED):** Replaced standard patch application with a robust **fuzzy matching** algorithm, improving reliability on modified codebases.
 
 ## 🚀 What's New in V3.1 - Enhanced Development Flow
 
@@ -191,6 +199,19 @@ The IDE will automatically fetch the model list and route AI Assistant features 
 *Screenshot of JetBrains AI Assistant settings:*
 ![JetBrains AI Assistant Configuration](/static/img/placeholder_jetbrains_config.png)
 <!-- TODO: Add screenshot of JetBrains AI Assistant configuration -->
+
+### Native JetBrains Plugin Configuration
+
+For a more integrated experience, use our native JetBrains plugin.
+
+1. Install the **OpenGeminiAI Studio** plugin from the JetBrains Marketplace (or via disk if provided).
+2. Go to `Settings` > `Tools` > `OpenGeminiAI Studio`.
+3. Set the **API Base URL** to: `http://localhost:8080` (no `/v1/` suffix needed for the native plugin).
+4. Select your preferred models for Chat, Quick Edit, and Git Commit messages.
+5. Choose your desired System Prompt profiles.
+
+*Screenshot of Native Plugin settings:*
+![Native JetBrains Plugin Configuration](static/img/placeholder_jetbrains_plugin.png)
 
 ## 🎯 Dual Path Mode: Two Ways to Work with Code
 
@@ -402,4 +423,3 @@ docker run -e ASYNC_MODE=true -e SECRET_KEY="..." -e API_KEY="..." gemini-proxy
 ## ⚖️ License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
-

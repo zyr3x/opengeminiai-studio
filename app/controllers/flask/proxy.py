@@ -129,7 +129,10 @@ def chat_completions():
                     try:
                         headers = {
                             "Content-Type": "application/json",
-                            "Authorization": f"Bearer {config.OPENAI_API_KEY}"
+                            "Authorization": f"Bearer {config.OPENAI_API_KEY}",
+                            # OpenRouter specific headers
+                            "HTTP-Referer": "https://github.com/zyr3x/gemini-proxy",
+                            "X-Title": "OpenGeminiAI Studio"
                         }
                         response = requests.post(
                             f"{config.OPENAI_BASE_URL}/chat/completions",
@@ -463,7 +466,10 @@ def chat_completions():
                             if 'usageMetadata' in json_data:
                                 final_usage_metadata.update(json_data['usageMetadata'])
 
-                            parts = json_data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+                            candidates = json_data.get('candidates', [{}])
+                            if not candidates: continue
+                            
+                            parts = candidates[0].get('content', {}).get('parts', [])
 
                             if not parts and 'usageMetadata' in json_data:
                                 continue
@@ -646,11 +652,15 @@ def list_models():
         except Exception as e:
             utils.log(f"Error fetching Gemini models: {e}")
 
-        # 2. Fetch OpenAI Models
+        # 2. Fetch OpenAI/OpenRouter Models
         if config.OPENAI_API_KEY and config.OPENAI_BASE_URL:
             try:
                 OPENAI_MODELS_URL = f"{config.OPENAI_BASE_URL}/models"
-                headers = {"Authorization": f"Bearer {config.OPENAI_API_KEY}"}
+                headers = {
+                    "Authorization": f"Bearer {config.OPENAI_API_KEY}",
+                    "HTTP-Referer": "https://github.com/zyr3x/gemini-proxy",
+                    "X-Title": "OpenGeminiAI Studio"
+                }
                 response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
                 if response.status_code == 200:
                     openai_models_data = response.json()

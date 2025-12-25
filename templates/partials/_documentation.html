@@ -1,7 +1,26 @@
 <!-- Documentation Section -->
 <div id="documentation" class="content-section">
     <h1 class="my-4">📚 Documentation</h1>
-    <p class="lead">Dive into the details of OpenGeminiAI Studio v3.1: learn how to set up, configure, and maximize the utility of this high-performance, AI-driven software development agent and proxy for Google's Gemini API.</p>
+     <p class="lead">Dive into the details of OpenGeminiAI Studio v3.2: learn how to set up, configure, and maximize the utility of this high-performance, AI-driven software development agent and proxy for Google's Gemini API.</p>
+
+    <h2 class="mt-4">🚀 What's New in V3.2 - OpenRouter Integration & JetBrains Plugin</h2>
+    <p>Version 3.2 is a major update focusing on <b>provider diversity</b> and <b>IDE integration</b>. We've added native support for OpenRouter, allowing you to seamlessly switch between the world's most powerful LLMs.</p>
+    <ul>
+        <li><strong>🌐 First-Class OpenRouter Support (NEW):</strong> The secondary provider system is now optimized for OpenRouter.
+            <ul>
+                <li><strong>🎯 Unified API:</strong> Access <b>Claude 3.7</b>, <b>GPT-4o</b>, <b>Llama 3</b>, and hundreds of other models through a single interface.</li>
+                <li><strong>⚡ Optimized Routing:</strong> Automatically benefit from OpenRouter's lowest-latency and lowest-cost routing.</li>
+                <li><strong>📊 Identity Headers:</strong> Sends <code>X-Title</code> and <code>HTTP-Referer</code> for proper tracking on OpenRouter's activity rankings.</li>
+            </ul>
+        </li>
+        <li><strong>🔌 JetBrains IDE Plugin (NEW):</strong> A new native plugin for IntelliJ, PyCharm, and other JetBrains IDEs.
+            <ul>
+                <li><strong>✍️ AI-Powered Commit Messages:</strong> Generate conventional commit messages directly from your Git staged changes.</li>
+                <li><strong>💻 Integrated Chat & Quick Edit:</strong> The agentic power of OpenGeminiAI is now a side panel in your code editor.</li>
+            </ul>
+        </li>
+        <li><strong>📝 Fuzzy Patching (REPLACED):</strong> Replaced standard patch application with a robust <b>fuzzy matching</b> algorithm for higher success rates on edited codebases.</li>
+    </ul>
 
     <h2 class="mt-4">🚀 What's New in V3.1 - Enhanced Development Flow</h2>
     <p>Version 3.1 refines the development experience, making the AI agent even more integrated and efficient in your coding workflow.</p>
@@ -101,7 +120,17 @@
     <p class="mt-3"><em>Screenshot of JetBrains AI Assistant settings:</em></p>
     <img src="/static/img/placeholder_jetbrains_config.png" class="img-fluid rounded shadow-sm" alt="JetBrains AI Assistant Configuration">
 
-    <h3 class="mt-4">3. Dual Path Mode: Two Ways to Work with Code 🆕</h3>
+    <h3 class="mt-4">3. Configure Native JetBrains Plugin 🆕</h3>
+    <p>For the best experience, use the dedicated OpenGeminiAI Studio plugin for JetBrains IDEs:</p>
+    <ol>
+        <li>Open IDE Settings (<code>Settings</code> > <code>Tools</code> > <code>OpenGeminiAI Studio</code>).</li>
+        <li>Set the <b>API Base URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080</code></li>
+        <li>Configure the models and system prompts for Chat, Quick Edit, and Git Commit features.</li>
+    </ol>
+    <p class="mt-3"><em>Screenshot of Native Plugin configuration:</em></p>
+    <img src="/static/img/placeholder_jetbrains_plugin.png" class="img-fluid rounded shadow-sm" alt="Native JetBrains Plugin Configuration">
+
+    <h3 class="mt-4">4. Dual Path Mode: Two Ways to Work with Code 🆕</h3>
     <p>Version 3.0 introduces two distinct modes for working with code projects. Choose the right mode for your workflow!</p>
 
     <div class="row mt-4">
@@ -154,7 +183,7 @@
                     </ul>
                     <p><strong>Usage:</strong></p>
                     <pre><code class="language-bash">"Fix the auth bug: project_path=~/myproject"</code></pre>
-                    <p><strong>Perfect For:</b></p>
+                    <p><strong>Perfect For:</strong></p>
                     <ul class="mb-0">
                         <li>Bug fixing & debugging</li>
                         <li>Feature development</li>
@@ -289,7 +318,7 @@
     </div>
 
     <div class="card mb-3">
-        <div class="card-header"><strong>Example 3:</b> New Feature Development</div>
+        <div class="card-header"><strong>Example 3:</strong> New Feature Development</div>
         <div class="card-body">
             <p><strong>Prompt:</strong></p>
             <pre><code class="language-bash">"Add /api/users endpoint with JWT auth: project_path=~/api-server"</code></pre>
