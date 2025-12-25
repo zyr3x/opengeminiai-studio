@@ -87,12 +87,6 @@ async def set_aux_model_enhanced_settings():
     return redirect(url_for('web_ui.index', _anchor='configuration'))
 
 
-@settings_bp.route('/set_quick_edit_settings', methods=['POST'])
-async def set_quick_edit_settings():
-    form = await request.form
-    settings_logic.handle_set_quick_edit_settings(form)
-    return redirect(url_for('web_ui.index', _anchor='configuration'))
-
 @settings_bp.route('/set_ai_provider_settings', methods=['POST'])
 async def set_ai_provider_settings():
     form = await request.form

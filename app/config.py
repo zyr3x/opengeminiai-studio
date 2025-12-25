@@ -20,7 +20,6 @@ class AppConfig:
         self.MAX_CODE_INJECTION_SIZE_KB = int(os.getenv("MAX_CODE_INJECTION_SIZE_KB", "256"))
         self.AGENT_AUX_MODEL_ENABLED = os.getenv("AGENT_AUX_MODEL_ENABLED", "false").lower() == "true"
         self.AGENT_AUX_MODEL_NAME = os.getenv("AGENT_AUX_MODEL_NAME", "gemini-flash-latest")
-        self.QUICK_EDIT_ENABLED = os.getenv("QUICK_EDIT_ENABLED", "false").lower() == "true"
         
         # AI Provider settings
         # Provider is determined automatically from model name.

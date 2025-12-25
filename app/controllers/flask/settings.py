@@ -51,10 +51,6 @@ def set_agent_intelligence_settings():
 def set_aux_model_enhanced_settings():
     settings_logic.handle_set_aux_model_enhanced_settings(request.form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
-@settings_bp.route('/set_quick_edit_settings', methods=['POST'])
-def set_quick_edit_settings():
-    settings_logic.handle_set_quick_edit_settings(request.form)
-    return redirect(url_for('web_ui.index', _anchor='configuration'))
 
 @settings_bp.route('/set_ai_provider_settings', methods=['POST'])
 def set_ai_provider_settings():
