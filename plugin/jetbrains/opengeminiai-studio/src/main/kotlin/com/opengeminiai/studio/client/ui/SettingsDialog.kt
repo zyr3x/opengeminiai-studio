@@ -3,7 +3,9 @@ package com.opengeminiai.studio.client.ui
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.bindItem
+import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import com.opengeminiai.studio.client.model.AppSettings
 import com.opengeminiai.studio.client.service.ApiClient
@@ -17,8 +19,6 @@ class SettingsDialog(
 
     private lateinit var mainPanel: DialogPanel
 
-    // Load prompt keys (blocking is acceptable here as it's local cache or fast fetch,
-    // but ideally we rely on MainPanel having prefetched, or we fetch now)
     private val availablePrompts = ApiClient.getAvailablePromptKeys()
 
     // Model Bindings
@@ -48,6 +48,13 @@ class SettingsDialog(
 
     override fun createCenterPanel(): JComponent {
         mainPanel = panel {
+            group("Connection") {
+                row("API Base URL:") {
+                    textField()
+                        .bindText(settings::baseUrl)
+                        .align(Align.FILL)
+                }
+            }
             group("Models") {
                 row("Chat Model:") {
                     comboBox(availableModels).bindItem(::chatModel)

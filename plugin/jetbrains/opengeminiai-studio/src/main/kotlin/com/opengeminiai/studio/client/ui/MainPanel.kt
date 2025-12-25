@@ -546,7 +546,6 @@ class MainPanel(val project: Project) {
         val model = modelComboBox.item as? String ?: "gemini-2.5-flash"
         val mode = modeComboBox.item as? String ?: "Chat"
 
-        // Resolve System Prompt based on Mode and Settings
         val prompt = if (mode == "QuickEdit") {
              ApiClient.getPromptText(appSettings.quickEditPromptKey, ApiClient.PromptType.QuickEdit)
         } else {
@@ -558,7 +557,8 @@ class MainPanel(val project: Project) {
         ApplicationManager.getApplication().executeOnPooledThread {
             var callToExecute: Call? = null
             try {
-                callToExecute = ApiClient.createChatCompletionCall(chat.messages, model, prompt)
+                // Pass baseUrl from settings
+                callToExecute = ApiClient.createChatCompletionCall(chat.messages, model, prompt, appSettings.baseUrl)
                 currentApiCall = callToExecute
 
                 val response = ApiClient.processCallResponse(callToExecute)
@@ -634,9 +634,9 @@ class MainPanel(val project: Project) {
     private fun refreshModels() {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                // Fetch prompts concurrently
-                ApiClient.fetchSystemPrompts()
-                val modelIds = ApiClient.getModels()
+                // Fetch using current settings URL
+                ApiClient.fetchSystemPrompts(appSettings.baseUrl)
+                val modelIds = ApiClient.getModels(appSettings.baseUrl)
 
                 SwingUtilities.invokeLater {
                     modelsModel.removeAllElements()
@@ -657,14 +657,16 @@ class MainPanel(val project: Project) {
     }
 
     private fun openSettings() {
-        // Ensure we have prompts loaded for the settings dialog
         ApplicationManager.getApplication().executeOnPooledThread {
-             ApiClient.fetchSystemPrompts()
+             // Ensure prompts are loaded before opening settings
+             ApiClient.fetchSystemPrompts(appSettings.baseUrl)
              SwingUtilities.invokeLater {
                  val models = (0 until modelsModel.size).map { modelsModel.getElementAt(it) }
                  val dialog = SettingsDialog(project, appSettings, models)
                  if (dialog.showAndGet()) {
                      PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
+                     // Refresh with new settings (URL might have changed)
+                     refreshModels()
                  }
              }
         }

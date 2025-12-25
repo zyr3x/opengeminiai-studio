@@ -14,7 +14,6 @@ object ApiClient {
         .readTimeout(120, TimeUnit.SECONDS)
         .build()
     private val gson = Gson()
-    private const val BASE_URL = "http://localhost:8080"
 
     // Cache for system prompts
     private var cachedPrompts: Map<String, SystemPromptEntry> = emptyMap()
@@ -32,16 +31,18 @@ object ApiClient {
 
     val DEFAULT_COMMIT_PROMPT = "You are a git commit message generator."
 
-    // Internal DTO to send only role/content to the API (ignoring local fields like 'changes')
     private data class ApiChatMessage(val role: String, val content: String)
     private data class ChatRequest(val model: String, val messages: List<ApiChatMessage>, val stream: Boolean = false)
 
-    fun createChatCompletionCall(history: List<ChatMessage>, model: String, systemPrompt: String): Call {
+    fun createChatCompletionCall(history: List<ChatMessage>, model: String, systemPrompt: String, baseUrl: String): Call {
         val msgs = mutableListOf(ApiChatMessage("system", systemPrompt))
         msgs.addAll(history.map { ApiChatMessage(it.role, it.content) })
 
+        // Remove trailing slash if present to avoid double slashes
+        val cleanUrl = baseUrl.trimEnd('/')
+
         val body = gson.toJson(ChatRequest(model, msgs, false)).toRequestBody("application/json".toMediaType())
-        val request = Request.Builder().url("$BASE_URL/v1/chat/completions").post(body).build()
+        val request = Request.Builder().url("$cleanUrl/v1/chat/completions").post(body).build()
         return client.newCall(request)
     }
 
@@ -77,9 +78,10 @@ object ApiClient {
         }
     }
 
-    fun getModels(): List<String> {
+    fun getModels(baseUrl: String): List<String> {
         try {
-            val req = Request.Builder().url("$BASE_URL/v1/models").get().build()
+            val cleanUrl = baseUrl.trimEnd('/')
+            val req = Request.Builder().url("$cleanUrl/v1/models").get().build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return listOf("gemini-2.5-flash")
                 val str = resp.body?.string() ?: return listOf()
@@ -93,9 +95,10 @@ object ApiClient {
 
     // --- System Prompt Logic ---
 
-    fun fetchSystemPrompts(): Map<String, SystemPromptEntry> {
+    fun fetchSystemPrompts(baseUrl: String): Map<String, SystemPromptEntry> {
         return try {
-            val req = Request.Builder().url("$BASE_URL/v1/system_prompts").get().build()
+            val cleanUrl = baseUrl.trimEnd('/')
+            val req = Request.Builder().url("$cleanUrl/v1/system_prompts").get().build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return emptyMap()
                 val str = resp.body?.string() ?: return emptyMap()
@@ -111,7 +114,6 @@ object ApiClient {
     }
 
     fun getAvailablePromptKeys(): List<String> {
-        // Always return Default first, then sorted keys
         return listOf("Default") + cachedPrompts.keys.sorted()
     }
 

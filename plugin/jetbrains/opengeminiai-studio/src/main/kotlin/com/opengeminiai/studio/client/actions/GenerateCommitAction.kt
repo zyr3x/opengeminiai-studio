@@ -67,8 +67,8 @@ class GenerateCommitAction : DumbAwareAction() {
         val settings = wrapper.settings ?: com.opengeminiai.studio.client.model.AppSettings()
         val model = settings.defaultCommitModel
 
-        // Resolve prompt. Note: fetchSystemPrompts is not called here to avoid delay.
-        // We rely on previous fetches or default fallback.
+        // Pass baseUrl from settings (fallback to hardcoded if settings fail, but here we use loaded settings)
+        val baseUrl = settings.baseUrl
         val systemPrompt = ApiClient.getPromptText(settings.commitPromptKey, ApiClient.PromptType.Commit)
 
         val contentBuilder = StringBuilder()
@@ -98,7 +98,8 @@ class GenerateCommitAction : DumbAwareAction() {
             override fun run(indicator: ProgressIndicator) {
                 try {
                     val msgs = listOf(ChatMessage("user", fullPrompt))
-                    val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt)
+                    // Use baseUrl
+                    val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt, baseUrl)
                     val response = ApiClient.processCallResponse(call)
                     
                     ApplicationManager.getApplication().invokeLater {

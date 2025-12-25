@@ -31,6 +31,9 @@ data class AppSettings(
     var defaultQuickEditModel: String = "gemini-2.5-flash",
     var defaultCommitModel: String = "gemini-2.5-flash",
 
+    // Connection Settings
+    var baseUrl: String = "http://localhost:8080",
+
     // Prompt Selections (Keys from the API or "Default")
     var chatPromptKey: String = "Default",
     var quickEditPromptKey: String = "Default",
@@ -60,7 +63,6 @@ data class Choice(val message: ChatMessage)
 data class ModelsResponse(val data: List<ModelEntry>)
 data class ModelEntry(val id: String)
 
-// New DTO for System Prompts
 data class SystemPromptEntry(
     val enabled: Boolean,
     val prompt: String,
