@@ -340,7 +340,7 @@ class MainPanel(val project: Project) {
     private fun showModelPopup(component: Component) {
         val actions = DefaultActionGroup()
         availableModels.forEach { modelName ->
-            actions.add(object : AnAction(modelName, "Select $modelName model", AllIcons.General.User) {
+            actions.add(object : AnAction(modelName, "Select $modelName model", AllIcons.Actions.Properties) {
                 override fun actionPerformed(e: AnActionEvent) {
                     setModel(modelName)
                 }
@@ -351,7 +351,7 @@ class MainPanel(val project: Project) {
 
     private fun setModel(model: String) {
         currentModel = model
-        modelButton.icon = AllIcons.General.User
+        modelButton.icon = AllIcons.Actions.Properties
         if (currentMode == "Chat") lastChatModel = model else lastQuickEditModel = model
         updateHeaderInfo()
     }
