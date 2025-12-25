@@ -48,6 +48,7 @@ class GenerateCommitAction : DumbAwareAction() {
         e.presentation.isVisible = project != null && commitMessageControl != null
         e.presentation.isEnabled = project != null
 
+        // Only set if not already set by plugin.xml, but here we enforce consistency
         e.presentation.text = "Generate Commit Message (OpenGeminiAI Studio)"
         e.presentation.icon = pluginIcon
     }
@@ -67,47 +68,80 @@ class GenerateCommitAction : DumbAwareAction() {
         val settings = wrapper.settings ?: com.opengeminiai.studio.client.model.AppSettings()
         val model = settings.defaultCommitModel
 
-        // Pass baseUrl from settings (fallback to hardcoded if settings fail, but here we use loaded settings)
+        // Pass baseUrl from settings
         val baseUrl = settings.baseUrl
         val systemPrompt = ApiClient.getPromptText(settings.commitPromptKey, ApiClient.PromptType.Commit)
 
         val contentBuilder = StringBuilder()
-        changes.take(20).forEach { change ->
-             val path = change.afterRevision?.file?.name ?: change.beforeRevision?.file?.name
+        
+        // Limit total processed files to avoid timeout/too large request
+        changes.take(30).forEach { change ->
+             val path = change.afterRevision?.file?.name ?: change.beforeRevision?.file?.name ?: "unknown"
+             val isDirectory = change.afterRevision?.file?.isDirectory == true || change.beforeRevision?.file?.isDirectory == true
+             
+             if (isDirectory) return@forEach
+
+             // Skip binary files check attempt (simple check via extension or virtualFile if available)
+             val virtualFile = change.virtualFile
+             if (virtualFile != null && virtualFile.fileType.isBinary) {
+                 contentBuilder.append("File: $path (Binary file changed)\n\n")
+                 return@forEach
+             }
+
              contentBuilder.append("File: $path\n")
              try {
                  val before = change.beforeRevision?.content
                  val after = change.afterRevision?.content
-                 if (before != null && after != null) {
-                     contentBuilder.append("New Content:\n$after\n")
-                 } else if (after != null) {
-                     contentBuilder.append("Created with Content:\n$after\n")
-                 } else if (before != null) {
-                     contentBuilder.append("Deleted.\n")
+
+                 when {
+                     before != null && after != null -> {
+                         // Modification: sending only 'after' content to save tokens, 
+                         // or ideally we would send a diff, but full content is often safer for context if small.
+                         // Truncating large files is crucial.
+                         val cleanContent = after.take(2000)
+                         contentBuilder.append("Status: Modified\nContent Preview:\n$cleanContent\n")
+                         if (after.length > 2000) contentBuilder.append("...(truncated)\n")
+                     }
+                     after != null -> {
+                         // Created
+                         val cleanContent = after.take(2000)
+                         contentBuilder.append("Status: Created\nContent:\n$cleanContent\n")
+                         if (after.length > 2000) contentBuilder.append("...(truncated)\n")
+                     }
+                     before != null -> {
+                         // Deleted
+                         contentBuilder.append("Status: Deleted\n")
+                     }
                  }
-             } catch (e: Exception) { }
+             } catch (e: Exception) {
+                 contentBuilder.append("(Error reading file content)\n")
+             }
              contentBuilder.append("\n")
         }
 
         var diffText = contentBuilder.toString()
-        if (diffText.length > 40000) diffText = diffText.take(40000) + "\n...(truncated)..."
+        // Global safety cap
+        if (diffText.length > 30000) diffText = diffText.take(30000) + "\n...(truncated globally)..."
 
-        val fullPrompt = "Generate a conventional git commit message for the following changes. Output ONLY the message.\n$diffText"
+        val fullPrompt = "Generate a concise, conventional git commit message (e.g., 'feat: ...', 'fix: ...') for the following changes. Output ONLY the message text.\n\n$diffText"
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Generating Commit Message", true) {
             override fun run(indicator: ProgressIndicator) {
                 try {
                     val msgs = listOf(ChatMessage("user", fullPrompt))
-                    // Use baseUrl
                     val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt, baseUrl)
                     val response = ApiClient.processCallResponse(call)
                     
                     ApplicationManager.getApplication().invokeLater {
-                         commitMessageControl.setCommitMessage(response.trim())
+                         if (!project.isDisposed) {
+                             commitMessageControl.setCommitMessage(response.trim())
+                         }
                     }
                 } catch (ex: Exception) {
                     ApplicationManager.getApplication().invokeLater {
-                         commitMessageControl.setCommitMessage("Error generating message: ${ex.message}")
+                         if (!project.isDisposed) {
+                             commitMessageControl.setCommitMessage("Error generating message: ${ex.message}")
+                         }
                     }
                 }
             }
