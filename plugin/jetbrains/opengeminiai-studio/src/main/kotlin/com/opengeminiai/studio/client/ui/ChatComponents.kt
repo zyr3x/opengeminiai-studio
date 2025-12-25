@@ -7,13 +7,17 @@ import com.opengeminiai.studio.client.Icons
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
 import com.intellij.icons.AllIcons
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.io.File
+import java.util.regex.Pattern
 import javax.swing.*
+import kotlin.math.min
 
 object ChatComponents {
 
@@ -57,29 +61,24 @@ object ChatComponents {
         }
         val actualTextContent = textContentBuilder.toString().trim()
 
-        // Markdown Text
-        // ALWAYS create JEditorPane to allow streaming updates, even if empty initially
-        val editorPane = JEditorPane()
-        editorPane.contentType = "text/html"
-        editorPane.text = MarkdownUtils.renderHtml(if (actualTextContent.isEmpty()) "&nbsp;" else actualTextContent)
-        editorPane.isEditable = false
-        editorPane.isOpaque = false
-        editorPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
-        editorPane.addHyperlinkListener { e ->
-            if (e.eventType == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
-                try { Desktop.getDesktop().browse(e.url.toURI()) } catch (err: Exception) {}
-            }
-        }
-        bubble.add(editorPane)
+        // Populate Bubble with Text and Code segments
+        populateBubbleContent(bubble, actualTextContent)
 
         // Attachments
         if (attachedFilesForDisplay.isNotEmpty()) {
             val attachmentsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 4))
             attachmentsPanel.isOpaque = false
-            if (actualTextContent.isNotBlank()) attachmentsPanel.border = JBUI.Borders.emptyTop(5)
+            // If there is text content, add top spacing to separate attachments
+            if (actualTextContent.isNotBlank()) {
+                 val spacer = JPanel()
+                 spacer.isOpaque = false
+                 spacer.preferredSize = Dimension(1, 5)
+                 bubble.add(spacer)
+            }
             attachedFilesForDisplay.forEach { file ->
                 attachmentsPanel.add(createAttachmentChip(file, {}, false))
             }
+            attachmentsPanel.alignmentX = Component.LEFT_ALIGNMENT
             bubble.add(attachmentsPanel)
         }
 
@@ -126,17 +125,106 @@ object ChatComponents {
     // --- UTILS ---
 
     fun updateMessageBubble(bubbleWrapper: JPanel, content: String) {
-        val editor = findChildComponent<JEditorPane>(bubbleWrapper)
-        if (editor != null) {
-            val safeContent = if (content.isEmpty()) "&nbsp;" else content
-            editor.text = MarkdownUtils.renderHtml(safeContent)
-            bubbleWrapper.revalidate()
-            bubbleWrapper.repaint()
+        // Find the RoundedPanel inside the wrapper
+        val bubble = findChildComponentRecursive(bubbleWrapper, RoundedPanel::class.java)
+        if (bubble != null) {
+            bubble.removeAll()
+            populateBubbleContent(bubble, content)
+            bubble.revalidate()
+            bubble.repaint()
         }
     }
 
+    private fun populateBubbleContent(panel: JPanel, content: String) {
+        if (content.isEmpty()) {
+            panel.add(createTextPanel("&nbsp;"))
+            return
+        }
+
+        val segments = parseSegments(content)
+        segments.forEach { segment ->
+            if (segment.isCode) {
+                panel.add(createCodePanel(segment.content))
+            } else {
+                if (segment.content.isNotBlank()) {
+                    panel.add(createTextPanel(segment.content))
+                }
+            }
+        }
+    }
+
+    private data class MessageSegment(val content: String, val isCode: Boolean)
+
+    private fun parseSegments(text: String): List<MessageSegment> {
+        val segments = mutableListOf<MessageSegment>()
+        // Regex matches fenced code blocks: ```lang ... ```
+        val matcher = Pattern.compile("```(?:\\w*)\\n?([\\s\\S]*?)```").matcher(text)
+        var lastIndex = 0
+
+        while (matcher.find()) {
+            if (matcher.start() > lastIndex) {
+                val textPart = text.substring(lastIndex, matcher.start())
+                if (textPart.isNotBlank()) {
+                    segments.add(MessageSegment(textPart, false))
+                }
+            }
+            val code = matcher.group(1) ?: ""
+            segments.add(MessageSegment(code.trim(), true))
+            lastIndex = matcher.end()
+        }
+
+        if (lastIndex < text.length) {
+            val tail = text.substring(lastIndex)
+            if (tail.isNotEmpty()) {
+                segments.add(MessageSegment(tail, false))
+            }
+        }
+        return segments
+    }
+
+    private fun createCodePanel(code: String): JComponent {
+        val textArea = JTextArea(code)
+        textArea.font = JBUI.Fonts.create("JetBrains Mono", 12)
+        textArea.isEditable = false
+        textArea.background = if (UIUtil.isUnderDarcula()) Color(43, 45, 48) else Color(242, 244, 245)
+        textArea.foreground = if (UIUtil.isUnderDarcula()) Color(169, 183, 198) else Color(8, 8, 8)
+        textArea.margin = JBUI.insets(8)
+
+        val scroll = JBScrollPane(textArea)
+        scroll.border = JBUI.Borders.customLine(if (UIUtil.isUnderDarcula()) Color(70, 70, 70) else Color(200, 200, 200))
+        scroll.viewportBorder = null
+
+        // Height Logic: Cap at ~300px to allow vertical scrolling
+        val metrics = textArea.getFontMetrics(textArea.font)
+        val lineHeight = metrics.height
+        val lines = code.lines().size
+        val maxHeight = 300
+        val prefHeight = min(maxHeight, (lines * lineHeight) + 24) // + padding
+
+        scroll.preferredSize = Dimension(-1, prefHeight)
+        scroll.maximumSize = Dimension(Int.MAX_VALUE, prefHeight)
+        scroll.alignmentX = Component.LEFT_ALIGNMENT
+
+        return scroll
+    }
+
+    private fun createTextPanel(text: String): JComponent {
+        val editorPane = JEditorPane()
+        editorPane.contentType = "text/html"
+        editorPane.text = MarkdownUtils.renderHtml(text)
+        editorPane.isEditable = false
+        editorPane.isOpaque = false
+        editorPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
+        editorPane.addHyperlinkListener { e ->
+            if (e.eventType == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED) {
+                try { Desktop.getDesktop().browse(e.url.toURI()) } catch (err: Exception) {}
+            }
+        }
+        editorPane.alignmentX = Component.LEFT_ALIGNMENT
+        return editorPane
+    }
+
     private inline fun <reified T : Component> findChildComponent(parent: Container): T? {
-        // Delegate to a non-inline recursive function to avoid compiler error
         return findChildComponentRecursive(parent, T::class.java)
     }
 
@@ -160,7 +248,7 @@ object ChatComponents {
                 val g2 = g as Graphics2D
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
                 g2.color = JBColor(Color(230, 230, 230), Color(60, 63, 65))
-                g2.fillRoundRect(0, 0, width - 1, height - 1, 8, 8) // Slightly sharper corners
+                g2.fillRoundRect(0, 0, width - 1, height - 1, 8, 8)
                 g2.color = JBColor.border()
                 g2.drawRoundRect(0, 0, width - 1, height - 1, 8, 8)
                 super.paintComponent(g)
@@ -191,7 +279,7 @@ object ChatComponents {
     fun createChangeWidget(project: Project, changes: List<FileChange>, onDelete: () -> Unit): JPanel {
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        wrapper.border = JBUI.Borders.empty(2, 38, 2, 5) // Indent to align with text bubbles
+        wrapper.border = JBUI.Borders.empty(2, 38, 2, 5)
 
         val container = RoundedChangeWidgetPanel().apply { layout = BorderLayout() }
 
@@ -203,11 +291,9 @@ object ChatComponents {
         title.font = JBUI.Fonts.smallFont().deriveFont(Font.BOLD)
         header.add(title, BorderLayout.WEST)
 
-        // Wrapper for Right side buttons (Apply All + Delete)
         val headerActions = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
         headerActions.isOpaque = false
 
-        // Logic to refresh the UI after an action
         fun refreshUI() {
              wrapper.removeAll()
              wrapper.add(createChangeWidget(project, changes, onDelete), BorderLayout.CENTER)
@@ -215,7 +301,6 @@ object ChatComponents {
              wrapper.repaint()
         }
 
-        // Global Apply/Undo Logic
         val allApplied = changes.all { appliedStatus.contains(it.path) }
         val globalActionText = if (allApplied) "Undo All" else "Apply All"
         val globalActionColor = if (allApplied) JBColor.RED else JBColor.BLUE
@@ -232,14 +317,12 @@ object ChatComponents {
                     val isApplied = appliedStatus.contains(change.path)
 
                     if (allApplied && isApplied) {
-                        // REVERT Logic
                         val backup = undoCache[change.path]
                         if (backup != null) {
                             DiffUtils.applyChangeDirectly(project, change.path, backup)
                             appliedStatus.remove(change.path)
                         }
                     } else if (!allApplied && !isApplied) {
-                        // APPLY Logic
                         val previous = DiffUtils.applyChangeDirectly(project, change.path, change.content)
                         if (previous != null) undoCache[change.path] = previous
                         appliedStatus.add(change.path)
@@ -249,7 +332,6 @@ object ChatComponents {
             }
         }
 
-        // NEW: Widget Delete Button
         val deleteWidgetBtn = JButton(AllIcons.Actions.GC).apply {
             toolTipText = "Remove this widget"
             preferredSize = Dimension(22, 22)
@@ -298,14 +380,12 @@ object ChatComponents {
 
                 addActionListener {
                     if (isApplied) {
-                         // Undo
                          val backup = undoCache[change.path]
                          if (backup != null) {
                              DiffUtils.applyChangeDirectly(project, change.path, backup)
                              appliedStatus.remove(change.path)
                          }
                     } else {
-                        // Apply
                         val previous = DiffUtils.applyChangeDirectly(project, change.path, change.content)
                         if (previous != null) undoCache[change.path] = previous
                         appliedStatus.add(change.path)
@@ -329,24 +409,16 @@ object ChatComponents {
         override fun paintComponent(g: Graphics) {
             val g2 = g as Graphics2D
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-
-            // --- COLOR CUSTOMIZATION ---
             if (isUser) {
-                // Purple tint for User
                 val lightColor = Color(235, 240, 255)
-                val darkColor = Color(70, 50, 90) // Muted purple for dark mode
+                val darkColor = Color(70, 50, 90)
                 g2.color = JBColor(lightColor, darkColor)
             } else {
-                // Standard Gray for Assistant
                 g2.color = JBColor(Color(255, 255, 255), Color(60, 63, 65))
             }
-
-            g2.fillRoundRect(0, 0, width - 1, height - 1, 16, 16) // More rounded (16px)
-
-            // Subtle Border
+            g2.fillRoundRect(0, 0, width - 1, height - 1, 16, 16)
             g2.color = if(isUser) JBColor(Color(200, 210, 240), Color(85, 65, 105)) else JBColor.border()
             g2.drawRoundRect(0, 0, width - 1, height - 1, 16, 16)
-
             super.paintComponent(g)
         }
     }

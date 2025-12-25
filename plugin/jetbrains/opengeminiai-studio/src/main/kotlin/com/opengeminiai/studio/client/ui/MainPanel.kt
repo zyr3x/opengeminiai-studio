@@ -671,34 +671,53 @@ class MainPanel(val project: Project) {
     }
 
     private fun handleFinalResponse(response: String, chat: Conversation) {
-        var textPart = response
+        var textPart = response.trim()
         var changes: List<FileChange>? = null
 
-        // 1. Try to find JSON inside Markdown code blocks first (Most Reliable)
-        val codeBlockMatcher = Pattern.compile("```json\\s*(\\{.*?\\})\\s*```", Pattern.DOTALL).matcher(response)
-        if (codeBlockMatcher.find()) {
-            val jsonContent = codeBlockMatcher.group(1)
-            try {
-                val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
-                if (request.action == "propose_changes") {
-                    changes = request.changes
-                    // Remove the entire code block from the text
-                    textPart = response.replace(codeBlockMatcher.group(0), "").trim()
+        // 1. Try to find JSON inside Markdown code blocks (Robust Index-based parsing)
+        val startMarker = "```json"
+        val endMarker = "```"
+        val startIndex = response.indexOf(startMarker)
+
+        if (startIndex != -1) {
+            val contentStart = startIndex + startMarker.length
+            val endIndex = response.indexOf(endMarker, contentStart)
+
+            if (endIndex != -1) {
+                val jsonContent = response.substring(contentStart, endIndex).trim()
+                try {
+                    // Attempt to parse the extracted content
+                    val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
+                    if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
+                        changes = request.changes
+                        // Remove the JSON block from the visible text
+                        // We construct the new text by taking everything before and after the block
+                        textPart = (response.substring(0, startIndex) + response.substring(endIndex + endMarker.length)).trim()
+                    }
+                } catch (e: Exception) {
+                    // JSON parse error, keep text as is (will be displayed as code block)
                 }
-            } catch (e: Exception) { /* Invalid JSON in block */ }
+            }
         }
 
-        // 2. Fallback: Try to find raw JSON object if no code block match
+        // 2. Fallback: Try to find raw JSON object if no code block match or block parsing failed
+        // Only attempt this if we haven't found changes yet
         if (changes == null) {
-            // Greedy match for a JSON-like structure containing "propose_changes"
-            val rawJsonMatcher = Pattern.compile("\\{.*\\\"action\\\"\\s*:\\s*\\\"propose_changes\\\".*\\}", Pattern.DOTALL).matcher(response)
-            if (rawJsonMatcher.find()) {
-                val jsonContent = rawJsonMatcher.group()
-                try {
-                    val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
-                    changes = request.changes
-                    textPart = response.replace(jsonContent, "").trim()
-                } catch (e: Exception) { /* Invalid JSON */ }
+            val jsonStart = response.indexOf("{")
+            val jsonEnd = response.lastIndexOf("}")
+
+            if (jsonStart != -1 && jsonEnd > jsonStart) {
+                 val potentialJson = response.substring(jsonStart, jsonEnd + 1)
+                 // Quick check to see if it looks like our schema before parsing
+                 if (potentialJson.contains("\"propose_changes\"")) {
+                     try {
+                         val request = gson.fromJson(potentialJson, ChangeRequest::class.java)
+                         if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
+                             changes = request.changes
+                             textPart = response.replace(potentialJson, "").trim()
+                         }
+                     } catch (e: Exception) { }
+                 }
             }
         }
 
