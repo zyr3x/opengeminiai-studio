@@ -16,7 +16,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.ui.components.* import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.intellij.icons.AllIcons
@@ -33,7 +33,9 @@ import javax.swing.event.DocumentListener
 import okhttp3.Call
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
-import java.awt.dnd.* import java.awt.event.* import java.io.File
+import java.awt.dnd.* 
+import java.awt.event.* 
+import java.io.File
 import javax.swing.* 
 import java.util.regex.Pattern
 
@@ -84,10 +86,32 @@ class MainPanel(val project: Project) {
     private val headerInfoLabel = JLabel("", SwingConstants.CENTER)
 
     // -- CONTROLS --
-    private val modelsModel = DefaultComboBoxModel<String>(arrayOf("gemini-2.5-flash"))
-    private val modeModel = DefaultComboBoxModel<String>(arrayOf("Chat", "QuickEdit"))
-    private val modelComboBox = ComboBox(modelsModel)
-    private val modeComboBox = ComboBox(modeModel)
+    private var availableModels = mutableListOf("gemini-2.5-flash")
+    private var currentMode = "Chat"
+    private var currentModel = "gemini-2.5-flash"
+
+    private val modeButton = JButton().apply {
+        preferredSize = Dimension(28, 28)
+        isBorderPainted = false
+        isContentAreaFilled = false
+        isFocusPainted = false
+        isOpaque = false
+        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        toolTipText = "Select Mode"
+        addActionListener { showModePopup(it.source as Component) }
+    }
+
+    private val modelButton = JButton().apply {
+        isBorderPainted = false
+        isContentAreaFilled = false
+        isFocusPainted = false
+        isOpaque = false
+        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        toolTipText = "Select Model"
+        horizontalAlignment = SwingConstants.LEFT
+        addActionListener { showModelPopup(it.source as Component) }
+    }
+
     private var sendBtn: JButton? = null
     private var currentApiCall: Call? = null
 
@@ -129,28 +153,6 @@ class MainPanel(val project: Project) {
             override fun changedUpdate(e: DocumentEvent?) { updateTokenCount() }
         })
 
-        // -- LOGIC: Persist Model Selection per Mode --
-        modeComboBox.addItemListener { e ->
-            if (e.stateChange == ItemEvent.SELECTED) {
-                val newMode = e.item as String
-                val modelToRestore = if (newMode == "Chat") lastChatModel else lastQuickEditModel
-                val listeners = modelComboBox.itemListeners
-                listeners.forEach { modelComboBox.removeItemListener(it) }
-                modelComboBox.selectedItem = modelToRestore
-                listeners.forEach { modelComboBox.addItemListener(it) }
-                updateHeaderInfo()
-            }
-        }
-
-        modelComboBox.addItemListener { e ->
-            if (e.stateChange == ItemEvent.SELECTED) {
-                val currentMode = modeComboBox.selectedItem as? String
-                val currentModel = e.item as String
-                if (currentMode == "Chat") lastChatModel = currentModel else lastQuickEditModel = currentModel
-                updateHeaderInfo()
-            }
-        }
-
         centerPanel.add(scrollPane, "CHAT")
         centerPanel.add(historyScrollPane, "HISTORY")
 
@@ -160,6 +162,9 @@ class MainPanel(val project: Project) {
 
         lastChatModel = appSettings.defaultChatModel
         lastQuickEditModel = appSettings.defaultQuickEditModel
+
+        // Initialize Mode
+        setMode("Chat")
 
         if (chatListModel.isEmpty) createNewChat()
         else loadChat(chatListModel.firstElement())
@@ -288,28 +293,11 @@ class MainPanel(val project: Project) {
         val controls = JPanel(BorderLayout()).apply { isOpaque = false; background = JBColor.background(); border = JBUI.Borders.emptyTop(4) }
         val leftControls = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply { isOpaque = false; background = JBColor.background() }
 
-        modelComboBox.preferredSize = Dimension(200, 28)
-        modeComboBox.preferredSize = Dimension(60, 28)
-
-        // Custom Renderer for Mode (Icon only in selected view, text in dropdown)
-        modeComboBox.renderer = object : ColoredListCellRenderer<String>() {
-            override fun customizeCellRenderer(list: JList<out String>, value: String?, index: Int, selected: Boolean, hasFocus: Boolean) {
-                if (value == null) return
-                // Use ListFiles (lines) for Chat, Edit for QuickEdit
-                icon = if (value == "Chat") AllIcons.Actions.ListFiles else AllIcons.Actions.Edit
-                // Removed the conditional text append: show icon only for both selected and dropdown items
-            }
-        }
-
-        // Add this line to attempt to remove the focus border (blue outline)
-        modeComboBox.isFocusable = false
-
-        // Removed "weird" look overrides (empty border/opaque false) to match the filled UI style in the image
         val addContextBtn = createIconButton(AllIcons.General.Add, "Add Context") { e -> showAddContextPopup(e.source as Component) }
 
         leftControls.add(addContextBtn)
-        leftControls.add(modeComboBox)
-        leftControls.add(modelComboBox)
+        leftControls.add(modeButton)
+        leftControls.add(modelButton)
 
         val rightControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply { isOpaque = false; background = JBColor.background() }
         rightControls.add(tokenCountLabel) // Add Token Counter here
@@ -329,6 +317,44 @@ class MainPanel(val project: Project) {
     }
 
     // --- CONTEXT & LOGIC ---
+
+    private fun showModePopup(component: Component) {
+        val actions = DefaultActionGroup()
+        actions.add(object : AnAction("Chat", "Standard chat mode", AllIcons.Actions.ListFiles) {
+            override fun actionPerformed(e: AnActionEvent) { setMode("Chat") }
+        })
+        actions.add(object : AnAction("QuickEdit", "Code editing mode", AllIcons.Actions.Edit) {
+            override fun actionPerformed(e: AnActionEvent) { setMode("QuickEdit") }
+        })
+        JBPopupFactory.getInstance().createActionGroupPopup("Select Mode", actions, DataManager.getInstance().getDataContext(component), JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, true).showUnderneathOf(component)
+    }
+
+    private fun setMode(mode: String) {
+        currentMode = mode
+        modeButton.icon = if (mode == "Chat") AllIcons.Actions.ListFiles else AllIcons.Actions.Edit
+        
+        val targetModel = if (mode == "Chat") lastChatModel else lastQuickEditModel
+        setModel(targetModel)
+    }
+
+    private fun showModelPopup(component: Component) {
+        val list = JBList(availableModels)
+        JBPopupFactory.getInstance().createListPopupBuilder(list)
+            .setTitle("Select Model")
+            .setItemChoosenCallback {
+                val selected = list.selectedValue
+                if (selected != null) setModel(selected)
+            }
+            .createPopup()
+            .showUnderneathOf(component)
+    }
+
+    private fun setModel(model: String) {
+        currentModel = model
+        modelButton.text = model
+        if (currentMode == "Chat") lastChatModel = model else lastQuickEditModel = model
+        updateHeaderInfo()
+    }
 
     private fun showAddContextPopup(component: Component) {
         val actions = DefaultActionGroup()
@@ -546,8 +572,8 @@ class MainPanel(val project: Project) {
         }
 
         // API Call Preparation
-        val model = modelComboBox.selectedItem as? String ?: "gemini-2.5-flash"
-        val mode = modeComboBox.selectedItem as? String ?: "Chat"
+        val model = currentModel
+        val mode = currentMode
 
         val systemPrompt = promptOverride ?: if (mode == "QuickEdit") {
              ApiClient.getPromptText(appSettings.quickEditPromptKey, ApiClient.PromptType.QuickEdit)
@@ -703,14 +729,12 @@ class MainPanel(val project: Project) {
                 ApiClient.fetchSystemPrompts(appSettings.baseUrl)
                 val modelIds = ApiClient.getModels(appSettings.baseUrl)
                 SwingUtilities.invokeLater {
-                    modelsModel.removeAllElements()
-                    if (modelIds.isNotEmpty()) modelIds.forEach { modelsModel.addElement(it) }
-                    else modelsModel.addElement("gemini-2.5-flash")
+                    availableModels.clear()
+                    if (modelIds.isNotEmpty()) availableModels.addAll(modelIds)
+                    else availableModels.add("gemini-2.5-flash")
 
-                    val currentMode = modeComboBox.selectedItem as? String ?: "Chat"
                     val targetModel = if (currentMode == "Chat") lastChatModel else lastQuickEditModel
-                    if (modelIds.contains(targetModel)) modelComboBox.selectedItem = targetModel
-                    updateHeaderInfo()
+                    setModel(targetModel)
                 }
             } catch (e: Exception) { }
         }
@@ -720,8 +744,7 @@ class MainPanel(val project: Project) {
         ApplicationManager.getApplication().executeOnPooledThread {
              ApiClient.fetchSystemPrompts(appSettings.baseUrl)
              SwingUtilities.invokeLater {
-                 val models = (0 until modelsModel.size).map { modelsModel.getElementAt(it) }
-                 val dialog = SettingsDialog(project, appSettings, models)
+                 val dialog = SettingsDialog(project, appSettings, availableModels)
                  if (dialog.showAndGet()) {
                      val conversationsToSave = chatListModel.elements().toList()
                      ApplicationManager.getApplication().executeOnPooledThread {
@@ -740,22 +763,19 @@ class MainPanel(val project: Project) {
             sendBtn?.toolTipText = "Stop Sending"
             sendBtn?.actionListeners?.forEach { sendBtn?.removeActionListener(it) }
             sendBtn?.addActionListener { stopSending() }
-            inputArea.isEnabled = false; modelComboBox.isEnabled = false; modeComboBox.isEnabled = false
+            inputArea.isEnabled = false; modeButton.isEnabled = false; modelButton.isEnabled = false
         } else {
             sendBtn?.icon = AllIcons.Actions.Execute
             sendBtn?.toolTipText = "Send"
             sendBtn?.actionListeners?.forEach { sendBtn?.removeActionListener(it) }
             sendBtn?.addActionListener { sendMessage() }
-            inputArea.isEnabled = true; modelComboBox.isEnabled = true; modeComboBox.isEnabled = true
+            inputArea.isEnabled = true; modeButton.isEnabled = true; modelButton.isEnabled = true
         }
     }
 
     private fun setupDragAndDrop(component: Component) {
         val target = object : DropTargetAdapter() {
             override fun drop(dtde: DropTargetDropEvent) {
-                // FIX: Check for data flavor BEFORE accepting the drop.
-                // The previous error "invalid rejectDrop()" happened because rejectDrop() was called
-                // after acceptDrop() or inside a catch block after acceptance.
                 try {
                     if (dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                         dtde.acceptDrop(DnDConstants.ACTION_COPY)
@@ -767,8 +787,6 @@ class MainPanel(val project: Project) {
                         dtde.rejectDrop()
                     }
                 } catch (e: Exception) {
-                    // Safe handling: if we already accepted, we should probably fail silently or dropComplete(false)
-                    // but if we haven't accepted, we can't do much.
                     try { dtde.dropComplete(false) } catch(ignore: Exception) {}
                 }
             }
@@ -882,7 +900,7 @@ class MainPanel(val project: Project) {
 
     private fun updateHeaderInfo() {
         val title = currentConversation?.title ?: "New Chat"
-        val model = modelComboBox.selectedItem as? String ?: "gemini-2.5-flash"
+        val model = currentModel
         val displayTitle = if (title.length > 25) title.substring(0, 22) + "..." else title
         headerInfoLabel.text = "<html><b>$displayTitle</b> <span style='color:gray'>($model)</span></html>"
         headerInfoLabel.toolTipText = "$title using $model"
