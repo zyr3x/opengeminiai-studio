@@ -64,7 +64,12 @@ class GenerateCommitAction : DumbAwareAction() {
         }
 
         val wrapper = PersistenceService.load(project)
-        val model = wrapper.settings?.defaultCommitModel ?: "gemini-2.5-flash-lite"
+        val settings = wrapper.settings ?: com.opengeminiai.studio.client.model.AppSettings()
+        val model = settings.defaultCommitModel
+
+        // Resolve prompt. Note: fetchSystemPrompts is not called here to avoid delay.
+        // We rely on previous fetches or default fallback.
+        val systemPrompt = ApiClient.getPromptText(settings.commitPromptKey, ApiClient.PromptType.Commit)
 
         val contentBuilder = StringBuilder()
         changes.take(20).forEach { change ->
@@ -83,17 +88,17 @@ class GenerateCommitAction : DumbAwareAction() {
              } catch (e: Exception) { }
              contentBuilder.append("\n")
         }
-        
+
         var diffText = contentBuilder.toString()
         if (diffText.length > 40000) diffText = diffText.take(40000) + "\n...(truncated)..."
-        
+
         val fullPrompt = "Generate a conventional git commit message for the following changes. Output ONLY the message.\n$diffText"
-        
+
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Generating Commit Message", true) {
             override fun run(indicator: ProgressIndicator) {
                 try {
                     val msgs = listOf(ChatMessage("user", fullPrompt))
-                    val call = ApiClient.createChatCompletionCall(msgs, model, "You are a git commit message generator.")
+                    val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt)
                     val response = ApiClient.processCallResponse(call)
                     
                     ApplicationManager.getApplication().invokeLater {

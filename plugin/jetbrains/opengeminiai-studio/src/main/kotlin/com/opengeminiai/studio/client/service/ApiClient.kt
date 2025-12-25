@@ -2,6 +2,7 @@ package com.opengeminiai.studio.client.service
 
 import com.opengeminiai.studio.client.model.*
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -15,17 +16,8 @@ object ApiClient {
     private val gson = Gson()
     private const val BASE_URL = "http://localhost:8080"
 
-    val CHAT_PROMPT = """
-    You are an expert developer.
-    1. Answer using Markdown.
-    2. To MODIFY files, output JSON:
-    ```json
-    {
-      "action": "propose_changes",
-      "changes": [ { "path": "/abs/path", "content": "NEW CONTENT" } ]
-    }
-    ```
-    """.trimIndent()
+    // Cache for system prompts
+    private var cachedPrompts: Map<String, SystemPromptEntry> = emptyMap()
 
     val QUICK_EDIT_PROMPT = """
     You are a code editing engine.
@@ -38,16 +30,13 @@ object ApiClient {
     ```
     """.trimIndent()
 
+    val DEFAULT_COMMIT_PROMPT = "You are a git commit message generator."
+
     // Internal DTO to send only role/content to the API (ignoring local fields like 'changes')
     private data class ApiChatMessage(val role: String, val content: String)
     private data class ChatRequest(val model: String, val messages: List<ApiChatMessage>, val stream: Boolean = false)
 
-    /**
-     * Creates an OkHttp Call object for a chat completion request.
-     * The call is not executed by this function.
-     */
     fun createChatCompletionCall(history: List<ChatMessage>, model: String, systemPrompt: String): Call {
-        // Map persistent ChatMessage to purely API-focused ApiChatMessage
         val msgs = mutableListOf(ApiChatMessage("system", systemPrompt))
         msgs.addAll(history.map { ApiChatMessage(it.role, it.content) })
 
@@ -56,18 +45,11 @@ object ApiClient {
         return client.newCall(request)
     }
 
-    /**
-     * Executes an OkHttp Call and processes its response.
-     * @param call The OkHttp Call to execute.
-     * @return The parsed content of the AI response.
-     * @throws Exception if the request fails or parsing errors occur.
-     */
     fun processCallResponse(call: Call): String {
         call.execute().use { resp ->
             val str = resp.body?.string() ?: ""
             if (!resp.isSuccessful) return "Error ${resp.code}: ${str.take(200)} "
 
-            // Handle SSE (Streaming) response if detected
             if (str.trim().startsWith("data:")) {
                 val sb = StringBuilder()
                 str.lines().forEach { line ->
@@ -79,16 +61,13 @@ object ApiClient {
                                 val chunk = gson.fromJson(json, StreamChunk::class.java)
                                 val content = chunk.choices.firstOrNull()?.delta?.content
                                 if (content != null) sb.append(content)
-                            } catch (e: Exception) {
-                                // Ignore malformed chunks
-                            }
+                            } catch (e: Exception) { }
                         }
                     }
                 }
                 return sb.toString()
             }
 
-            // Handle Standard JSON response
             return try {
                 val parsed = gson.fromJson(str, OpenAIResponse::class.java)
                 parsed.choices.firstOrNull()?.message?.content ?: ""
@@ -110,5 +89,40 @@ object ApiClient {
         } catch (e: Exception) {
             return listOf("gemini-2.5-flash")
         }
+    }
+
+    // --- System Prompt Logic ---
+
+    fun fetchSystemPrompts(): Map<String, SystemPromptEntry> {
+        return try {
+            val req = Request.Builder().url("$BASE_URL/v1/system_prompts").get().build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return emptyMap()
+                val str = resp.body?.string() ?: return emptyMap()
+                val type = object : TypeToken<Map<String, SystemPromptEntry>>() {}.type
+                val map: Map<String, SystemPromptEntry> = gson.fromJson(str, type)
+                // Filter only enabled
+                cachedPrompts = map.filter { it.value.enabled }
+                cachedPrompts
+            }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    fun getAvailablePromptKeys(): List<String> {
+        // Always return Default first, then sorted keys
+        return listOf("Default") + cachedPrompts.keys.sorted()
+    }
+
+    fun getPromptText(key: String, type: PromptType): String {
+        if (key == "Default") return type.defaultText
+        return cachedPrompts[key]?.prompt ?: type.defaultText
+    }
+
+    enum class PromptType(val defaultText: String) {
+        Chat(DEFAULT_SYSTEM_PROMPT),
+        QuickEdit(QUICK_EDIT_PROMPT),
+        Commit(DEFAULT_COMMIT_PROMPT)
     }
 }

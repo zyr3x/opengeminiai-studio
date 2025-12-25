@@ -30,7 +30,11 @@ data class AppSettings(
     var defaultChatModel: String = "gemini-2.5-flash",
     var defaultQuickEditModel: String = "gemini-2.5-flash",
     var defaultCommitModel: String = "gemini-2.5-flash",
-    var systemPrompt: String = DEFAULT_SYSTEM_PROMPT
+
+    // Prompt Selections (Keys from the API or "Default")
+    var chatPromptKey: String = "Default",
+    var quickEditPromptKey: String = "Default",
+    var commitPromptKey: String = "Default"
 )
 
 data class StorageWrapper(
@@ -55,3 +59,11 @@ data class OpenAIResponse(val choices: List<Choice>)
 data class Choice(val message: ChatMessage)
 data class ModelsResponse(val data: List<ModelEntry>)
 data class ModelEntry(val id: String)
+
+// New DTO for System Prompts
+data class SystemPromptEntry(
+    val enabled: Boolean,
+    val prompt: String,
+    val disable_tools: Boolean? = null,
+    val enable_native_tools: Boolean? = null
+)

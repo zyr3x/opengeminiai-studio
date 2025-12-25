@@ -6,17 +6,14 @@ import com.opengeminiai.studio.client.service.PersistenceService
 import com.google.gson.Gson
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
-import com.intellij.ui.components.* 
-import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.components.* import com.intellij.openapi.ui.ComboBox
 import com.intellij.util.ui.JBUI
 import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
 import okhttp3.Call
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
-import java.awt.dnd.* 
-import java.awt.event.* 
-import java.io.File
+import java.awt.dnd.* import java.awt.event.* import java.io.File
 import javax.swing.*
 import java.util.regex.Pattern
 
@@ -117,7 +114,7 @@ class MainPanel(val project: Project) {
                 listeners.forEach { modelComboBox.removeItemListener(it) }
                 modelComboBox.selectedItem = modelToRestore
                 listeners.forEach { modelComboBox.addItemListener(it) }
-                
+
                 updateHeaderInfo()
             }
         }
@@ -167,7 +164,7 @@ class MainPanel(val project: Project) {
 
         headerInfoLabel.font = JBUI.Fonts.smallFont()
         headerInfoLabel.foreground = JBColor.GRAY
-        
+
         val rightActions = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0))
         val newChatBtn = createIconButton(AllIcons.General.Add, "New Chat") { createNewChat() }
         rightActions.add(newChatBtn)
@@ -308,7 +305,6 @@ class MainPanel(val project: Project) {
             background = JBColor.background()
         }
 
-        // REMOVED Git Button from here as requested to move to Commit Panel
         sendBtn = createIconButton(AllIcons.Actions.Execute, "Send") { sendMessage() }
 
         rightControls.add(sendBtn!!)
@@ -549,8 +545,13 @@ class MainPanel(val project: Project) {
 
         val model = modelComboBox.item as? String ?: "gemini-2.5-flash"
         val mode = modeComboBox.item as? String ?: "Chat"
-        // Use System Prompt from settings for Chat, or hardcoded for QuickEdit
-        val prompt = if (mode == "QuickEdit") ApiClient.QUICK_EDIT_PROMPT else appSettings.systemPrompt
+
+        // Resolve System Prompt based on Mode and Settings
+        val prompt = if (mode == "QuickEdit") {
+             ApiClient.getPromptText(appSettings.quickEditPromptKey, ApiClient.PromptType.QuickEdit)
+        } else {
+             ApiClient.getPromptText(appSettings.chatPromptKey, ApiClient.PromptType.Chat)
+        }
 
         updateSendButtonState(true)
 
@@ -633,7 +634,10 @@ class MainPanel(val project: Project) {
     private fun refreshModels() {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
+                // Fetch prompts concurrently
+                ApiClient.fetchSystemPrompts()
                 val modelIds = ApiClient.getModels()
+
                 SwingUtilities.invokeLater {
                     modelsModel.removeAllElements()
                     if (modelIds.isNotEmpty()) modelIds.forEach { modelsModel.addElement(it) }
@@ -644,7 +648,7 @@ class MainPanel(val project: Project) {
                     if (modelIds.contains(targetModel)) {
                          modelComboBox.selectedItem = targetModel
                     }
-                    
+
                     updateHeaderInfo()
                 }
             } catch (e: Exception) {
@@ -653,10 +657,16 @@ class MainPanel(val project: Project) {
     }
 
     private fun openSettings() {
-        val models = (0 until modelsModel.size).map { modelsModel.getElementAt(it) }
-        val dialog = SettingsDialog(project, appSettings, models)
-        if (dialog.showAndGet()) {
-            PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
+        // Ensure we have prompts loaded for the settings dialog
+        ApplicationManager.getApplication().executeOnPooledThread {
+             ApiClient.fetchSystemPrompts()
+             SwingUtilities.invokeLater {
+                 val models = (0 until modelsModel.size).map { modelsModel.getElementAt(it) }
+                 val dialog = SettingsDialog(project, appSettings, models)
+                 if (dialog.showAndGet()) {
+                     PersistenceService.save(project, chatListModel.elements().toList(), appSettings)
+                 }
+             }
         }
     }
 }
