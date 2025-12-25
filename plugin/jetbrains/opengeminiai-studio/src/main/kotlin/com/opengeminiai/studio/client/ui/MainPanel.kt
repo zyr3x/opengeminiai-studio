@@ -338,20 +338,20 @@ class MainPanel(val project: Project) {
     }
 
     private fun showModelPopup(component: Component) {
-        val list = JBList(availableModels)
-        JBPopupFactory.getInstance().createListPopupBuilder(list)
-            .setTitle("Select Model")
-            .setItemChoosenCallback {
-                val selected = list.selectedValue
-                if (selected != null) setModel(selected)
-            }
-            .createPopup()
-            .showUnderneathOf(component)
+        val actions = DefaultActionGroup()
+        availableModels.forEach { modelName ->
+            actions.add(object : AnAction(modelName, "Select $modelName model", AllIcons.General.User) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    setModel(modelName)
+                }
+            })
+        }
+        JBPopupFactory.getInstance().createActionGroupPopup("Select Model", actions, DataManager.getInstance().getDataContext(component), JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, true).showUnderneathOf(component)
     }
 
     private fun setModel(model: String) {
         currentModel = model
-        modelButton.text = model
+        modelButton.icon = AllIcons.General.User
         if (currentMode == "Chat") lastChatModel = model else lastQuickEditModel = model
         updateHeaderInfo()
     }
