@@ -235,8 +235,13 @@ class MainPanel(val project: Project) {
         }
         row.addMouseListener(mouseAdapter); infoPanel.addMouseListener(mouseAdapter); titleLabel.addMouseListener(mouseAdapter)
 
+        val renameBtn = createIconButton(AllIcons.Actions.Edit, "Rename Chat") { renameSpecificChat(conversation) }
         val deleteBtn = createIconButton(AllIcons.Actions.GC, "Delete Chat") { deleteSpecificChat(conversation) }
-        val btnContainer = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply { isOpaque = false; add(deleteBtn) }
+        val btnContainer = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply {
+            isOpaque = false
+            add(renameBtn)
+            add(deleteBtn)
+        }
 
         row.add(infoPanel, BorderLayout.CENTER); row.add(btnContainer, BorderLayout.EAST)
         return row
@@ -323,7 +328,7 @@ class MainPanel(val project: Project) {
         actions.add(object : AnAction("Chat", "Standard chat mode", AllIcons.Actions.ListFiles) {
             override fun actionPerformed(e: AnActionEvent) { setMode("Chat") }
         })
-        actions.add(object : AnAction("QuickEdit", "Code editing mode", AllIcons.Actions.Edit) {
+        actions.add(object : AnAction("Quick Edit", "Code editing mode", AllIcons.Actions.Edit) {
             override fun actionPerformed(e: AnActionEvent) { setMode("QuickEdit") }
         })
         JBPopupFactory.getInstance().createActionGroupPopup("Select Mode", actions, DataManager.getInstance().getDataContext(component), JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, true).showUnderneathOf(component)
@@ -849,6 +854,29 @@ class MainPanel(val project: Project) {
 
         refreshHistoryList()
         loadChat(chat)
+    }
+
+    private fun renameSpecificChat(chat: Conversation) {
+        val newTitle = Messages.showInputDialog(
+            project,
+            "Enter new chat title:",
+            "Rename Chat",
+            AllIcons.Actions.Edit,
+            chat.title,
+            null
+        )
+
+        if (!newTitle.isNullOrBlank() && newTitle != chat.title) {
+            chat.title = newTitle
+
+            val conversationsToSave = chatListModel.elements().toList()
+            ApplicationManager.getApplication().executeOnPooledThread {
+                PersistenceService.save(project, conversationsToSave, appSettings)
+            }
+
+            refreshHistoryList()
+            if (chat == currentConversation) updateHeaderInfo()
+        }
     }
 
     private fun deleteSpecificChat(chat: Conversation) {
