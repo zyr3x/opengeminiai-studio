@@ -13,6 +13,7 @@ import com.intellij.util.ui.UIUtil
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.ui.DialogWrapper
 import java.awt.*
+import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.io.File
@@ -78,6 +79,17 @@ object ChatComponents {
             bubble.add(attachmentsPanel)
         }
 
+        val copyBtn = JLabel(AllIcons.Actions.Copy)
+        copyBtn.toolTipText = "Copy raw content"
+        copyBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        copyBtn.border = JBUI.Borders.empty(6)
+        copyBtn.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                val selection = StringSelection(content)
+                Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
+            }
+        })
+
         val deleteBtn = JLabel(AllIcons.Actions.GC)
         deleteBtn.toolTipText = "Delete Message"
         deleteBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
@@ -95,12 +107,14 @@ object ChatComponents {
         val box = Box.createHorizontalBox()
         if (isUser) {
             box.add(Box.createHorizontalGlue())
+            box.add(copyBtn)
             box.add(deleteBtn)
             box.add(bubble)
             box.add(avatarLabel)
         } else {
             box.add(avatarLabel)
             box.add(bubble)
+            box.add(copyBtn)
             box.add(deleteBtn)
             box.add(Box.createHorizontalGlue())
         }

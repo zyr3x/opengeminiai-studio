@@ -22,6 +22,15 @@
         </ol>
     ]]></description>
     <change-notes><![CDATA[<ul>
+    <li><b>v1.1.0</b>: UI & Context Update
+        <ul>
+            <li><b>Enhanced UI:</b> Redesigned context attachments (chips), improved Dark Mode contrast, and clearer Markdown rendering.</li>
+            <li><b>Context Filters:</b> New settings to ignore specific folders/extensions (e.g. node_modules) when attaching Project Structure.</li>
+            <li><b>Slash Commands:</b> Added <code>/explain</code>, <code>/fix</code>, <code>/refactor</code>, <code>/test</code>, and <code>/doc</code> shortcuts.</li>
+            <li><b>Chat Management:</b> Added ability to rename conversations and real-time token usage estimation.</li>
+            <li><b>Fixes:</b> Improved model selection popup and attachment handling.</li>
+        </ul>
+    </li>
     <li><b>v1.0.0</b>: Initial Release.
         <ul>
             <li>Native Chat interface with Markdown and History.</li>
