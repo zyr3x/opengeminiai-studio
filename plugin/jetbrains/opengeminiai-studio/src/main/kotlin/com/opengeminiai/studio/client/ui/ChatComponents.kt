@@ -142,7 +142,20 @@ object ChatComponents {
         val segments = parseSegments(content)
         segments.forEach { segment ->
             when (segment.type) {
-                SegmentType.CODE -> panel.add(createCodePanel(segment.content))
+                SegmentType.CODE -> {
+                    // Hide JSON change proposals during generation
+                    if (segment.content.contains("\"action\": \"propose_changes\"")) {
+                        val pathPattern = Pattern.compile("\"path\"\\s*:\\s*\"(.*?)\"")
+                        val pathMatcher = pathPattern.matcher(segment.content)
+                        var lastFileName: String? = null
+                        while (pathMatcher.find()) {
+                            lastFileName = pathMatcher.group(1).substringAfterLast('/')
+                        }
+                        panel.add(createGeneratingPlaceholder(lastFileName))
+                    } else {
+                        panel.add(createCodePanel(segment.content))
+                    }
+                }
                 SegmentType.CONTEXT -> {
                     val ctxPanel = createContextPanel(segment.title!!, segment.contentType!!, segment.content)
                     panel.add(ctxPanel)
@@ -164,9 +177,10 @@ object ChatComponents {
     private fun parseSegments(text: String): List<MessageSegment> {
         val segments = mutableListOf<MessageSegment>()
 
-        // Group 1: Code block content
-        // Group 2: Context title, Group 3: Context type, Group 4: Context content
-        val pattern = Pattern.compile("```(?:\\w*)\\n?([\\s\\S]*?)```|:::CTX:(.*?):(.*?):::\\n([\\s\\S]*?)\\n:::END:::")
+        // Group 1: Lang, Group 2: Code block content
+        // Group 3: Context title, Group 4: Context type, Group 5: Context content
+        // Updated regex to handle unclosed code blocks during streaming
+        val pattern = Pattern.compile("```(\\w*)\\n?([\\s\\S]*?)(?:```|(?=\\z))|:::CTX:(.*?):(.*?):::\\n([\\s\\S]*?)\\n:::END:::")
         val matcher = pattern.matcher(text)
         var lastIndex = 0
 
@@ -176,12 +190,12 @@ object ChatComponents {
                 if (textPart.isNotBlank()) segments.add(MessageSegment(textPart, SegmentType.TEXT))
             }
 
-            if (matcher.group(1) != null) {
-                segments.add(MessageSegment(matcher.group(1).trim(), SegmentType.CODE))
-            } else {
-                val title = matcher.group(2)
-                val type = matcher.group(3)
-                val content = matcher.group(4)
+            if (matcher.group(2) != null) {
+                segments.add(MessageSegment(matcher.group(2).trim(), SegmentType.CODE))
+            } else if (matcher.group(3) != null) {
+                val title = matcher.group(3)
+                val type = matcher.group(4)
+                val content = matcher.group(5)
                 segments.add(MessageSegment(content, SegmentType.CONTEXT, title, type))
             }
             lastIndex = matcher.end()
@@ -192,6 +206,21 @@ object ChatComponents {
             if (tail.isNotEmpty()) segments.add(MessageSegment(tail, SegmentType.TEXT))
         }
         return segments
+    }
+
+    private fun createGeneratingPlaceholder(fileName: String?): JComponent {
+        val panel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 4))
+        panel.isOpaque = false
+        panel.alignmentX = Component.LEFT_ALIGNMENT
+        
+        val label = JLabel(if (fileName != null) "Generating changes for $fileName..." else "Generating changes...", AllIcons.Process.Step_1, SwingConstants.LEFT)
+        label.font = JBUI.Fonts.smallFont().deriveFont(Font.ITALIC)
+        label.foreground = JBColor.GRAY
+        
+        panel.add(label)
+        panel.border = JBUI.Borders.empty(4, 0)
+        
+        return panel
     }
 
     private fun createContextPanel(title: String, type: String, content: String): JComponent {
