@@ -23,9 +23,6 @@ import kotlin.math.min
 
 object ChatComponents {
 
-    private val undoCache = mutableMapOf<String, String>()
-    private val appliedStatus = mutableSetOf<String>()
-
     fun createMessageBubble(role: String, content: String, messageIndex: Int? = null, onDelete: ((Int) -> Unit)? = null): JPanel {
         val isUser = role == "user"
         val wrapper = JPanel(BorderLayout())
@@ -372,130 +369,179 @@ object ChatComponents {
     }
 
     fun createChangeWidget(project: Project, changes: List<FileChange>, onDelete: () -> Unit): JPanel {
+        // Local state for stability
+        val undoCache = mutableMapOf<String, String>()
+        val appliedStatus = mutableSetOf<String>()
+
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        wrapper.border = JBUI.Borders.empty(2, 38, 2, 5)
+        // Compact indentation matching message bubbles
+        wrapper.border = JBUI.Borders.empty(2, 38, 2, 10)
 
-        val container = RoundedChangeWidgetPanel().apply { layout = BorderLayout() }
+        fun rebuild() {
+            wrapper.removeAll()
 
-        val header = JPanel(BorderLayout())
-        header.isOpaque = false
-        header.border = JBUI.Borders.empty(5, 8)
+            val container = RoundedChangeWidgetPanel()
+            container.layout = BoxLayout(container, BoxLayout.Y_AXIS)
+            container.border = JBUI.Borders.empty(6, 10)
+            container.alignmentX = Component.LEFT_ALIGNMENT
 
-        val title = JBLabel("${changes.size} files updated", AllIcons.Actions.Checked, SwingConstants.LEFT)
-        title.font = JBUI.Fonts.smallFont().deriveFont(Font.BOLD)
-        header.add(title, BorderLayout.WEST)
+            changes.forEachIndexed { index, change ->
+                val isApplied = appliedStatus.contains(change.path)
 
-        val headerActions = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
-        headerActions.isOpaque = false
+                val row = JPanel(BorderLayout())
+                row.isOpaque = false
+                // Very compact row height
+                row.maximumSize = Dimension(Int.MAX_VALUE, 24)
 
-        fun refreshUI() {
-             wrapper.removeAll()
-             wrapper.add(createChangeWidget(project, changes, onDelete), BorderLayout.CENTER)
-             wrapper.revalidate()
-             wrapper.repaint()
-        }
-
-        val allApplied = changes.all { appliedStatus.contains(it.path) }
-        val globalActionText = if (allApplied) "Undo All" else "Apply All"
-        val globalActionColor = if (allApplied) JBColor.RED else JBColor.BLUE
-
-        val actionAllBtn = JButton(globalActionText).apply {
-            isBorderPainted = false
-            isContentAreaFilled = false
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            font = JBUI.Fonts.smallFont()
-            foreground = globalActionColor
-
-            addActionListener {
-                changes.forEach { change ->
-                    val isApplied = appliedStatus.contains(change.path)
-
-                    if (allApplied && isApplied) {
-                        val backup = undoCache[change.path]
-                        if (backup != null) {
-                            DiffUtils.applyChangeDirectly(project, change.path, backup)
-                            appliedStatus.remove(change.path)
-                        }
-                    } else if (!allApplied && !isApplied) {
-                        val previous = DiffUtils.applyChangeDirectly(project, change.path, change.content)
-                        if (previous != null) undoCache[change.path] = previous
-                        appliedStatus.add(change.path)
-                    }
-                }
-                refreshUI()
-            }
-        }
-
-        val deleteWidgetBtn = JButton(AllIcons.Actions.GC).apply {
-            toolTipText = "Remove this widget"
-            preferredSize = Dimension(22, 22)
-            isBorderPainted = false
-            isContentAreaFilled = false
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            addActionListener { onDelete() }
-        }
-
-        headerActions.add(actionAllBtn)
-        headerActions.add(deleteWidgetBtn)
-        header.add(headerActions, BorderLayout.EAST)
-
-        container.add(header, BorderLayout.NORTH)
-
-        val fileList = Box.createVerticalBox()
-        changes.forEach { change ->
-            val changeRow = JPanel(BorderLayout())
-            changeRow.isOpaque = false
-            changeRow.border = JBUI.Borders.empty(2, 8)
-
-            val filename = change.path.substringAfterLast("/")
-            val link = JLabel(filename, AllIcons.FileTypes.Any_type, SwingConstants.LEFT)
-            link.font = JBUI.Fonts.smallFont()
-            link.foreground = JBColor.BLUE
-            link.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            link.addMouseListener(object: MouseAdapter() {
-                override fun mouseClicked(e: MouseEvent) {
-                    DiffUtils.showDiff(project, change.path, change.content)
-                }
-            })
-
-            val actions = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0))
-            actions.isOpaque = false
-
-            val isApplied = appliedStatus.contains(change.path)
-            val btnIcon = if (isApplied) AllIcons.Actions.Rollback else AllIcons.Actions.Checked
-            val btnToolTip = if (isApplied) "Undo changes" else "Apply changes"
-
-            val btnAction = JButton(btnIcon).apply {
-                preferredSize = Dimension(20, 20)
-                toolTipText = btnToolTip
-                isBorderPainted = false
-                isContentAreaFilled = false
-                cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-
-                addActionListener {
-                    if (isApplied) {
-                         val backup = undoCache[change.path]
-                         if (backup != null) {
-                             DiffUtils.applyChangeDirectly(project, change.path, backup)
-                             appliedStatus.remove(change.path)
+                // Left: File Info (Clickable for Diff)
+                val leftPanel = JPanel(FlowLayout(FlowLayout.LEFT, 6, 0))
+                leftPanel.isOpaque = false
+                leftPanel.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                leftPanel.toolTipText = "Click to view diff"
+                
+                leftPanel.addMouseListener(object : MouseAdapter() {
+                    override fun mouseClicked(e: MouseEvent) {
+                         if (SwingUtilities.isLeftMouseButton(e)) {
+                             DiffUtils.showDiff(project, change.path, change.content)
                          }
-                    } else {
-                        val previous = DiffUtils.applyChangeDirectly(project, change.path, change.content)
-                        if (previous != null) undoCache[change.path] = previous
-                        appliedStatus.add(change.path)
                     }
-                    refreshUI()
+                })
+
+                val fileName = change.path.substringAfterLast("/")
+                val icon = if (File(change.path).isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
+
+                leftPanel.add(JLabel(icon))
+                
+                val nameLabel = JLabel(fileName)
+                nameLabel.font = JBUI.Fonts.label().deriveFont(Font.PLAIN) // Plain font for cleaner look
+                leftPanel.add(nameLabel)
+
+                if (isApplied) {
+                    leftPanel.add(JLabel(AllIcons.Actions.Checked))
+                }
+
+                // Right: Actions
+                val rightPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0))
+                rightPanel.isOpaque = false
+
+                // Action: Apply / Undo
+                val actionLabel = JLabel(if (isApplied) "Undo" else "Apply")
+                actionLabel.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                actionLabel.foreground = if (isApplied) JBColor.GRAY else JBColor.BLUE
+                actionLabel.font = JBUI.Fonts.smallFont() // Small font for actions
+                
+                actionLabel.addMouseListener(object : MouseAdapter() {
+                    override fun mouseClicked(e: MouseEvent) {
+                        if (SwingUtilities.isLeftMouseButton(e)) {
+                            if (isApplied) {
+                                val backup = undoCache[change.path]
+                                if (backup != null) {
+                                    DiffUtils.applyChangeDirectly(project, change.path, backup)
+                                    appliedStatus.remove(change.path)
+                                }
+                            } else {
+                                val previous = DiffUtils.applyChangeDirectly(project, change.path, change.content)
+                                if (previous != null) undoCache[change.path] = previous
+                                appliedStatus.add(change.path)
+                            }
+                            rebuild()
+                        }
+                    }
+                })
+                rightPanel.add(actionLabel)
+
+                // If single file, add dismiss icon here
+                if (changes.size == 1) {
+                    val dismissIcon = JLabel(AllIcons.Actions.Close)
+                    dismissIcon.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                    dismissIcon.toolTipText = "Dismiss"
+                    dismissIcon.border = JBUI.Borders.emptyLeft(6)
+                    dismissIcon.addMouseListener(object : MouseAdapter() {
+                        override fun mouseClicked(e: MouseEvent) { onDelete() }
+                    })
+                    rightPanel.add(dismissIcon)
+                }
+
+                row.add(leftPanel, BorderLayout.CENTER)
+                row.add(rightPanel, BorderLayout.EAST)
+
+                container.add(row)
+                
+                // Separator
+                if (index < changes.size - 1) {
+                    container.add(Box.createVerticalStrut(4))
                 }
             }
-            actions.add(btnAction)
 
-            changeRow.add(link, BorderLayout.CENTER)
-            changeRow.add(actions, BorderLayout.EAST)
-            fileList.add(changeRow)
+            // Footer for multiple files
+            if (changes.size > 1) {
+                container.add(Box.createVerticalStrut(8))
+                val footer = JPanel(BorderLayout())
+                footer.isOpaque = false
+
+                val actionsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+                actionsPanel.isOpaque = false
+
+                fun createLinkBtn(text: String, action: () -> Unit, color: Color? = null): JLabel {
+                     val btn = JLabel(text)
+                     btn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                     btn.font = JBUI.Fonts.smallFont()
+                     if (color != null) btn.foreground = color
+                     btn.border = JBUI.Borders.emptyRight(12)
+                     btn.addMouseListener(object : MouseAdapter() {
+                         override fun mouseClicked(e: MouseEvent) { action() }
+                     })
+                     return btn
+                }
+
+                val applyAllBtn = createLinkBtn("Apply All", {
+                    changes.forEach { change ->
+                        if (!appliedStatus.contains(change.path)) {
+                            val previous = DiffUtils.applyChangeDirectly(project, change.path, change.content)
+                            if (previous != null) undoCache[change.path] = previous
+                            appliedStatus.add(change.path)
+                        }
+                    }
+                    rebuild()
+                }, JBColor.BLUE)
+                actionsPanel.add(applyAllBtn)
+
+                val undoAllBtn = createLinkBtn("Undo All", {
+                    changes.forEach { change ->
+                        if (appliedStatus.contains(change.path)) {
+                            val backup = undoCache[change.path]
+                            if (backup != null) {
+                                DiffUtils.applyChangeDirectly(project, change.path, backup)
+                                appliedStatus.remove(change.path)
+                            }
+                        }
+                    }
+                    rebuild()
+                }, JBColor.GRAY)
+                actionsPanel.add(undoAllBtn)
+                
+                footer.add(actionsPanel, BorderLayout.WEST)
+
+                val dismissBtn = JLabel("Dismiss")
+                dismissBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                dismissBtn.font = JBUI.Fonts.smallFont()
+                dismissBtn.foreground = JBColor.RED.darker()
+                dismissBtn.addMouseListener(object : MouseAdapter() {
+                    override fun mouseClicked(e: MouseEvent) { onDelete() }
+                })
+                
+                footer.add(dismissBtn, BorderLayout.EAST)
+
+                container.add(footer)
+            }
+
+            wrapper.add(container, BorderLayout.CENTER)
+            wrapper.revalidate()
+            wrapper.repaint()
         }
-        container.add(fileList, BorderLayout.CENTER)
-        wrapper.add(container, BorderLayout.CENTER)
+
+        rebuild()
         return wrapper
     }
 
@@ -509,7 +555,8 @@ object ChatComponents {
                 val darkColor = Color(70, 50, 90)
                 g2.color = JBColor(lightColor, darkColor)
             } else {
-                g2.color = JBColor(Color(255, 255, 255), Color(35, 37, 39))
+                // Improved dark theme color to separate from IDE background
+                g2.color = JBColor(Color(255, 255, 255), Color(40, 42, 44))
             }
             g2.fillRoundRect(0, 0, width - 1, height - 1, 16, 16)
             g2.color = if(isUser) JBColor(Color(200, 210, 240), Color(85, 65, 105)) else JBColor.border()
