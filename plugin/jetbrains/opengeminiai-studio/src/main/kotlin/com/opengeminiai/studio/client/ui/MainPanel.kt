@@ -33,7 +33,8 @@ import javax.swing.event.DocumentListener
 import okhttp3.Call
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
-import java.awt.dnd.* 
+import java.awt.datatransfer.StringSelection
+import java.awt.dnd.*
 import java.awt.event.* 
 import java.io.File
 import javax.swing.* 
@@ -306,6 +307,10 @@ class MainPanel(val project: Project) {
 
         val rightControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply { isOpaque = false; background = JBColor.background() }
         rightControls.add(tokenCountLabel) // Add Token Counter here
+
+        val copyBtn = createIconButton(AllIcons.Actions.Copy, "Copy Prompt") { copyPromptToClipboard() }
+        rightControls.add(copyBtn)
+
         sendBtn = createIconButton(AllIcons.Actions.Execute, "Send") { sendMessage() }
         rightControls.add(sendBtn!!)
 
@@ -337,7 +342,7 @@ class MainPanel(val project: Project) {
     private fun setMode(mode: String) {
         currentMode = mode
         modeButton.icon = if (mode == "Chat") AllIcons.Actions.ListFiles else AllIcons.Actions.Edit
-        
+
         val targetModel = if (mode == "Chat") lastChatModel else lastQuickEditModel
         setModel(targetModel)
     }
@@ -511,46 +516,42 @@ class MainPanel(val project: Project) {
 
     // --- MESSAGE SENDING WITH SLASH COMMANDS ---
 
-    // Made public so it can be called from ChatInterfaceService
-    fun sendMessage() {
-        if (currentApiCall != null) { stopSending(); return }
-
-        var textInput = inputArea.text.trim()
-        if ((textInput.isEmpty() && attachments.isEmpty()) || currentConversation == null) return
-
+    private fun processSlashCommands(initialText: String): Pair<String, String?> {
+        var text = initialText
         var promptOverride: String? = null
-        if (textInput.startsWith("/")) {
-            val parts = textInput.split(Regex("\\s+"), limit = 2)
+        if (text.startsWith("/")) {
+            val parts = text.split(Regex("\\s+"), limit = 2)
             val command = parts[0].lowercase()
             val arg = if (parts.size > 1) parts[1] else ""
 
             when (command) {
                 "/doc" -> {
                     promptOverride = "Generate comprehensive documentation (JavaDoc/KDoc/Docstring) for the provided code. Do not change the logic, just add comments."
-                    if (arg.isBlank()) textInput = "Please document the attached context."
+                    if (arg.isBlank()) text = "Please document the attached context."
                 }
                 "/test" -> {
                     promptOverride = "Generate unit tests for the provided code. Use the most popular testing framework for this language."
-                    if (arg.isBlank()) textInput = "Please generate tests for the attached context."
+                    if (arg.isBlank()) text = "Please generate tests for the attached context."
                 }
                 "/refactor" -> {
                     promptOverride = "Refactor the provided code to be more clean, efficient, and maintainable. Explain your changes."
-                    if (arg.isBlank()) textInput = "Please refactor the attached context."
+                    if (arg.isBlank()) text = "Please refactor the attached context."
                 }
                 "/fix" -> {
                     promptOverride = "Analyze the provided code or error message and propose a fix."
-                    if (arg.isBlank()) textInput = "Please fix the bugs in the attached context."
+                    if (arg.isBlank()) text = "Please fix the bugs in the attached context."
                 }
                 "/explain" -> {
                     promptOverride = "Explain how the provided code works in simple terms."
-                    if (arg.isBlank()) textInput = "Please explain the attached context."
+                    if (arg.isBlank()) text = "Please explain the attached context."
                 }
             }
         }
+        return Pair(text, promptOverride)
+    }
 
-        val chat = currentConversation!!
+    private fun buildFullContent(textInput: String): String {
         val sb = StringBuilder(textInput)
-
         if (attachments.isNotEmpty()) {
             if (sb.isNotEmpty()) sb.append("\n\n")
             attachments.filterIsInstance<FileContext>().forEach { item ->
@@ -563,7 +564,31 @@ class MainPanel(val project: Project) {
                 sb.append("\n\n:::CTX:${item.name}:$type:::\n${item.content}\n:::END:::")
             }
         }
-        val fullContent = sb.toString().trim()
+        return sb.toString().trim()
+    }
+
+    private fun copyPromptToClipboard() {
+        val rawInput = inputArea.text.trim()
+        if (rawInput.isEmpty() && attachments.isEmpty()) return
+
+        val (processedText, _) = processSlashCommands(rawInput)
+        val fullContent = buildFullContent(processedText)
+
+        val selection = StringSelection(fullContent)
+        Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
+    }
+
+    // Made public so it can be called from ChatInterfaceService
+    fun sendMessage() {
+        if (currentApiCall != null) { stopSending(); return }
+
+        val rawInput = inputArea.text.trim()
+        if ((rawInput.isEmpty() && attachments.isEmpty()) || currentConversation == null) return
+
+        val (processedText, promptOverride) = processSlashCommands(rawInput)
+        val fullContent = buildFullContent(processedText)
+
+        val chat = currentConversation!!
 
         addBubble("user", fullContent)
 
