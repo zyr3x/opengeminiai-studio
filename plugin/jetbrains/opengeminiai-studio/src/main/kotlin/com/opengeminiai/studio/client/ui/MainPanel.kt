@@ -590,7 +590,7 @@ class MainPanel(val project: Project) {
                 val contentPreview = if (userContent.length > 1000) userContent.take(1000) + "..." else userContent
 
                 val msgs = listOf(ChatMessage("user", contentPreview))
-                val call = ApiClient.createChatCompletionCall(msgs, currentModel, systemPrompt, appSettings.baseUrl, false)
+                val call = ApiClient.createChatCompletionCall(msgs, appSettings.defaultChatModel, systemPrompt, appSettings.baseUrl, false)
                 val response = ApiClient.processCallResponse(call)
 
                 val newTitle = response.trim().removeSurrounding("\"").removeSuffix(".")
