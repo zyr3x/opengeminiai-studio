@@ -507,7 +507,7 @@ def get_provider_for_model(model_name: str) -> str:
         return 'openai'
 
     # Check for known Google model prefixes
-    if model_lower.startswith('gemini') or model_lower.startswith('learnlm') or model_lower.startswith('models/gemini'):
+    if model_lower.startswith('gemini') or model_lower.startswith('learnlm') or model_lower.startswith('models/gemini') or model_lower.startswith('gemma-3'):
         return 'gemini'
         
     # Default to OpenAI compatible for everything else (GPT, Claude via OpenRouter, etc.)
