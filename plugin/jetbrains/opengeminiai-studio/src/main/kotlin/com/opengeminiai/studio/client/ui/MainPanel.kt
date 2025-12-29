@@ -223,7 +223,11 @@ class MainPanel(val project: Project) {
         row.alignmentX = Component.LEFT_ALIGNMENT
 
         val infoPanel = JPanel(BorderLayout()).apply { isOpaque = false }
-        val titleLabel = JLabel("<html><b>${conversation.title}</b></html>").apply { font = JBUI.Fonts.label() }
+        val displayTitle = if (conversation.title.length > 40) conversation.title.take(37) + "..." else conversation.title
+        val titleLabel = JLabel("<html><b>$displayTitle</b></html>").apply {
+            font = JBUI.Fonts.label()
+            toolTipText = conversation.title
+        }
         val dateLabel = JLabel(conversation.getFormattedDate()).apply { font = JBUI.Fonts.smallFont(); foreground = JBColor.gray }
 
         infoPanel.add(titleLabel, BorderLayout.CENTER)
@@ -577,6 +581,38 @@ class MainPanel(val project: Project) {
         val selection = StringSelection(fullContent)
         Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
     }
+    
+    private fun generateChatTitle(chat: Conversation, userContent: String) {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                val systemPrompt = "Summarize the following user request into a short, concise title (max 4-6 words). Do not use quotes. Output ONLY the title."
+                // Truncate content to avoid excessive token usage
+                val contentPreview = if (userContent.length > 1000) userContent.take(1000) + "..." else userContent
+
+                val msgs = listOf(ChatMessage("user", contentPreview))
+                val call = ApiClient.createChatCompletionCall(msgs, currentModel, systemPrompt, appSettings.baseUrl, false)
+                val response = ApiClient.processCallResponse(call)
+
+                val newTitle = response.trim().removeSurrounding("\"").removeSuffix(".")
+
+                if (newTitle.isNotBlank() && !newTitle.startsWith("Error") && !newTitle.contains("Error")) {
+                    SwingUtilities.invokeLater {
+                        // Only update if it still has the default name and exists in the list
+                        if (chatListModel.contains(chat) && chat.title == "New Chat") {
+                            chat.title = newTitle
+                            if (currentConversation == chat) updateHeaderInfo()
+                            refreshHistoryList()
+
+                            val conversationsToSave = chatListModel.elements().toList()
+                            ApplicationManager.getApplication().executeOnPooledThread {
+                                PersistenceService.save(project, conversationsToSave, appSettings)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) { }
+        }
+    }
 
     // Made public so it can be called from ChatInterfaceService
     fun sendMessage() {
@@ -590,6 +626,9 @@ class MainPanel(val project: Project) {
 
         val chat = currentConversation!!
 
+        // Auto-title generation check
+        val shouldGenerateTitle = chat.messages.isEmpty() && chat.title == "New Chat"
+
         addBubble("user", fullContent)
 
         // Reset inputs
@@ -599,6 +638,11 @@ class MainPanel(val project: Project) {
         val conversationsToSave = chatListModel.elements().toList()
         ApplicationManager.getApplication().executeOnPooledThread {
              PersistenceService.save(project, conversationsToSave, appSettings)
+        }
+        
+        // Trigger title generation if applicable
+        if (shouldGenerateTitle) {
+            generateChatTitle(chat, fullContent)
         }
 
         // API Call Preparation
