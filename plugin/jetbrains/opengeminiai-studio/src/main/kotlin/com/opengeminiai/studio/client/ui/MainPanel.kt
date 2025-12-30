@@ -52,10 +52,24 @@ class MainPanel(val project: Project) {
         abstract val name: String
         abstract val icon: Icon
     }
-    private data class FileContext(val file: File) : ContextItem() {
+    
+    // Updated FileContext with separate parameter fields
+    private data class FileContext(
+        val file: File, 
+        var ignoreTypes: String = "",
+        var ignoreFiles: String = "",
+        var ignoreDirs: String = ""
+    ) : ContextItem() {
         override val name: String = file.name
         override val icon: Icon = if (file.isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
+        
+        fun hasParams(): Boolean = ignoreTypes.isNotBlank() || ignoreFiles.isNotBlank() || ignoreDirs.isNotBlank()
+
+        fun getParamsSummary(): String {
+            return ""
+        }
     }
+    
     private data class TextContext(override var name: String, var content: String, override val icon: Icon) : ContextItem()
 
     private val attachments = ArrayList<ContextItem>()
@@ -490,16 +504,85 @@ class MainPanel(val project: Project) {
             panel.removeAll()
             if (attachments.isEmpty()) { popup?.cancel(); return }
             attachments.forEach { item ->
-                val row = JPanel(BorderLayout()).apply { isOpaque = false; alignmentX = Component.LEFT_ALIGNMENT; maximumSize = Dimension(400, 32); border = JBUI.Borders.empty(2, 0) }
-                val label = JLabel(if (item.name.length > 35) item.name.take(32) + "..." else item.name, item.icon, SwingConstants.LEFT).apply { border = JBUI.Borders.emptyRight(12) }
-
-                if (item is TextContext) {
-                    label.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR); label.toolTipText = "Edit"
-                    label.addMouseListener(object : MouseAdapter() { override fun mouseClicked(e: MouseEvent) { showEditContextDialog(item) { } } })
+                // Use GridBagLayout for better vertical alignment
+                val row = JPanel(GridBagLayout()).apply {
+                    isOpaque = false
+                    alignmentX = Component.LEFT_ALIGNMENT
+                    maximumSize = Dimension(500, 32)
+                    border = JBUI.Borders.empty(2, 0)
                 }
-                val delBtn = JButton(AllIcons.Actions.Close).apply { preferredSize = Dimension(22, 22); isBorderPainted = false; isContentAreaFilled = false; cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) }
-                delBtn.addActionListener { removeAttachment(item); reload(); panel.revalidate(); panel.repaint(); popup?.pack(true, true) }
-                row.add(label, BorderLayout.CENTER); row.add(delBtn, BorderLayout.EAST)
+
+                val gbc = GridBagConstraints()
+                gbc.gridy = 0
+                gbc.fill = GridBagConstraints.NONE
+                gbc.anchor = GridBagConstraints.WEST
+
+                // 1. Name Label
+                gbc.gridx = 0
+                gbc.weightx = 0.0
+                gbc.insets = JBUI.insetsRight(8)
+                val nameLabel = JLabel(if (item.name.length > 35) item.name.take(32) + "..." else item.name, item.icon, SwingConstants.LEFT)
+                if (item is TextContext) {
+                    nameLabel.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                    nameLabel.toolTipText = "Edit"
+                    nameLabel.addMouseListener(object : MouseAdapter() { override fun mouseClicked(e: MouseEvent) { showEditContextDialog(item) { } } })
+                }
+                row.add(nameLabel, gbc)
+
+                // 2. Info Icon (if needed)
+                if (item is FileContext && item.hasParams()) {
+                    gbc.gridx = 1
+                    gbc.insets = JBUI.insetsRight(8)
+                    val paramsLabel = JBLabel(item.getParamsSummary(), AllIcons.General.Information, SwingConstants.LEFT).apply {
+                        font = JBUI.Fonts.smallFont()
+                        foreground = JBColor.GRAY
+                        toolTipText = "Has filters"
+                    }
+                    row.add(paramsLabel, gbc)
+                }
+
+                // 3. Spacer
+                gbc.gridx = 2
+                gbc.weightx = 1.0
+                gbc.fill = GridBagConstraints.HORIZONTAL
+                gbc.insets = JBUI.emptyInsets()
+                row.add(Box.createHorizontalGlue(), gbc)
+
+                // 4. Buttons
+                gbc.weightx = 0.0
+                gbc.fill = GridBagConstraints.NONE
+                gbc.anchor = GridBagConstraints.EAST
+                gbc.insets = JBUI.insetsLeft(2)
+
+                var col = 3
+                // Only show edit parameters for directories
+                if (item is FileContext && item.file.isDirectory) {
+                    gbc.gridx = col++
+                    val editParamsBtn = JButton(AllIcons.General.Inline_edit).apply {
+                        preferredSize = Dimension(22, 22)
+                        isBorderPainted = false
+                        isContentAreaFilled = false
+                        isFocusPainted = false
+                        isOpaque = false
+                        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                        toolTipText = "Edit Parameters"
+                        addActionListener { showEditFileParamsDialog(item) { reload(); panel.revalidate(); panel.repaint(); popup?.pack(true, true) } }
+                    }
+                    row.add(editParamsBtn, gbc)
+                }
+
+                gbc.gridx = col
+                val delBtn = JButton(AllIcons.Actions.Close).apply {
+                    preferredSize = Dimension(22, 22)
+                    isBorderPainted = false
+                    isContentAreaFilled = false
+                    isFocusPainted = false
+                    isOpaque = false
+                    cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                    addActionListener { removeAttachment(item); reload(); panel.revalidate(); panel.repaint(); popup?.pack(true, true) }
+                }
+                row.add(delBtn, gbc)
+
                 panel.add(row)
             }
         }
@@ -514,6 +597,60 @@ class MainPanel(val project: Project) {
             init { title = "Edit ${item.name}"; init() }
             override fun createCenterPanel() = JBScrollPane(textArea).apply { preferredSize = Dimension(500, 400) }
             override fun doOKAction() { item.content = textArea.text; super.doOKAction(); onClose() }
+        }
+        dialog.show()
+    }
+
+    private fun showEditFileParamsDialog(item: FileContext, onParamsChanged: () -> Unit) {
+        val dialog = object : DialogWrapper(project) {
+            val typeField = JTextField(item.ignoreTypes)
+            val fileField = JTextField(item.ignoreFiles)
+            val dirField = JTextField(item.ignoreDirs)
+
+            init {
+                title = "Edit Parameters for ${item.file.name}"
+                init()
+            }
+
+            override fun createCenterPanel(): JComponent {
+                val panel = JPanel(GridBagLayout())
+                val gbc = GridBagConstraints()
+                gbc.insets = JBUI.insets(4)
+                gbc.fill = GridBagConstraints.HORIZONTAL
+                
+                // Row 1: Ignore Types
+                gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0
+                panel.add(JLabel("Ignore Types:"), gbc)
+                gbc.gridx = 1; gbc.weightx = 1.0
+                panel.add(typeField, gbc)
+                
+                // Row 2: Ignore Files
+                gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0
+                panel.add(JLabel("Ignore Files:"), gbc)
+                gbc.gridx = 1; gbc.weightx = 1.0
+                panel.add(fileField, gbc)
+
+                // Row 3: Ignore Dirs
+                gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.0
+                panel.add(JLabel("Ignore Dirs:"), gbc)
+                gbc.gridx = 1; gbc.weightx = 1.0
+                panel.add(dirField, gbc)
+                
+                // Hint
+                gbc.gridx = 1; gbc.gridy = 3; gbc.weightx = 1.0
+                val hint = JLabel("<html><small style='color:gray'>Separate multiple values with | (pipe). Example: xml|json</small></html>")
+                panel.add(hint, gbc)
+
+                return panel
+            }
+            
+            override fun doOKAction() {
+                item.ignoreTypes = typeField.text.trim()
+                item.ignoreFiles = fileField.text.trim()
+                item.ignoreDirs = dirField.text.trim()
+                super.doOKAction()
+                onParamsChanged()
+            }
         }
         dialog.show()
     }
@@ -561,7 +698,15 @@ class MainPanel(val project: Project) {
             attachments.filterIsInstance<FileContext>().forEach { item ->
                 val ext = item.file.extension.lowercase()
                 val prefix = if (ext in listOf("jpg", "png")) "image_path=" else "code_path="
-                sb.append("$prefix${item.file.absolutePath}\n")
+                
+                sb.append("$prefix${item.file.absolutePath}")
+                
+                // Append parameters if they exist
+                if (item.ignoreTypes.isNotBlank()) sb.append(" ignore_type=${item.ignoreTypes}")
+                if (item.ignoreFiles.isNotBlank()) sb.append(" ignore_file=${item.ignoreFiles}")
+                if (item.ignoreDirs.isNotBlank()) sb.append(" ignore_dir=${item.ignoreDirs}")
+                
+                sb.append("\n")
             }
             attachments.filterIsInstance<TextContext>().forEach { item ->
                 val type = if (item.name.contains("Commit")) "commit" else if (item.name.contains("Structure")) "structure" else "text"

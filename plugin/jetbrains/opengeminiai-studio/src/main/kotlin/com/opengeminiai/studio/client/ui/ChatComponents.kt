@@ -12,16 +12,22 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.ui.MessageType
+import com.intellij.openapi.ui.popup.Balloon
 import java.awt.*
 import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.io.File
 import java.util.regex.Pattern
+import java.util.Locale
 import javax.swing.*
 import kotlin.math.min
 
 object ChatComponents {
+
+    private data class AttachedFile(val file: File, val params: String?)
 
     fun createMessageBubble(role: String, content: String, messageIndex: Int? = null, onDelete: ((Int) -> Unit)? = null): JPanel {
         val isUser = role == "user"
@@ -39,15 +45,16 @@ object ChatComponents {
         bubble.border = JBUI.Borders.empty(8, 10)
 
         val textContentBuilder = StringBuilder()
-        val attachedFilesForDisplay = mutableListOf<File>()
+        val attachedFilesForDisplay = mutableListOf<AttachedFile>()
 
         // Pre-process markers to extract files and keep other content
         content.lines().forEach { line ->
             val trimmed = line.trim()
-            if (trimmed.startsWith("image_path=")) {
-                attachedFilesForDisplay.add(File(trimmed.substringAfter("image_path=")))
-            } else if (trimmed.startsWith("code_path=")) {
-                attachedFilesForDisplay.add(File(trimmed.substringAfter("code_path=")))
+            if (trimmed.startsWith("image_path=") || trimmed.startsWith("code_path=")) {
+                val prefix = if (trimmed.startsWith("image_path=")) "image_path=" else "code_path="
+                val rawPath = trimmed.substringAfter(prefix)
+                val (path, params) = parsePathAndParams(rawPath)
+                attachedFilesForDisplay.add(AttachedFile(File(path), params))
             } else {
                 textContentBuilder.append(line).append("\n")
             }
@@ -65,8 +72,8 @@ object ChatComponents {
                  attachmentsPanel.add(Box.createVerticalStrut(8))
             }
 
-            attachedFilesForDisplay.forEach { file ->
-                val chip = createAttachmentChip(file, {}, false)
+            attachedFilesForDisplay.forEach { (file, params) ->
+                val chip = createAttachmentChip(file, params, {}, false)
                 chip.alignmentX = Component.LEFT_ALIGNMENT
                 chip.maximumSize = chip.preferredSize
                 attachmentsPanel.add(chip)
@@ -118,6 +125,25 @@ object ChatComponents {
 
         wrapper.add(box, BorderLayout.CENTER)
         return wrapper
+    }
+
+    private fun parsePathAndParams(fullLine: String): Pair<String, String?> {
+        // Look for the start of parameters
+        val triggers = listOf(" ignore_type=", " ignore_file=", " ignore_dir=")
+        var firstTriggerIndex = -1
+        
+        for (trigger in triggers) {
+            val index = fullLine.indexOf(trigger)
+            if (index != -1 && (firstTriggerIndex == -1 || index < firstTriggerIndex)) {
+                firstTriggerIndex = index
+            }
+        }
+
+        return if (firstTriggerIndex != -1) {
+            Pair(fullLine.substring(0, firstTriggerIndex).trim(), fullLine.substring(firstTriggerIndex).trim())
+        } else {
+            Pair(fullLine.trim(), null)
+        }
     }
 
     fun updateMessageBubble(bubbleWrapper: JPanel, content: String) {
@@ -226,8 +252,8 @@ object ChatComponents {
         // Limit title length to avoid super wide chips
         val displayTitle = if (title.length > 40) title.take(37) + "..." else title
 
-        val chip = createGenericChip(displayTitle, icon, {}, {
-            showContentDialog(title, content)
+        val chip = createGenericChip(displayTitle, icon, {}, { 
+            showContentDialog(title, content) 
         }, false)
 
         chip.alignmentX = Component.LEFT_ALIGNMENT
@@ -312,7 +338,7 @@ object ChatComponents {
         return null
     }
 
-    fun createGenericChip(text: String, icon: Icon, onClose: () -> Unit, onClick: (() -> Unit)? = null, isRemovable: Boolean = true): JPanel {
+    fun createGenericChip(text: String, icon: Icon, onClose: () -> Unit, onClick: (() -> Unit)? = null, isRemovable: Boolean = true, additionalAction: JComponent? = null): JPanel {
         val chip = JPanel(BorderLayout())
         chip.isOpaque = false
 
@@ -346,6 +372,13 @@ object ChatComponents {
 
         bg.add(label, BorderLayout.CENTER)
 
+        val rightPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 2, 0))
+        rightPanel.isOpaque = false
+
+        if (additionalAction != null) {
+             rightPanel.add(additionalAction)
+        }
+
         if (isRemovable) {
             val closeBtn = JButton(AllIcons.Actions.Close)
             closeBtn.isBorderPainted = false
@@ -353,15 +386,56 @@ object ChatComponents {
             closeBtn.preferredSize = Dimension(16, 16)
             closeBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             closeBtn.addActionListener { onClose() }
-            bg.add(closeBtn, BorderLayout.EAST)
+            rightPanel.add(closeBtn)
         }
+
+        if (additionalAction != null || isRemovable) {
+            bg.add(rightPanel, BorderLayout.EAST)
+        }
+
         chip.add(bg, BorderLayout.CENTER)
         return chip
     }
 
-    fun createAttachmentChip(file: File, onClose: () -> Unit, isRemovable: Boolean = true): JPanel {
+    fun createAttachmentChip(file: File, params: String? = null, onClose: () -> Unit, isRemovable: Boolean = true): JPanel {
         val icon = if (file.isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
-        return createGenericChip(file.name, icon, onClose, null, isRemovable)
+        
+        val infoIcon = if (!params.isNullOrBlank()) {
+            val label = JLabel(AllIcons.General.Information)
+            label.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            label.toolTipText = "View Filters"
+            label.addMouseListener(object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    showParamsPopup(label, params)
+                }
+            })
+            label
+        } else null
+        
+        return createGenericChip(file.name, icon, onClose, null, isRemovable, infoIcon)
+    }
+
+    private fun showParamsPopup(target: JComponent, params: String) {
+        // Parse params for nicer display if possible, or show as list
+        val parts = params.split(" ").map { it.split("=", limit = 2) }
+        val sb = StringBuilder("<html><body><b>Applied Filters:</b><ul>")
+        parts.forEach { part ->
+            if (part.size == 2) {
+                val rawKey = part[0].removePrefix("ignore_")
+                val key = rawKey.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+                val value = part[1]
+                sb.append("<li><b>$key:</b> $value</li>")
+            } else {
+                sb.append("<li>${part[0]}</li>")
+            }
+        }
+        sb.append("</ul></body></html>")
+
+        JBPopupFactory.getInstance()
+            .createHtmlTextBalloonBuilder(sb.toString(), MessageType.INFO, null)
+            .setFadeoutTime(5000)
+            .createBalloon()
+            .show(com.intellij.ui.awt.RelativePoint.getCenterOf(target), Balloon.Position.below)
     }
 
     fun createChangeWidget(project: Project, changes: List<FileChange>, onDelete: () -> Unit): JPanel {
