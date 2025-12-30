@@ -33,7 +33,8 @@ object ChatComponents {
         val isUser = role == "user"
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        wrapper.border = JBUI.Borders.empty(4, 0)
+        // Added horizontal padding (12px) to prevent content from touching the scrollbar/edge
+        wrapper.border = JBUI.Borders.empty(6, 12)
 
         val avatarIcon = if (isUser) AllIcons.General.User else Icons.Logo
         val avatarLabel = JLabel(avatarIcon)
