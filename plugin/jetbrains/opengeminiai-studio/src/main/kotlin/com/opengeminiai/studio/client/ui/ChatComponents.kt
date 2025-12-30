@@ -33,8 +33,8 @@ object ChatComponents {
         val isUser = role == "user"
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        // Added horizontal padding (12px) to prevent content from touching the scrollbar/edge
-        wrapper.border = JBUI.Borders.empty(6, 12)
+        // FIX: Increased right padding (24) to prevent content from being covered by the tool window scrollbar
+        wrapper.border = JBUI.Borders.empty(6, 12, 6, 24)
 
         val avatarIcon = if (isUser) AllIcons.General.User else Icons.Logo
         val avatarLabel = JLabel(avatarIcon)
@@ -43,7 +43,8 @@ object ChatComponents {
 
         val bubble = RoundedPanel(isUser)
         bubble.layout = BoxLayout(bubble, BoxLayout.Y_AXIS)
-        bubble.border = JBUI.Borders.empty(8, 10)
+        // FIX: Increased internal padding for better readability
+        bubble.border = JBUI.Borders.empty(10, 12)
 
         val textContentBuilder = StringBuilder()
         val attachedFilesForDisplay = mutableListOf<AttachedFile>()
@@ -132,7 +133,7 @@ object ChatComponents {
         // Look for the start of parameters
         val triggers = listOf(" ignore_type=", " ignore_file=", " ignore_dir=")
         var firstTriggerIndex = -1
-        
+
         for (trigger in triggers) {
             val index = fullLine.indexOf(trigger)
             if (index != -1 && (firstTriggerIndex == -1 || index < firstTriggerIndex)) {
@@ -158,13 +159,12 @@ object ChatComponents {
     }
 
     private fun populateBubbleContent(panel: JPanel, content: String) {
-        // Removed explicit empty check to prevent unnecessary spacing or &nbsp;
         val segments = parseSegments(content)
         segments.forEach { segment ->
             when (segment.type) {
                 SegmentType.CODE -> {
-                    // Hide JSON change proposals during generation
-                    if (segment.content.contains("\"action\": \"propose_changes\"")) {
+                    // FIX: Stricter check for JSON actions (must start with {) to avoid false positives in source code
+                    if (segment.content.trim().startsWith("{") && segment.content.contains("\"action\": \"propose_changes\"")) {
                         val pathPattern = Pattern.compile("\"path\"\\s*:\\s*\"(.*?)\"")
                         val pathMatcher = pathPattern.matcher(segment.content)
                         var lastFileName: String? = null
@@ -179,7 +179,6 @@ object ChatComponents {
                 SegmentType.CONTEXT -> {
                     val ctxPanel = createContextPanel(segment.title!!, segment.contentType!!, segment.content)
                     panel.add(ctxPanel)
-                    // Add small spacing after context item
                     panel.add(Box.createVerticalStrut(4))
                 }
                 SegmentType.TEXT -> {
@@ -197,10 +196,9 @@ object ChatComponents {
     private fun parseSegments(text: String): List<MessageSegment> {
         val segments = mutableListOf<MessageSegment>()
 
-        // Group 1: Lang, Group 2: Code block content
-        // Group 3: Context title, Group 4: Context type, Group 5: Context content
-        // Updated regex to handle unclosed code blocks during streaming
-        val pattern = Pattern.compile("```(\\w*)\\n?([\\s\\S]*?)(?:```|(?=\\z))|:::CTX:(.*?):(.*?):::\\n([\\s\\S]*?)\\n:::END:::")
+        // FIX: Updated regex to require newline before closing backticks (\n```)
+        // This prevents the parser from breaking when the code content itself contains inline triple backticks (e.g. inside strings)
+        val pattern = Pattern.compile("```(\\w*)\\n?([\\s\\S]*?)(?:\\n```|(?=\\z))|:::CTX:(.*?):(.*?):::\\n([\\s\\S]*?)\\n:::END:::")
         val matcher = pattern.matcher(text)
         var lastIndex = 0
 
@@ -232,14 +230,14 @@ object ChatComponents {
         val panel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 4))
         panel.isOpaque = false
         panel.alignmentX = Component.LEFT_ALIGNMENT
-        
+
         val label = JLabel(if (fileName != null) "Generating changes for $fileName..." else "Generating changes...", AllIcons.Process.Step_1, SwingConstants.LEFT)
         label.font = JBUI.Fonts.smallFont().deriveFont(Font.ITALIC)
         label.foreground = JBColor.GRAY
-        
+
         panel.add(label)
         panel.border = JBUI.Borders.empty(4, 0)
-        
+
         return panel
     }
 
@@ -250,15 +248,13 @@ object ChatComponents {
             else -> AllIcons.FileTypes.Text
         }
 
-        // Limit title length to avoid super wide chips
         val displayTitle = if (title.length > 40) title.take(37) + "..." else title
 
-        val chip = createGenericChip(displayTitle, icon, {}, { 
-            showContentDialog(title, content) 
+        val chip = createGenericChip(displayTitle, icon, {}, {
+            showContentDialog(title, content)
         }, false)
 
         chip.alignmentX = Component.LEFT_ALIGNMENT
-        // FIX: Ensure it doesn't stretch to full width
         chip.maximumSize = chip.preferredSize
 
         return chip
@@ -400,7 +396,7 @@ object ChatComponents {
 
     fun createAttachmentChip(file: File, params: String? = null, onClose: () -> Unit, isRemovable: Boolean = true): JPanel {
         val icon = if (file.isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
-        
+
         val infoIcon = if (!params.isNullOrBlank()) {
             val label = JLabel(AllIcons.General.Information)
             label.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
@@ -412,12 +408,11 @@ object ChatComponents {
             })
             label
         } else null
-        
+
         return createGenericChip(file.name, icon, onClose, null, isRemovable, infoIcon)
     }
 
     private fun showParamsPopup(target: JComponent, params: String) {
-        // Parse params for nicer display if possible, or show as list
         val parts = params.split(" ").map { it.split("=", limit = 2) }
         val sb = StringBuilder("<html><body><b>Applied Filters:</b><ul>")
         parts.forEach { part ->
@@ -440,13 +435,11 @@ object ChatComponents {
     }
 
     fun createChangeWidget(project: Project, changes: List<FileChange>, onDelete: () -> Unit): JPanel {
-        // Local state for stability
         val undoCache = mutableMapOf<String, String>()
         val appliedStatus = mutableSetOf<String>()
 
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        // Compact indentation matching message bubbles
         wrapper.border = JBUI.Borders.empty(2, 38, 2, 10)
 
         fun rebuild() {
@@ -462,15 +455,13 @@ object ChatComponents {
 
                 val row = JPanel(BorderLayout())
                 row.isOpaque = false
-                // Very compact row height
                 row.maximumSize = Dimension(Int.MAX_VALUE, 24)
 
-                // Left: File Info (Clickable for Diff)
                 val leftPanel = JPanel(FlowLayout(FlowLayout.LEFT, 6, 0))
                 leftPanel.isOpaque = false
                 leftPanel.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 leftPanel.toolTipText = "Click to view diff"
-                
+
                 leftPanel.addMouseListener(object : MouseAdapter() {
                     override fun mouseClicked(e: MouseEvent) {
                          if (SwingUtilities.isLeftMouseButton(e)) {
@@ -483,25 +474,23 @@ object ChatComponents {
                 val icon = if (File(change.path).isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
 
                 leftPanel.add(JLabel(icon))
-                
+
                 val nameLabel = JLabel(fileName)
-                nameLabel.font = JBUI.Fonts.label().deriveFont(Font.PLAIN) // Plain font for cleaner look
+                nameLabel.font = JBUI.Fonts.label().deriveFont(Font.PLAIN)
                 leftPanel.add(nameLabel)
 
                 if (isApplied) {
                     leftPanel.add(JLabel(AllIcons.Actions.Checked))
                 }
 
-                // Right: Actions
                 val rightPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0))
                 rightPanel.isOpaque = false
 
-                // Action: Apply / Undo
                 val actionLabel = JLabel(if (isApplied) "Undo" else "Apply")
                 actionLabel.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 actionLabel.foreground = if (isApplied) JBColor.GRAY else JBColor.BLUE
-                actionLabel.font = JBUI.Fonts.smallFont() // Small font for actions
-                
+                actionLabel.font = JBUI.Fonts.smallFont()
+
                 actionLabel.addMouseListener(object : MouseAdapter() {
                     override fun mouseClicked(e: MouseEvent) {
                         if (SwingUtilities.isLeftMouseButton(e)) {
@@ -522,7 +511,6 @@ object ChatComponents {
                 })
                 rightPanel.add(actionLabel)
 
-                // If single file, add dismiss icon here
                 if (changes.size == 1) {
                     val dismissIcon = JLabel(AllIcons.Actions.Close)
                     dismissIcon.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
@@ -538,14 +526,12 @@ object ChatComponents {
                 row.add(rightPanel, BorderLayout.EAST)
 
                 container.add(row)
-                
-                // Separator
+
                 if (index < changes.size - 1) {
                     container.add(Box.createVerticalStrut(4))
                 }
             }
 
-            // Footer for multiple files
             if (changes.size > 1) {
                 container.add(Box.createVerticalStrut(8))
                 val footer = JPanel(BorderLayout())
@@ -591,7 +577,7 @@ object ChatComponents {
                     rebuild()
                 }, JBColor.GRAY)
                 actionsPanel.add(undoAllBtn)
-                
+
                 footer.add(actionsPanel, BorderLayout.WEST)
 
                 val dismissBtn = JLabel("Dismiss")
@@ -601,7 +587,7 @@ object ChatComponents {
                 dismissBtn.addMouseListener(object : MouseAdapter() {
                     override fun mouseClicked(e: MouseEvent) { onDelete() }
                 })
-                
+
                 footer.add(dismissBtn, BorderLayout.EAST)
 
                 container.add(footer)
@@ -626,7 +612,6 @@ object ChatComponents {
                 val darkColor = Color(70, 50, 90)
                 g2.color = JBColor(lightColor, darkColor)
             } else {
-                // Improved dark theme color to separate from IDE background
                 g2.color = JBColor(Color(255, 255, 255), Color(40, 42, 44))
             }
             g2.fillRoundRect(0, 0, width - 1, height - 1, 16, 16)
