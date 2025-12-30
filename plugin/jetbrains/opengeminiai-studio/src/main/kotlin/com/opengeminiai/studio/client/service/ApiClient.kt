@@ -10,8 +10,8 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
     private val client = OkHttpClient.Builder()
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
+        .connectTimeout(360, TimeUnit.SECONDS)
+        .readTimeout(360, TimeUnit.SECONDS)
         .build()
     private val gson = Gson()
 
@@ -24,7 +24,7 @@ object ApiClient {
     ```json
     {
       "action": "propose_changes",
-      "changes": [ { "path": "/abs/path", "content": "NEW CONTENT" } ]
+      "changes": [ { "path": "/abs/path", "content": "FULL NEW CONTENT" } ]
     }
     ```
     """.trimIndent()
