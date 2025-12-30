@@ -35,10 +35,8 @@ import java.awt.*
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.awt.dnd.*
-import java.awt.event.* 
-import java.io.File
-import javax.swing.* 
-import java.util.regex.Pattern
+import java.awt.event.* import java.io.File
+import javax.swing.* import java.util.regex.Pattern
 
 class MainPanel(val project: Project) {
 
@@ -52,24 +50,24 @@ class MainPanel(val project: Project) {
         abstract val name: String
         abstract val icon: Icon
     }
-    
+
     // Updated FileContext with separate parameter fields
     private data class FileContext(
-        val file: File, 
+        val file: File,
         var ignoreTypes: String = "",
         var ignoreFiles: String = "",
         var ignoreDirs: String = ""
     ) : ContextItem() {
         override val name: String = file.name
         override val icon: Icon = if (file.isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
-        
+
         fun hasParams(): Boolean = ignoreTypes.isNotBlank() || ignoreFiles.isNotBlank() || ignoreDirs.isNotBlank()
 
         fun getParamsSummary(): String {
             return ""
         }
     }
-    
+
     private data class TextContext(override var name: String, var content: String, override val icon: Icon) : ContextItem()
 
     private val attachments = ArrayList<ContextItem>()
@@ -617,13 +615,13 @@ class MainPanel(val project: Project) {
                 val gbc = GridBagConstraints()
                 gbc.insets = JBUI.insets(4)
                 gbc.fill = GridBagConstraints.HORIZONTAL
-                
+
                 // Row 1: Ignore Types
                 gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0
                 panel.add(JLabel("Ignore Types:"), gbc)
                 gbc.gridx = 1; gbc.weightx = 1.0
                 panel.add(typeField, gbc)
-                
+
                 // Row 2: Ignore Files
                 gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0
                 panel.add(JLabel("Ignore Files:"), gbc)
@@ -635,7 +633,7 @@ class MainPanel(val project: Project) {
                 panel.add(JLabel("Ignore Dirs:"), gbc)
                 gbc.gridx = 1; gbc.weightx = 1.0
                 panel.add(dirField, gbc)
-                
+
                 // Hint
                 gbc.gridx = 1; gbc.gridy = 3; gbc.weightx = 1.0
                 val hint = JLabel("<html><small style='color:gray'>Separate multiple values with | (pipe). Example: xml|json</small></html>")
@@ -643,7 +641,7 @@ class MainPanel(val project: Project) {
 
                 return panel
             }
-            
+
             override fun doOKAction() {
                 item.ignoreTypes = typeField.text.trim()
                 item.ignoreFiles = fileField.text.trim()
@@ -698,14 +696,14 @@ class MainPanel(val project: Project) {
             attachments.filterIsInstance<FileContext>().forEach { item ->
                 val ext = item.file.extension.lowercase()
                 val prefix = if (ext in listOf("jpg", "png")) "image_path=" else "code_path="
-                
+
                 sb.append("$prefix${item.file.absolutePath}")
-                
+
                 // Append parameters if they exist
                 if (item.ignoreTypes.isNotBlank()) sb.append(" ignore_type=${item.ignoreTypes}")
                 if (item.ignoreFiles.isNotBlank()) sb.append(" ignore_file=${item.ignoreFiles}")
                 if (item.ignoreDirs.isNotBlank()) sb.append(" ignore_dir=${item.ignoreDirs}")
-                
+
                 sb.append("\n")
             }
             attachments.filterIsInstance<TextContext>().forEach { item ->
@@ -726,7 +724,7 @@ class MainPanel(val project: Project) {
         val selection = StringSelection(fullContent)
         Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
     }
-    
+
     private fun generateChatTitle(chat: Conversation, userContent: String) {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
@@ -784,7 +782,7 @@ class MainPanel(val project: Project) {
         ApplicationManager.getApplication().executeOnPooledThread {
              PersistenceService.save(project, conversationsToSave, appSettings)
         }
-        
+
         // Trigger title generation if applicable
         if (shouldGenerateTitle) {
             generateChatTitle(chat, fullContent)
@@ -821,8 +819,21 @@ class MainPanel(val project: Project) {
                 val fullResponse = ApiClient.streamChatCompletion(callToExecute) { chunk ->
                     currentText += chunk
                     SwingUtilities.invokeLater {
+                        // FIX: Smart Stick-to-Bottom Scrolling
+                        // 1. Check if user is ALREADY at the bottom (with some tolerance)
+                        val verticalBar = scrollPane.verticalScrollBar
+                        val wasAtBottom = (verticalBar.value + verticalBar.visibleAmount) >= (verticalBar.maximum - 60)
+
+                        // 2. Update content
                         ChatComponents.updateMessageBubble(targetBubble, currentText)
-                        scrollToBottom()
+
+                        // 3. Only scroll if we were already following the stream
+                        // This prevents jumping if the user scrolls up to read history
+                        if (wasAtBottom) {
+                            // Validate ensures the scrollbar maximum is updated immediately before we scroll
+                            chatContentPanel.validate()
+                            verticalBar.value = verticalBar.maximum
+                        }
                     }
                 }
                 SwingUtilities.invokeLater { handleFinalResponse(fullResponse, chat) }
