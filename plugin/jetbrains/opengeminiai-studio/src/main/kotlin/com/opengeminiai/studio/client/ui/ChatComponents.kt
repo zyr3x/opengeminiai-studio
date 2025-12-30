@@ -131,11 +131,7 @@ object ChatComponents {
     }
 
     private fun populateBubbleContent(panel: JPanel, content: String) {
-        if (content.isEmpty()) {
-            panel.add(createTextPanel("&nbsp;"))
-            return
-        }
-
+        // Removed explicit empty check to prevent unnecessary spacing or &nbsp;
         val segments = parseSegments(content)
         segments.forEach { segment ->
             when (segment.type) {

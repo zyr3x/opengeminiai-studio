@@ -131,7 +131,7 @@ def chat_completions():
                             "Content-Type": "application/json",
                             "Authorization": f"Bearer {config.OPENAI_API_KEY}",
                             # OpenRouter specific headers
-                            "HTTP-Referer": "https://github.com/zyr3x/gemini-proxy",
+                            "HTTP-Referer": "https://github.com/zyr3x/opengeminiai-studio",
                             "X-Title": "OpenGeminiAI Studio"
                         }
                         response = requests.post(
@@ -658,7 +658,7 @@ def list_models():
                 OPENAI_MODELS_URL = f"{config.OPENAI_BASE_URL}/models"
                 headers = {
                     "Authorization": f"Bearer {config.OPENAI_API_KEY}",
-                    "HTTP-Referer": "https://github.com/zyr3x/gemini-proxy",
+                    "HTTP-Referer": "https://github.com/zyr3x/opengeminiai-studio",
                     "X-Title": "OpenGeminiAI Studio"
                 }
                 response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
