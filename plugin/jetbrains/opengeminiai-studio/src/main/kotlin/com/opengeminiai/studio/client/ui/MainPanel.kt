@@ -194,6 +194,10 @@ class MainPanel(val project: Project) {
         inputArea.requestFocusInWindow()
     }
 
+    fun addTextAttachment(title: String, content: String) {
+        addAttachment(TextContext(title, content, AllIcons.FileTypes.Text))
+    }
+
     private fun updateTokenCount() {
         val textLen = inputArea.text.length
         // Rough estimation: 1 token ~ 4 chars for English
@@ -728,12 +732,15 @@ class MainPanel(val project: Project) {
     private fun generateChatTitle(chat: Conversation, userContent: String) {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                val systemPrompt = "Summarize the following user request into a short, concise title (max 4-6 words). Do not use quotes. Output ONLY the title."
+                // Use configured prompt and model for titles
+                val systemPrompt = ApiClient.getPromptText(appSettings.titlePromptKey, ApiClient.PromptType.Title)
+                val model = appSettings.defaultTitleModel
+
                 // Truncate content to avoid excessive token usage
                 val contentPreview = if (userContent.length > 1000) userContent.take(1000) + "..." else userContent
 
                 val msgs = listOf(ChatMessage("user", contentPreview))
-                val call = ApiClient.createChatCompletionCall(msgs, appSettings.defaultChatModel, systemPrompt, appSettings.baseUrl, false)
+                val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt, appSettings.baseUrl, false)
                 val response = ApiClient.processCallResponse(call)
 
                 val newTitle = response.trim().removeSurrounding("\"").removeSuffix(".")

@@ -31,6 +31,8 @@ object ApiClient {
 
     val DEFAULT_COMMIT_PROMPT = "You are a git commit message generator."
 
+    val DEFAULT_TITLE_PROMPT = "Summarize the user request into a short, concise title (max 4-6 words). Do not use quotes. Output ONLY the title."
+
     private data class ApiChatMessage(val role: String, val content: String)
     private data class ChatRequest(val model: String, val messages: List<ApiChatMessage>, val stream: Boolean = false)
 
@@ -158,6 +160,7 @@ object ApiClient {
     enum class PromptType(val defaultText: String) {
         Chat(DEFAULT_SYSTEM_PROMPT),
         QuickEdit(QUICK_EDIT_PROMPT),
-        Commit(DEFAULT_COMMIT_PROMPT)
+        Commit(DEFAULT_COMMIT_PROMPT),
+        Title(DEFAULT_TITLE_PROMPT)
     }
 }

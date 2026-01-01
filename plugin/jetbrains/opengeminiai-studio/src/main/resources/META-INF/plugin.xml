@@ -78,6 +78,7 @@
             <action id="OpenGeminiAI.Tests" class="com.opengeminiai.studio.client.actions.GenerateTestsAction" text="Generate Tests"/>
             <action id="OpenGeminiAI.Bugs" class="com.opengeminiai.studio.client.actions.FindBugsAction" text="Find Bugs"/>
             <separator/>
+            <action id="OpenGeminiAI.Attach" class="com.opengeminiai.studio.client.actions.AttachToChatAction" text="Attach Selection to Chat"/>
             <action id="OpenGeminiAI.AnalyzeError" class="com.opengeminiai.studio.client.actions.AnalyzeErrorAction" text="Analyze Error / Log"/>
         </group>
     </actions>

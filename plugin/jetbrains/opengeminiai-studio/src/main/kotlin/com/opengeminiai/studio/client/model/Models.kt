@@ -30,6 +30,7 @@ data class AppSettings(
     var defaultChatModel: String = "gemini-2.5-flash",
     var defaultQuickEditModel: String = "gemini-2.5-flash",
     var defaultCommitModel: String = "gemini-2.5-flash",
+    var defaultTitleModel: String = "gemini-2.5-flash",
 
     // Connection Settings
     var baseUrl: String = "http://localhost:8080",
@@ -38,6 +39,7 @@ data class AppSettings(
     var chatPromptKey: String = "Default",
     var quickEditPromptKey: String = "Default",
     var commitPromptKey: String = "Default",
+    var titlePromptKey: String = "Default",
 
     // Context Filters (Comma-separated)
     var ignoredDirectories: String = "__pycache__, node_modules, .git, .idea, .vscode, venv, .venv, env, build, target, out, dist, coverage, .gradle, .DS_Store, vendor, bin, obj, .nuxt, .next",

@@ -25,6 +25,15 @@ class ChatInterfaceService(val project: Project) {
         }
     }
 
+    fun addContext(title: String, content: String) {
+        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("OpenGeminiAI Studio")
+        toolWindow?.activate {
+            SwingUtilities.invokeLater {
+                mainPanel?.addTextAttachment(title, content)
+            }
+        }
+    }
+
     companion object {
         fun getInstance(project: Project): ChatInterfaceService = project.getService(ChatInterfaceService::class.java)
     }

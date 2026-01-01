@@ -31,6 +31,9 @@ class SettingsDialog(
     private var commitModel: String? = settings.defaultCommitModel
         set(value) { field = value; if (value != null) settings.defaultCommitModel = value }
 
+    private var titleModel: String? = settings.defaultTitleModel
+        set(value) { field = value; if (value != null) settings.defaultTitleModel = value }
+
     // Prompt Bindings
     private var chatPrompt: String? = settings.chatPromptKey
         set(value) { field = value; if (value != null) settings.chatPromptKey = value }
@@ -40,6 +43,9 @@ class SettingsDialog(
 
     private var commitPrompt: String? = settings.commitPromptKey
         set(value) { field = value; if (value != null) settings.commitPromptKey = value }
+
+    private var titlePrompt: String? = settings.titlePromptKey
+        set(value) { field = value; if (value != null) settings.titlePromptKey = value }
 
     init {
         title = "OpenGeminiAI Settings"
@@ -65,6 +71,9 @@ class SettingsDialog(
                 row("Git Commit Model:") {
                     comboBox(availableModels).bindItem(::commitModel)
                 }
+                row("Chat Title Model:") {
+                    comboBox(availableModels).bindItem(::titleModel)
+                }
             }
             group("System Prompts") {
                 row("Chat Prompt:") {
@@ -75,6 +84,9 @@ class SettingsDialog(
                 }
                 row("Git Commit Prompt:") {
                     comboBox(availablePrompts).bindItem(::commitPrompt)
+                }
+                row("Chat Title Prompt:") {
+                    comboBox(availablePrompts).bindItem(::titlePrompt)
                 }
             }
             group("Context Filters") {
