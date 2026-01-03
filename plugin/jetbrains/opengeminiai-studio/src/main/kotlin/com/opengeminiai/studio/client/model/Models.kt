@@ -16,16 +16,6 @@ data class Conversation(
     override fun toString(): String = title
 }
 
-const val DEFAULT_SYSTEM_PROMPT = """You are an expert developer.
-1. Answer using Markdown.
-2. To MODIFY files, output JSON:
-```json
-{
-  "action": "propose_changes",
-  "changes": [ { "path": "/abs/path", "content": "NEW CONTENT" } ]
-}
-```"""
-
 data class AppSettings(
     var defaultChatModel: String = "gemini-2.5-flash",
     var defaultQuickEditModel: String = "gemini-2.5-flash",

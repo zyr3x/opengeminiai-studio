@@ -52,8 +52,12 @@ object ChatComponents {
         // Pre-process markers to extract files and keep other content
         content.lines().forEach { line ->
             val trimmed = line.trim()
-            if (trimmed.startsWith("image_path=") || trimmed.startsWith("code_path=")) {
-                val prefix = if (trimmed.startsWith("image_path=")) "image_path=" else "code_path="
+            if (trimmed.startsWith("image_path=") || trimmed.startsWith("code_path=") || trimmed.startsWith("pdf_path=")) {
+                val prefix = when {
+                    trimmed.startsWith("image_path=") -> "image_path="
+                    trimmed.startsWith("pdf_path=") -> "pdf_path="
+                    else -> "code_path="
+                }
                 val rawPath = trimmed.substringAfter(prefix)
                 val (path, params) = parsePathAndParams(rawPath)
                 attachedFilesForDisplay.add(AttachedFile(File(path), params))
@@ -112,7 +116,7 @@ object ChatComponents {
 
         val box = Box.createHorizontalBox()
         if (isUser) {
-            box.add(Box.createHorizontalGlue())
+            box.add(Box.createHorizontalGlue)
             box.add(copyBtn)
             box.add(deleteBtn)
             box.add(bubble)
@@ -122,7 +126,7 @@ object ChatComponents {
             box.add(bubble)
             box.add(copyBtn)
             box.add(deleteBtn)
-            box.add(Box.createHorizontalGlue())
+            box.add(Box.createHorizontalGlue)
         }
 
         wrapper.add(box, BorderLayout.CENTER)

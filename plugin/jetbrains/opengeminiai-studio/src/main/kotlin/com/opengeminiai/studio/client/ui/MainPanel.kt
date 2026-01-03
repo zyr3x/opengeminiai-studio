@@ -699,7 +699,11 @@ class MainPanel(val project: Project) {
             if (sb.isNotEmpty()) sb.append("\n\n")
             attachments.filterIsInstance<FileContext>().forEach { item ->
                 val ext = item.file.extension.lowercase()
-                val prefix = if (ext in listOf("jpg", "png")) "image_path=" else "code_path="
+                val prefix = when {
+                    ext == "pdf" -> "pdf_path="
+                    ext in listOf("jpg", "jpeg", "png") -> "image_path="
+                    else -> "code_path="
+                }
 
                 sb.append("$prefix${item.file.absolutePath}")
 
