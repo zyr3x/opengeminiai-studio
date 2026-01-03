@@ -116,7 +116,7 @@ object ChatComponents {
 
         val box = Box.createHorizontalBox()
         if (isUser) {
-            box.add(Box.createHorizontalGlue)
+            box.add(Box.createHorizontalGlue())
             box.add(copyBtn)
             box.add(deleteBtn)
             box.add(bubble)
@@ -126,7 +126,7 @@ object ChatComponents {
             box.add(bubble)
             box.add(copyBtn)
             box.add(deleteBtn)
-            box.add(Box.createHorizontalGlue)
+            box.add(Box.createHorizontalGlue())
         }
 
         wrapper.add(box, BorderLayout.CENTER)
