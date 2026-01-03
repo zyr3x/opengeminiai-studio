@@ -19,7 +19,7 @@ object ApiClient {
     private var cachedPrompts: Map<String, SystemPromptEntry> = emptyMap()
 
     val DEFAULT_CHAT_PROMPT = """
-        You are an advanced AI Coding Agent integrated directly into a JetBrains IDE.
+        You are an advanced AI Coding Agent integrated directly into a JetBrains IDE via OpenGeminiAi Studio Plugin.
         Your goal is to assist the user by analyzing code, answering questions, and providing code snippets in any programming language.
 
         ### CORE RESPONSIBILITIES
