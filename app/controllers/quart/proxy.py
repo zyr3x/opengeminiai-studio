@@ -80,7 +80,7 @@ async def async_chat_completions():
                         if new_system_context:
                             project_system_context_text = new_system_context
 
-                        if project_path_found:
+                        if project_path_found and config.AGENT_INTELLIGENCE_ENABLED:
                             project_context_tools_requested = True
                             if isinstance(project_path_found, str):
                                 project_context_root = project_path_found
@@ -110,14 +110,16 @@ async def async_chat_completions():
                     # Tools
                     openai_tools = []
                     builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
-                    if project_context_tools_requested:
+
+                    if project_context_tools_requested and not disable_mcp_tools:
                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
-                    elif selected_mcp_tools:
-                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(selected_mcp_tools))
-                    elif profile_selected_mcp_tools:
-                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
-                    elif not disable_mcp_tools:
-                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+                    elif not disable_mcp_tools and profile_selected_mcp_tools:
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
+                    elif disable_mcp_tools:
+                        utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
+                    else:
+                        openai_tools.extend(mcp_handler.create_tool_declarations(full_prompt_text))
+                        utils.log(f"MCP tools enabled. Using context-aware selection based on prompt.")
 
                     if openai_tools:
                         request_data["tools"] = openai_tools
