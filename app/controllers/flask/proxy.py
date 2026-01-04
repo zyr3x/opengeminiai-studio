@@ -115,7 +115,6 @@ def chat_completions():
                     elif disable_mcp_tools:
                         utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
                     else:
-                        openai_tools.extend(mcp_handler.create_tool_declarations(full_prompt_text))
                         utils.log(f"MCP tools enabled. Using context-aware selection based on prompt.")
 
 
@@ -376,11 +375,6 @@ def chat_completions():
                 elif not disable_mcp_tools and profile_selected_mcp_tools:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(profile_selected_mcp_tools)
                     utils.log(f"Using MCP tools defined by prompt override profile: {profile_selected_mcp_tools}")
-                elif disable_mcp_tools:
-                    utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
-                else:
-                    mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
-                    utils.log(f"MCP tools enabled. Using context-aware selection based on prompt.")
 
                 if mcp_declarations_to_use:
                     final_tools.extend(mcp_declarations_to_use)
