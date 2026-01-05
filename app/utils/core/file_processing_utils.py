@@ -90,7 +90,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
             last_end = command_end
             continue
         processed_paths.add(expanded_path)
-        if file_type == 'project':
+        if file_type == 'project' and config.AGENT_INTELLIGENCE_ENABLED:
             project_path_found = expanded_path
             project_mode = 'feature'
             search_area = content[match.end():command_end]
@@ -131,7 +131,7 @@ def process_message_for_paths(content: str, processed_paths: set) -> tuple[str, 
             if not prompt_data:
                 logging.log(f"Warning: project_mode '{project_mode}' not found. Defaulting to 'feature'.")
                 project_mode = 'feature'
-                prompt_data = AGENT_PROMPTS.get(project_mode)
+                prompt_data = utils.agent_prompts.get(project_mode,'')
             if prompt_data and prompt_data.get('prompt'):
                 prompt_template = prompt_data['prompt']
                 if feature_name:

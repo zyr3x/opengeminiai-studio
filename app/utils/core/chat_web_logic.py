@@ -156,7 +156,7 @@ def prepare_chat_data(form, files):
             if processed_content:
                 user_parts.append({"text": processed_content})
         elif isinstance(processed_content, list):
-            if project_path_found:
+            if project_path_found and config.AGENT_INTELLIGENCE_ENABLED:
                 project_context_root = project_path_found
                 project_context_tools_requested = True
             chat_upload_folder = os.path.join(UPLOAD_FOLDER, str(chat_id))

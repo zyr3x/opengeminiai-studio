@@ -75,7 +75,7 @@ def chat_completions():
                         if new_system_context:
                             project_system_context_text = new_system_context
 
-                        if project_path_found:
+                        if project_path_found and config.AGENT_INTELLIGENCE_ENABLED:
                             project_context_tools_requested = True
                             if isinstance(project_path_found, str):
                                 project_context_root = project_path_found
