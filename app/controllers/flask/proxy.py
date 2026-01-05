@@ -75,7 +75,7 @@ def chat_completions():
                         if new_system_context:
                             project_system_context_text = new_system_context
 
-                        if project_path_found and config.AGENT_INTELLIGENCE_ENABLED:
+                        if project_path_found:
                             project_context_tools_requested = True
                             if isinstance(project_path_found, str):
                                 project_context_root = project_path_found
@@ -112,12 +112,12 @@ def chat_completions():
                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
                     elif not disable_mcp_tools and profile_selected_mcp_tools:
                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
-                    elif disable_mcp_tools:
-                        utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
-                    else:
-                        openai_tools.extend(mcp_handler.create_tool_declarations(full_prompt_text))
-                        utils.log(f"MCP tools enabled. Using context-aware selection based on prompt.")
-
+                    elif not disable_mcp_tools:
+                         # For all tools, we need names. Using context aware is harder here without refactoring, 
+                         # so we enable all allowed or relevant. Let's enable all available declarations.
+                         # Or we can reuse mcp_handler.create_tool_declarations but need names
+                         # Simplified: enable builtin if no profile
+                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
 
                     if enable_native_tools:
                         pass # Native tools are Gemini specific
