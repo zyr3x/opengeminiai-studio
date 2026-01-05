@@ -118,6 +118,7 @@ async def async_chat_completions():
                     elif disable_mcp_tools:
                         utils.log(f"MCP Tools explicitly disabled by profile or global setting.")
                     else:
+                        openai_tools.extend(mcp_handler.create_tool_declarations(full_prompt_text))
                         utils.log(f"MCP tools enabled. Using context-aware selection based on prompt.")
 
                     if openai_tools:
