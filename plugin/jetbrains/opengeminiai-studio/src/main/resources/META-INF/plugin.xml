@@ -22,6 +22,14 @@
         </ol>
     ]]></description>
     <change-notes><![CDATA[<ul>
+    <li><b>v1.3.0</b>: Smart Titles & Editor Integration
+        <ul>
+            <li><b>Auto-Titles:</b> Chats now automatically generate concise titles based on your first prompt (configurable model/prompt).</li>
+            <li><b>Attach Selection:</b> New action to quickly attach selected code to the chat with a custom name.</li>
+            <li><b>UX Enhancements:</b> Added "Copy Prompt" button, smart stick-to-bottom scrolling, and improved streaming stability.</li>
+            <li><b>Performance:</b> Increased API timeouts to better handle complex reasoning models.</li>
+        </ul>
+    </li>
     <li><b>v1.2.0</b>: Web Tab & UX Improvements
         <ul>
             <li><b>Gemini Web Tab:</b> Added a new dedicated tab to access the Gemini Web interface directly within the tool window.</li>
