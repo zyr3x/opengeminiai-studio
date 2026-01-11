@@ -28,6 +28,8 @@ import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.ui.SearchTextField
+import com.intellij.ui.DocumentAdapter
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import okhttp3.Call
@@ -35,8 +37,10 @@ import java.awt.*
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.awt.dnd.*
-import java.awt.event.* import java.io.File
-import javax.swing.* import java.util.regex.Pattern
+import java.awt.event.* 
+import java.io.File
+import javax.swing.* 
+import java.util.regex.Pattern
 
 class MainPanel(val project: Project) {
 
@@ -132,7 +136,9 @@ class MainPanel(val project: Project) {
     private var lastChatModel: String = "gemini-2.5-flash"
     private var lastQuickEditModel: String = "gemini-2.5-flash"
 
-    // -- HISTORY VIEW (Replaces JBList) --
+    // -- HISTORY VIEW --
+    private val historySearchField = SearchTextField(false)
+
     private val historyContentPanel = JPanel().apply {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
         background = JBColor.background()
@@ -167,7 +173,24 @@ class MainPanel(val project: Project) {
         })
 
         centerPanel.add(scrollPane, "CHAT")
-        centerPanel.add(historyScrollPane, "HISTORY")
+
+        // Configure History Search
+        historySearchField.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) {
+                refreshHistoryList()
+            }
+        })
+
+        val historyContainer = JPanel(BorderLayout())
+        val searchWrapper = JPanel(BorderLayout())
+        searchWrapper.border = JBUI.Borders.empty(10, 10, 0, 10)
+        searchWrapper.background = JBColor.background()
+        searchWrapper.add(historySearchField, BorderLayout.CENTER)
+
+        historyContainer.add(searchWrapper, BorderLayout.NORTH)
+        historyContainer.add(historyScrollPane, BorderLayout.CENTER)
+
+        centerPanel.add(historyContainer, "HISTORY")
 
         val wrapper = PersistenceService.load(project)
         appSettings = wrapper.settings ?: AppSettings()
@@ -224,10 +247,33 @@ class MainPanel(val project: Project) {
     // --- HISTORY UI BUILDER ---
     private fun refreshHistoryList() {
         historyContentPanel.removeAll()
-        chatListModel.elements().toList().forEach {
+
+        val filter = historySearchField.text.trim().lowercase()
+        val allChats = chatListModel.elements().toList()
+
+        val filteredChats = if (filter.isEmpty()) {
+            allChats
+        } else {
+            allChats.filter { chat ->
+                chat.title.lowercase().contains(filter) ||
+                        chat.messages.any { msg -> msg.content.lowercase().contains(filter) }
+            }
+        }
+
+        filteredChats.forEach {
             historyContentPanel.add(createHistoryRow(it))
             historyContentPanel.add(Box.createVerticalStrut(5))
         }
+
+        if (filteredChats.isEmpty() && filter.isNotEmpty()) {
+            val noResults = JLabel("No chats found matching '$filter'", SwingConstants.CENTER)
+            noResults.foreground = JBColor.GRAY
+            noResults.font = JBUI.Fonts.smallFont()
+            noResults.border = JBUI.Borders.emptyTop(20)
+            noResults.alignmentX = Component.CENTER_ALIGNMENT
+            historyContentPanel.add(noResults)
+        }
+
         historyContentPanel.revalidate(); historyContentPanel.repaint()
     }
 
