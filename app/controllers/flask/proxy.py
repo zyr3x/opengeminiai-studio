@@ -24,6 +24,11 @@ def chat_completions():
         openai_request = request.json
         utils.debug(f"Incoming Request: {utils.pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
+        
+        # Check for explicit MCP tools in the request
+        explicit_mcp_tools = openai_request.get('mcp_tools')
+        if explicit_mcp_tools and not isinstance(explicit_mcp_tools, list):
+             explicit_mcp_tools = None
 
         disable_mcp_tools = False
         enable_native_tools = False
@@ -107,16 +112,18 @@ def chat_completions():
                     # Tools setup for OpenAI
                     openai_tools = []
                     builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
-
-                    if project_context_tools_requested and not disable_mcp_tools:
+                    
+                    if not disable_mcp_tools and explicit_mcp_tools:
+                        # Priority 1: Explicitly requested tools via API
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(explicit_mcp_tools))
+                    elif project_context_tools_requested and not disable_mcp_tools:
+                        # Priority 2: Project context tools
                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
                     elif not disable_mcp_tools and profile_selected_mcp_tools:
+                        # Priority 3: Profile selected tools
                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
                     elif not disable_mcp_tools:
-                         # For all tools, we need names. Using context aware is harder here without refactoring, 
-                         # so we enable all allowed or relevant. Let's enable all available declarations.
-                         # Or we can reuse mcp_handler.create_tool_declarations but need names
-                         # Simplified: enable builtin if no profile
+                         # Priority 4: Default fallback (builtin)
                          openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
 
                     if enable_native_tools:
@@ -370,7 +377,10 @@ def chat_completions():
 
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
-                if project_context_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
+                if not disable_mcp_tools and explicit_mcp_tools:
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(explicit_mcp_tools)
+                    utils.log(f"Using explicit MCP tools from request: {explicit_mcp_tools}")
+                elif project_context_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
                     utils.log(f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tool_names}")
                 elif not disable_mcp_tools and profile_selected_mcp_tools:

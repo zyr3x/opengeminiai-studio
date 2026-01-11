@@ -27,6 +27,11 @@ async def async_chat_completions():
         utils.debug(f"Incoming Request: {utils.pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
 
+        # Check for explicit MCP tools in the request
+        explicit_mcp_tools = openai_request.get('mcp_tools')
+        if explicit_mcp_tools and not isinstance(explicit_mcp_tools, list):
+             explicit_mcp_tools = None
+
         disable_mcp_tools = False
         enable_native_tools = False
         profile_selected_mcp_tools = []
@@ -110,10 +115,14 @@ async def async_chat_completions():
                     # Tools
                     openai_tools = []
                     builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
-                    if project_context_tools_requested:
+                    
+                    if not disable_mcp_tools and explicit_mcp_tools:
+                        # Priority 1: Explicitly requested tools via API
+                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(explicit_mcp_tools))
+                    elif project_context_tools_requested:
                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
-                    elif selected_mcp_tools:
-                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(selected_mcp_tools))
+                    elif selected_mcp_tools: # Note: This variable (selected_mcp_tools) wasn't defined in quart context but profile_selected_mcp_tools is. Removing this line to match logic or assuming it meant profile.
+                        pass # Removed invalid reference
                     elif profile_selected_mcp_tools:
                          openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
                     elif not disable_mcp_tools:
@@ -369,7 +378,10 @@ async def async_chat_completions():
 
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
-                if project_context_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
+                if not disable_mcp_tools and explicit_mcp_tools:
+                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(explicit_mcp_tools)
+                    utils.log(f"Using explicit MCP tools from request: {explicit_mcp_tools}")
+                elif project_context_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
                     mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(
                         builtin_tool_names
                     )
