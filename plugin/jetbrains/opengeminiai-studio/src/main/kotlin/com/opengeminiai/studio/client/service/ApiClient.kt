@@ -3,9 +3,11 @@ package com.opengeminiai.studio.client.service
 import com.opengeminiai.studio.client.model.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.intellij.openapi.project.Project
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
@@ -225,7 +227,26 @@ object ApiClient {
         return listOf("Default") + cachedPrompts.keys.sorted()
     }
 
-    fun getPromptText(key: String, type: PromptType): String {
+    fun getPromptText(project: Project?, key: String, type: PromptType): String {
+        // Local project override check
+        if (project != null && project.basePath != null) {
+            val filename = when (type) {
+                PromptType.Chat -> "chat.md"
+                PromptType.QuickEdit -> "edit.md"
+                PromptType.Commit -> "commit.md"
+                PromptType.Title -> "title.md"
+            }
+            val promptFile = File(project.basePath, ".opengemini/prompts/$filename")
+            if (promptFile.exists() && promptFile.isFile) {
+                try {
+                    val content = promptFile.readText().trim()
+                    if (content.isNotEmpty()) return content
+                } catch (e: Exception) {
+                    // Ignore read errors, fallback to default
+                }
+            }
+        }
+
         if (key == "Default") return type.defaultText
         return cachedPrompts[key]?.prompt ?: type.defaultText
     }

@@ -783,7 +783,8 @@ class MainPanel(val project: Project) {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 // Use configured prompt and model for titles
-                val systemPrompt = ApiClient.getPromptText(appSettings.titlePromptKey, ApiClient.PromptType.Title)
+                // UPDATED: Pass project to use local overrides
+                val systemPrompt = ApiClient.getPromptText(project, appSettings.titlePromptKey, ApiClient.PromptType.Title)
                 val model = appSettings.defaultTitleModel
 
                 // Truncate content to avoid excessive token usage
@@ -849,10 +850,11 @@ class MainPanel(val project: Project) {
         val model = currentModel
         val mode = currentMode
 
+        // UPDATED: Pass project to use local overrides
         val systemPrompt = promptOverride ?: if (mode == "QuickEdit") {
-             ApiClient.getPromptText(appSettings.quickEditPromptKey, ApiClient.PromptType.QuickEdit)
+             ApiClient.getPromptText(project, appSettings.quickEditPromptKey, ApiClient.PromptType.QuickEdit)
         } else {
-             ApiClient.getPromptText(appSettings.chatPromptKey, ApiClient.PromptType.Chat)
+             ApiClient.getPromptText(project, appSettings.chatPromptKey, ApiClient.PromptType.Chat)
         }
 
         updateSendButtonState(true)

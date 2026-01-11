@@ -69,7 +69,8 @@ class GenerateCommitAction : DumbAwareAction() {
 
         // Pass baseUrl from settings
         val baseUrl = settings.baseUrl
-        val systemPrompt = ApiClient.getPromptText(settings.commitPromptKey, ApiClient.PromptType.Commit)
+        // UPDATED: Pass project to use local overrides
+        val systemPrompt = ApiClient.getPromptText(project, settings.commitPromptKey, ApiClient.PromptType.Commit)
 
         val contentBuilder = StringBuilder()
 
