@@ -65,3 +65,18 @@ data class SystemPromptEntry(
     val disable_tools: Boolean? = null,
     val enable_native_tools: Boolean? = null
 )
+
+// --- MCP Tool Models ---
+data class McpToolsResponse(
+    val built_in: List<McpToolDefinition> = emptyList(),
+    val servers: Map<String, McpServerDefinition> = emptyMap()
+)
+
+data class McpServerDefinition(
+    val methods: List<McpToolDefinition> = emptyList()
+)
+
+data class McpToolDefinition(
+    val name: String,
+    val description: String?
+)

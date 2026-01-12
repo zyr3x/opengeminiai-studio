@@ -106,6 +106,10 @@ class MainPanel(val project: Project) {
     private var availableModels = mutableListOf("gemini-2.5-flash")
     private var currentMode = "Chat"
     private var currentModel = "gemini-2.5-flash"
+    
+    // -- MCP TOOLS --
+    private var availableMcpTools: McpToolsResponse? = null
+    private val selectedMcpTools = HashSet<String>()
 
     private val modeButton = JButton().apply {
         preferredSize = Dimension(28, 28)
@@ -127,6 +131,18 @@ class MainPanel(val project: Project) {
         toolTipText = "Select Model"
         horizontalAlignment = SwingConstants.LEFT
         addActionListener { showModelPopup(it.source as Component) }
+    }
+    
+    private val toolsButton = JButton().apply {
+        preferredSize = Dimension(28, 28)
+        isBorderPainted = false
+        isContentAreaFilled = false
+        isFocusPainted = false
+        isOpaque = false
+        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        toolTipText = "Select Tools"
+        icon = AllIcons.Nodes.Function
+        addActionListener { showToolsPopup(it.source as Component) }
     }
 
     private var sendBtn: JButton? = null
@@ -206,6 +222,7 @@ class MainPanel(val project: Project) {
         else loadChat(chatListModel.firstElement())
 
         refreshModels()
+        refreshTools() // Load tools
         refreshHistoryList()
     }
 
@@ -368,8 +385,10 @@ class MainPanel(val project: Project) {
         val addContextBtn = createIconButton(AllIcons.General.Add, "Add Context") { e -> showAddContextPopup(e.source as Component) }
 
         leftControls.add(addContextBtn)
+        leftControls.add(toolsButton) // Add tools button next to + 
         leftControls.add(modeButton)
         leftControls.add(modelButton)
+        
 
         val rightControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply { isOpaque = false; background = JBColor.background() }
         rightControls.add(tokenCountLabel) // Add Token Counter here
@@ -430,6 +449,62 @@ class MainPanel(val project: Project) {
         modelButton.icon = AllIcons.Actions.Properties
         if (currentMode == "Chat") lastChatModel = model else lastQuickEditModel = model
         updateHeaderInfo()
+    }
+    
+    private fun showToolsPopup(component: Component) {
+        val tools = availableMcpTools
+        if (tools == null) {
+            refreshTools()
+            return
+        }
+
+        val actions = DefaultActionGroup()
+
+        // Auto Toggle (Clears manual selection)
+        actions.add(object : ToggleAction("Auto-Detect Tools", "Let the agent decide which tools to use", AllIcons.Actions.Refresh) {
+            override fun isSelected(e: AnActionEvent): Boolean = selectedMcpTools.isEmpty()
+            override fun setSelected(e: AnActionEvent, state: Boolean) {
+                if (state) {
+                    selectedMcpTools.clear()
+                    // Force repaint to update other toggles
+                    // In simple implementation, just update state
+                }
+            }
+        })
+
+        if (tools.built_in.isNotEmpty()) {
+            actions.addSeparator("Built-in Tools")
+            tools.built_in.forEach { tool ->
+                actions.add(object : ToggleAction(tool.name, tool.description ?: "", null) {
+                    override fun isSelected(e: AnActionEvent) = selectedMcpTools.contains(tool.name)
+                    override fun setSelected(e: AnActionEvent, state: Boolean) {
+                        if (state) selectedMcpTools.add(tool.name) else selectedMcpTools.remove(tool.name)
+                    }
+                })
+            }
+        }
+
+        tools.servers.forEach { (serverName, def) ->
+            if (def.methods.isNotEmpty()) {
+                actions.addSeparator("Server: $serverName")
+                def.methods.forEach { tool ->
+                    actions.add(object : ToggleAction(tool.name, tool.description ?: "", null) {
+                        override fun isSelected(e: AnActionEvent) = selectedMcpTools.contains(tool.name)
+                        override fun setSelected(e: AnActionEvent, state: Boolean) {
+                            if (state) selectedMcpTools.add(tool.name) else selectedMcpTools.remove(tool.name)
+                        }
+                    })
+                }
+            }
+        }
+
+        JBPopupFactory.getInstance().createActionGroupPopup(
+            "Select Tools",
+            actions,
+            DataManager.getInstance().getDataContext(component),
+            JBPopupFactory.ActionSelectionAid.SPEEDSEARCH,
+            true
+        ).showUnderneathOf(component)
     }
 
     private fun showAddContextPopup(component: Component) {
@@ -856,6 +931,9 @@ class MainPanel(val project: Project) {
         } else {
              ApiClient.getPromptText(project, appSettings.chatPromptKey, ApiClient.PromptType.Chat)
         }
+        
+        // TOOLS: Prepare selected tools list (or null for auto)
+        val toolsToSend = if (selectedMcpTools.isEmpty()) null else selectedMcpTools.toList()
 
         updateSendButtonState(true)
         val assistantBubblePanel = addBubble("assistant", "_Generating content..._")
@@ -868,7 +946,9 @@ class MainPanel(val project: Project) {
                 // Remove the "Generaring..." placeholder message from history before sending
                 val msgToSend = chat.messages.removeAt(chat.messages.size - 1)
 
-                callToExecute = ApiClient.createChatCompletionCall(chat.messages, model, systemPrompt, appSettings.baseUrl, true)
+                callToExecute = ApiClient.createChatCompletionCall(
+                    chat.messages, model, systemPrompt, appSettings.baseUrl, true, toolsToSend
+                )
                 currentApiCall = callToExecute
 
                 // Add it back
@@ -1028,6 +1108,17 @@ class MainPanel(val project: Project) {
             } catch (e: Exception) { }
         }
     }
+    
+    private fun refreshTools() {
+         ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                val tools = ApiClient.fetchMcpTools(appSettings.baseUrl)
+                SwingUtilities.invokeLater {
+                    availableMcpTools = tools
+                }
+            } catch (e: Exception) {}
+        }
+    }
 
     private fun openSettings() {
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -1040,6 +1131,7 @@ class MainPanel(val project: Project) {
                           PersistenceService.save(project, conversationsToSave, appSettings)
                      }
                      refreshModels()
+                     refreshTools()
                  }
              }
         }

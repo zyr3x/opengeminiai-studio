@@ -109,16 +109,21 @@ object ApiClient {
     val DEFAULT_TITLE_PROMPT = "Summarize the user request into a short, concise title (max 4-6 words). Do not use quotes. Output ONLY the title."
 
     private data class ApiChatMessage(val role: String, val content: String)
-    private data class ChatRequest(val model: String, val messages: List<ApiChatMessage>, val stream: Boolean = false)
+    private data class ChatRequest(
+        val model: String, 
+        val messages: List<ApiChatMessage>, 
+        val stream: Boolean = false,
+        val mcp_tools: List<String>? = null
+    )
 
-    fun createChatCompletionCall(history: List<ChatMessage>, model: String, systemPrompt: String, baseUrl: String, stream: Boolean = false): Call {
+    fun createChatCompletionCall(history: List<ChatMessage>, model: String, systemPrompt: String, baseUrl: String, stream: Boolean = false, mcpTools: List<String>? = null): Call {
         val msgs = mutableListOf(ApiChatMessage("system", systemPrompt))
         msgs.addAll(history.map { ApiChatMessage(it.role, it.content) })
 
         // Remove trailing slash if present to avoid double slashes
         val cleanUrl = baseUrl.trimEnd('/')
 
-        val body = gson.toJson(ChatRequest(model, msgs, stream)).toRequestBody("application/json".toMediaType())
+        val body = gson.toJson(ChatRequest(model, msgs, stream, mcpTools)).toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url("$cleanUrl/v1/chat/completions").post(body).build()
         return client.newCall(request)
     }
@@ -200,6 +205,22 @@ object ApiClient {
             }
         } catch (e: Exception) {
             return listOf("gemini-2.5-flash")
+        }
+    }
+
+    // --- MCP Tools Logic ---
+
+    fun fetchMcpTools(baseUrl: String): McpToolsResponse? {
+        try {
+            val cleanUrl = baseUrl.trimEnd('/')
+            val req = Request.Builder().url("$cleanUrl/api/mcp/list").get().build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val str = resp.body?.string() ?: return null
+                return gson.fromJson(str, McpToolsResponse::class.java)
+            }
+        } catch (e: Exception) {
+            return null
         }
     }
 
