@@ -947,10 +947,17 @@ class MainPanel(val project: Project) {
                 val systemPrompt = ApiClient.getPromptText(project, appSettings.titlePromptKey, ApiClient.PromptType.Title)
                 val model = appSettings.defaultTitleModel
 
+                // Strip file path markers to reduce context and avoid full file expansion for title generation
+                val cleanContent = userContent.replace(Regex("(?m)^(code|image|pdf)_path=.*$(\\r?\\n)?"), "").trim()
+                
                 // Truncate content to avoid excessive token usage
-                val contentPreview = if (userContent.length > 1000) userContent.take(1000) + "..." else userContent
+                val maxLen = appSettings.titleMaxContextLength
+                val contentPreview = if (cleanContent.length > maxLen) cleanContent.take(maxLen) + "..." else cleanContent
+                
+                // If everything was stripped (only attachments), use placeholder
+                val finalContent = if (contentPreview.isBlank()) "Analyze attached files" else contentPreview
 
-                val msgs = listOf(ChatMessage("user", contentPreview))
+                val msgs = listOf(ChatMessage("user", finalContent))
                 val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt, appSettings.baseUrl, false)
                 val response = ApiClient.processCallResponse(call)
 
@@ -1159,7 +1166,7 @@ class MainPanel(val project: Project) {
 
              if (changes != null && changes.isNotEmpty()) {
                 var widgetPanel: JPanel? = null
-                widgetPanel = ChatComponents.createChangeWidget(project, changes) {
+                widgetPanel = ChatComponents.createChangeWidget(project, changes) { 
                     val idx = chat.messages.size - 1
                     if (idx >= 0) {
                          chat.messages[idx] = chat.messages[idx].copy(changes = null)
@@ -1321,7 +1328,7 @@ class MainPanel(val project: Project) {
             msg.changes?.let { changes ->
                 if (changes.isNotEmpty()) {
                     var widgetPanel: JPanel? = null
-                    widgetPanel = ChatComponents.createChangeWidget(project, changes) {
+                    widgetPanel = ChatComponents.createChangeWidget(project, changes) { 
                         if (index < chat.messages.size) {
                              chat.messages[index] = chat.messages[index].copy(changes = null)
 

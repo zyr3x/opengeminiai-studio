@@ -3,13 +3,17 @@ package com.opengeminiai.studio.client.ui
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.ui.components.JBScrollPane
+import com.intellij.util.ui.JBUI
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.bindItem
 import com.intellij.ui.dsl.builder.bindText
+import com.intellij.ui.dsl.builder.bindIntText
 import com.intellij.ui.dsl.builder.panel
 import com.opengeminiai.studio.client.model.AppSettings
 import com.opengeminiai.studio.client.service.ApiClient
 import javax.swing.JComponent
+import java.awt.Dimension
 
 class SettingsDialog(
     project: Project,
@@ -103,8 +107,31 @@ class SettingsDialog(
                         .comment("Binary files, logs, etc.")
                 }
             }
+            group("Generation Limits") {
+                row("Commit Max Files:") {
+                    intTextField(1..1000)
+                        .bindIntText(settings::commitMaxFiles)
+                        .comment("Max number of files to analyze for commit message")
+                }
+                row("Commit Max Characters:") {
+                    intTextField(100..1000000)
+                        .bindIntText(settings::commitMaxContextLength)
+                        .comment("Max characters to send for commit generation")
+                }
+                row("Title Max Characters:") {
+                    intTextField(100..100000)
+                        .bindIntText(settings::titleMaxContextLength)
+                        .comment("Max characters of first message to use for title generation")
+                }
+            }
         }
-        return mainPanel
+
+        // Wrap in ScrollPane to support small screens
+        val scrollPane = JBScrollPane(mainPanel)
+        scrollPane.border = JBUI.Borders.empty()
+        scrollPane.preferredSize = Dimension(550, 500)
+        
+        return scrollPane
     }
 
     override fun doOKAction() {

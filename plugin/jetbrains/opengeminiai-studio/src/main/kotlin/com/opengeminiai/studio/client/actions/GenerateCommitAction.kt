@@ -85,9 +85,12 @@ class GenerateCommitAction : DumbAwareAction() {
                 try {
                     val systemPrompt = ApiClient.getPromptText(project, settings.commitPromptKey, ApiClient.PromptType.Commit)
                     val contentBuilder = StringBuilder()
+                    
+                    val maxFiles = settings.commitMaxFiles
+                    val maxChars = settings.commitMaxContextLength
 
                     // Limit total processed files to avoid timeout/too large request
-                    changes.take(30).forEach { change ->
+                    changes.take(maxFiles).forEach { change ->
                          if (indicator.isCanceled) return
 
                          val path = change.afterRevision?.file?.name ?: change.beforeRevision?.file?.name ?: "unknown"
@@ -128,7 +131,7 @@ class GenerateCommitAction : DumbAwareAction() {
                     }
 
                     var diffText = contentBuilder.toString()
-                    if (diffText.length > 30000) diffText = diffText.take(30000) + "\n...(truncated globally)..."
+                    if (diffText.length > maxChars) diffText = diffText.take(maxChars) + "\n...(truncated globally)..."
 
                     val fullPrompt = "Generate a concise, conventional git commit message (e.g., 'feat: ...', 'fix: ...') for the following changes. Output ONLY the message text.\n\n$diffText"
 
