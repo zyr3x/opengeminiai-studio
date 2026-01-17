@@ -1020,21 +1020,26 @@ class MainPanel(val project: Project) {
         val matcher = startMarkerPattern.matcher(response)
 
         if (matcher.find()) {
-            val contentStart = matcher.end()
-            val endMarker = "```"
-            val endIndex = response.indexOf(endMarker, contentStart)
+                val contentStart = matcher.end()
+                val endMarker = "```"
+                var searchStart = contentStart
 
-            if (endIndex != -1) {
-                val jsonContent = response.substring(contentStart, endIndex).trim()
-                try {
-                    val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
-                    if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
-                        changes = request.changes
-                        textPart = (response.substring(0, matcher.start()) + response.substring(endIndex + endMarker.length)).trim()
-                    }
-                } catch (e: Exception) { }
+                while (true) {
+                    val endIndex = response.indexOf(endMarker, searchStart)
+                    if (endIndex == -1) break
+
+                    val jsonContent = response.substring(contentStart, endIndex).trim()
+                    try {
+                        val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
+                        if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
+                            changes = request.changes
+                            textPart = (response.substring(0, matcher.start()) + response.substring(endIndex + endMarker.length)).trim()
+                            break
+                        }
+                    } catch (e: Exception) { }
+                    searchStart = endIndex + 1
+                }
             }
-        }
 
         if (changes == null) {
             val jsonStart = response.indexOf("{")
