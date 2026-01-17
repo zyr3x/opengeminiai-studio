@@ -13,7 +13,7 @@ class GeminiToolWindowFactory : ToolWindowFactory, DumbAware {
 
         // Tab 1: Native Studio (Chat & Quick Edit)
         val mainPanel = MainPanel(project)
-        val studioContent = contentFactory.createContent(mainPanel.getContent(), "Studio", false)
+        val studioContent = contentFactory.createContent(mainPanel.getContent(), "OG Studio", false)
         studioContent.putUserData(ToolWindow.SHOW_CONTENT_ICON, true)
         studioContent.icon = Icons.Logo
         toolWindow.contentManager.addContent(studioContent)

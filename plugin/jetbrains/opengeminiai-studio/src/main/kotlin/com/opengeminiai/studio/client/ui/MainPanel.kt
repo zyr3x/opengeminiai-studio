@@ -41,6 +41,8 @@ import java.awt.event.*
 import java.io.File
 import javax.swing.* 
 import java.util.regex.Pattern
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 class MainPanel(val project: Project) {
 
@@ -140,7 +142,7 @@ class MainPanel(val project: Project) {
         isFocusPainted = false
         isOpaque = false
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        toolTipText = "Select Tools"
+        toolTipText = "Tools: Auto"
         icon = AllIcons.Nodes.Function
         addActionListener { showToolsPopup(it.source as Component) }
     }
@@ -427,6 +429,7 @@ class MainPanel(val project: Project) {
     private fun setMode(mode: String) {
         currentMode = mode
         modeButton.icon = if (mode == "Chat") AllIcons.Actions.ListFiles else AllIcons.Actions.Edit
+        modeButton.toolTipText = "Mode: $mode"
 
         val targetModel = if (mode == "Chat") lastChatModel else lastQuickEditModel
         setModel(targetModel)
@@ -447,8 +450,14 @@ class MainPanel(val project: Project) {
     private fun setModel(model: String) {
         currentModel = model
         modelButton.icon = AllIcons.Actions.Properties
+        modelButton.toolTipText = "Model: $model"
         if (currentMode == "Chat") lastChatModel = model else lastQuickEditModel = model
         updateHeaderInfo()
+    }
+    
+    private fun updateToolsTooltip() {
+        val text = if (selectedMcpTools.isEmpty()) "Tools: Auto" else "Tools: ${selectedMcpTools.size} selected"
+        toolsButton.toolTipText = text
     }
     
     private fun showToolsPopup(component: Component) {
@@ -466,6 +475,7 @@ class MainPanel(val project: Project) {
             override fun setSelected(e: AnActionEvent, state: Boolean) {
                 if (state) {
                     selectedMcpTools.clear()
+                    updateToolsTooltip()
                     // Force repaint to update other toggles
                     // In simple implementation, just update state
                 }
@@ -479,6 +489,7 @@ class MainPanel(val project: Project) {
                     override fun isSelected(e: AnActionEvent) = selectedMcpTools.contains(tool.name)
                     override fun setSelected(e: AnActionEvent, state: Boolean) {
                         if (state) selectedMcpTools.add(tool.name) else selectedMcpTools.remove(tool.name)
+                        updateToolsTooltip()
                     }
                 })
             }
@@ -492,6 +503,7 @@ class MainPanel(val project: Project) {
                         override fun isSelected(e: AnActionEvent) = selectedMcpTools.contains(tool.name)
                         override fun setSelected(e: AnActionEvent, state: Boolean) {
                             if (state) selectedMcpTools.add(tool.name) else selectedMcpTools.remove(tool.name)
+                            updateToolsTooltip()
                         }
                     })
                 }
@@ -780,6 +792,21 @@ class MainPanel(val project: Project) {
 
     // --- MESSAGE SENDING WITH SLASH COMMANDS ---
 
+    private fun substituteVariables(text: String): String {
+        if (!text.contains("{")) return text
+
+        var result = text
+        val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+        
+        result = result.replace("{project_path}", project.basePath ?: "")
+        result = result.replace("{project_name}", project.name)
+        result = result.replace("{os_version}", "${System.getProperty("os.name")} ${System.getProperty("os.version")} (${System.getProperty("os.arch")})")
+        result = result.replace("{current_datetime}", now)
+        result = result.replace("{user_name}", System.getProperty("user.name") ?: "User")
+        
+        return result
+    }
+
     private fun processSlashCommands(initialText: String): Pair<String, String?> {
         var text = initialText
         var promptOverride: String? = null
@@ -847,7 +874,8 @@ class MainPanel(val project: Project) {
         val rawInput = inputArea.text.trim()
         if (rawInput.isEmpty() && attachments.isEmpty()) return
 
-        val (processedText, _) = processSlashCommands(rawInput)
+        val inputWithVars = substituteVariables(rawInput)
+        val (processedText, _) = processSlashCommands(inputWithVars)
         val fullContent = buildFullContent(processedText)
 
         val selection = StringSelection(fullContent)
@@ -897,7 +925,8 @@ class MainPanel(val project: Project) {
         val rawInput = inputArea.text.trim()
         if ((rawInput.isEmpty() && attachments.isEmpty()) || currentConversation == null) return
 
-        val (processedText, promptOverride) = processSlashCommands(rawInput)
+        val inputWithVars = substituteVariables(rawInput)
+        val (processedText, promptOverride) = processSlashCommands(inputWithVars)
         val fullContent = buildFullContent(processedText)
 
         val chat = currentConversation!!
@@ -1120,6 +1149,7 @@ class MainPanel(val project: Project) {
                 val tools = ApiClient.fetchMcpTools(appSettings.baseUrl)
                 SwingUtilities.invokeLater {
                     availableMcpTools = tools
+                    updateToolsTooltip()
                 }
             } catch (e: Exception) {}
         }
