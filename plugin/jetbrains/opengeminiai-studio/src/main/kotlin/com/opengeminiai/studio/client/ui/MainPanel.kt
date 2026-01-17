@@ -50,6 +50,10 @@ class MainPanel(val project: Project) {
     private val chatListModel = DefaultListModel<Conversation>()
     private var currentConversation: Conversation? = null
     private var appSettings: AppSettings = AppSettings()
+    private var isRestoringState = false
+
+    // Auto-save timer (Debouncer)
+    private val saveDebouncer = Timer(3000) { saveConversations() }
 
     // -- ATTACHMENTS --
     private sealed class ContextItem {
@@ -171,6 +175,8 @@ class MainPanel(val project: Project) {
         // Register this panel with the service
         ChatInterfaceService.getInstance(project).registerPanel(this)
 
+        saveDebouncer.isRepeats = false
+
         chatContentPanel.layout = BoxLayout(chatContentPanel, BoxLayout.Y_AXIS)
         chatContentPanel.border = JBUI.Borders.empty(10)
         chatContentPanel.background = JBColor.background()
@@ -185,9 +191,9 @@ class MainPanel(val project: Project) {
         tokenCountLabel.border = JBUI.Borders.emptyRight(8)
 
         inputArea.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent?) { updateTokenCount() }
-            override fun removeUpdate(e: DocumentEvent?) { updateTokenCount() }
-            override fun changedUpdate(e: DocumentEvent?) { updateTokenCount() }
+            override fun insertUpdate(e: DocumentEvent?) { onInputChange() }
+            override fun removeUpdate(e: DocumentEvent?) { onInputChange() }
+            override fun changedUpdate(e: DocumentEvent?) { onInputChange() }
         })
 
         centerPanel.add(scrollPane, "CHAT")
@@ -226,6 +232,47 @@ class MainPanel(val project: Project) {
         refreshModels()
         refreshTools() // Load tools
         refreshHistoryList()
+    }
+
+    private fun onInputChange() {
+        updateTokenCount()
+        if (!isRestoringState && currentConversation != null) {
+            currentConversation!!.draftInput = inputArea.text
+            triggerPersistenceSave()
+        }
+    }
+
+    private fun triggerPersistenceSave() {
+        saveDebouncer.restart()
+    }
+
+    private fun saveConversations() {
+        val conversationsToSave = chatListModel.elements().toList()
+        ApplicationManager.getApplication().executeOnPooledThread {
+            PersistenceService.save(project, conversationsToSave, appSettings)
+        }
+    }
+
+    private fun updateDraftState(chat: Conversation) {
+        chat.draftInput = inputArea.text
+        chat.draftAttachments = attachments.map { item ->
+            when (item) {
+                is FileContext -> DraftAttachment(
+                    type = "file",
+                    name = item.name,
+                    data = item.file.absolutePath,
+                    ignoreTypes = item.ignoreTypes,
+                    ignoreFiles = item.ignoreFiles,
+                    ignoreDirs = item.ignoreDirs
+                )
+                is TextContext -> DraftAttachment(
+                    type = "text",
+                    name = item.name,
+                    data = item.content
+                )
+            }
+        }
+        triggerPersistenceSave()
     }
 
     // Called by external actions
@@ -606,12 +653,22 @@ class MainPanel(val project: Project) {
         if (item is FileContext && attachments.filterIsInstance<FileContext>().any { it.file.absolutePath == item.file.absolutePath }) return
         attachments.add(item)
         refreshAttachmentsPanel()
+        
+        if (currentConversation != null) {
+            updateDraftState(currentConversation!!)
+        }
+        
         updateTokenCount()
     }
 
     private fun removeAttachment(item: ContextItem) {
         attachments.remove(item)
         refreshAttachmentsPanel()
+        
+        if (currentConversation != null) {
+            updateDraftState(currentConversation!!)
+        }
+        
         updateTokenCount()
     }
 
@@ -921,6 +978,9 @@ class MainPanel(val project: Project) {
     // Made public so it can be called from ChatInterfaceService
     fun sendMessage() {
         if (currentApiCall != null) { stopSending(); return }
+        
+        // Stop auto-save timer to prevent race conditions during send
+        saveDebouncer.stop()
 
         val rawInput = inputArea.text.trim()
         if ((rawInput.isEmpty() && attachments.isEmpty()) || currentConversation == null) return
@@ -936,10 +996,14 @@ class MainPanel(val project: Project) {
 
         addBubble("user", fullContent)
 
-        // Reset inputs
+        // Clear draft in model explicitly
+        chat.draftInput = ""
+        chat.draftAttachments = emptyList()
+
+        // Reset inputs in UI
         inputArea.text = ""; attachments.clear(); refreshAttachmentsPanel(); updateTokenCount()
 
-        // Save state in background
+        // Save state in background immediately (force save)
         val conversationsToSave = chatListModel.elements().toList()
         ApplicationManager.getApplication().executeOnPooledThread {
              PersistenceService.save(project, conversationsToSave, appSettings)
@@ -1216,8 +1280,38 @@ class MainPanel(val project: Project) {
     }
 
     private fun loadChat(chat: Conversation) {
+        if (currentConversation != null) {
+            updateDraftState(currentConversation!!)
+        }
+
         currentConversation = chat
         chatContentPanel.removeAll()
+
+        // Restore Draft
+        isRestoringState = true
+        inputArea.text = chat.draftInput
+        attachments.clear()
+
+        chat.draftAttachments.forEach { draft ->
+            if (draft.type == "file") {
+                val file = File(draft.data)
+                if (file.exists()) {
+                    val ctx = FileContext(
+                        file,
+                        draft.ignoreTypes ?: "",
+                        draft.ignoreFiles ?: "",
+                        draft.ignoreDirs ?: ""
+                    )
+                    attachments.add(ctx)
+                }
+            } else if (draft.type == "text") {
+                attachments.add(TextContext(draft.name, draft.data, AllIcons.FileTypes.Text))
+            }
+        }
+        refreshAttachmentsPanel()
+        updateTokenCount()
+        isRestoringState = false
+
         chat.messages.forEachIndexed { index, msg ->
             val bubble = ChatComponents.createMessageBubble(msg.role, msg.content, index) { idxToDelete ->
                 handleMessageDelete(idxToDelete)

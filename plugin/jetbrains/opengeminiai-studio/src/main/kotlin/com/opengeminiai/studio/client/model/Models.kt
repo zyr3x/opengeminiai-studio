@@ -8,13 +8,24 @@ data class Conversation(
     val id: String = UUID.randomUUID().toString(),
     var title: String = "New Chat",
     val messages: ArrayList<ChatMessage> = ArrayList(),
-    var timestamp: Long = System.currentTimeMillis()
+    var timestamp: Long = System.currentTimeMillis(),
+    var draftInput: String = "",
+    var draftAttachments: List<DraftAttachment> = emptyList()
 ) {
     fun getFormattedDate(): String {
         return SimpleDateFormat("MMM dd, HH:mm").format(Date(timestamp))
     }
     override fun toString(): String = title
 }
+
+data class DraftAttachment(
+    val type: String, // "file" or "text"
+    val name: String,
+    val data: String, // Path for file, Content for text
+    val ignoreTypes: String? = null,
+    val ignoreFiles: String? = null,
+    val ignoreDirs: String? = null
+)
 
 data class AppSettings(
     var defaultChatModel: String = "gemini-2.5-flash",
