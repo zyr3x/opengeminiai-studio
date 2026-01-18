@@ -178,7 +178,8 @@ class MainPanel(val project: Project) {
         saveDebouncer.isRepeats = false
 
         chatContentPanel.layout = BoxLayout(chatContentPanel, BoxLayout.Y_AXIS)
-        chatContentPanel.border = JBUI.Borders.empty(10)
+        // FIX: Remove horizontal padding (0) to allow full width for bubbles and cleaner scrollbar
+        chatContentPanel.border = JBUI.Borders.empty(0, 0)
         chatContentPanel.background = JBColor.background()
 
         scrollPane.border = null
@@ -1184,77 +1185,77 @@ class MainPanel(val project: Project) {
         val matcher = startMarkerPattern.matcher(response)
 
         if (matcher.find()) {
-                val contentStart = matcher.end()
-                val endMarker = "```"
-                var searchStart = contentStart
+            val contentStart = matcher.end()
+            val endMarker = "```"
+            var searchStart = contentStart
 
-                while (true) {
-                    val endIndex = response.indexOf(endMarker, searchStart)
-                    if (endIndex == -1) break
+            while (true) {
+                val endIndex = response.indexOf(endMarker, searchStart)
+                if (endIndex == -1) break
 
-                    val jsonContent = response.substring(contentStart, endIndex).trim()
-                    try {
-                        val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
-                        if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
-                            changes = request.changes
-                            textPart = (response.substring(0, matcher.start()) + response.substring(endIndex + endMarker.length)).trim()
-                            break
-                        }
-                    } catch (e: Exception) { }
-                    searchStart = endIndex + 1
-                }
+                val jsonContent = response.substring(contentStart, endIndex).trim()
+                try {
+                    val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
+                    if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
+                        changes = request.changes
+                        textPart = (response.substring(0, matcher.start()) + response.substring(endIndex + endMarker.length)).trim()
+                        break
+                    }
+                } catch (e: Exception) { }
+                searchStart = endIndex + 1
             }
+        }
 
         if (changes == null) {
             val jsonStart = response.indexOf("{")
             val jsonEnd = response.lastIndexOf("}")
             if (jsonStart != -1 && jsonEnd > jsonStart) {
-                 val potentialJson = response.substring(jsonStart, jsonEnd + 1)
-                 if (potentialJson.contains("\"propose_changes\"")) {
-                     try {
-                         val request = gson.fromJson(potentialJson, ChangeRequest::class.java)
-                         if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
-                             changes = request.changes
-                             textPart = response.replace(potentialJson, "").trim()
-                         }
-                     } catch (e: Exception) { }
-                 }
+                val potentialJson = response.substring(jsonStart, jsonEnd + 1)
+                if (potentialJson.contains("\"propose_changes\"")) {
+                    try {
+                        val request = gson.fromJson(potentialJson, ChangeRequest::class.java)
+                        if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
+                            changes = request.changes
+                            textPart = response.replace(potentialJson, "").trim()
+                        }
+                    } catch (e: Exception) { }
+                }
             }
         }
 
         val lastMsg = chat.messages.lastOrNull()
         if (lastMsg != null && lastMsg.role == "assistant") {
-             chat.messages[chat.messages.size - 1] = ChatMessage("assistant", textPart, changes)
-             val bubblePanel = chatContentPanel.getComponent(chatContentPanel.componentCount - 2) as JPanel
-             ChatComponents.updateMessageBubble(bubblePanel, textPart)
+            chat.messages[chat.messages.size - 1] = ChatMessage("assistant", textPart, changes)
+            val bubblePanel = chatContentPanel.getComponent(chatContentPanel.componentCount - 2) as JPanel
+            ChatComponents.updateMessageBubble(bubblePanel, textPart)
 
-             if (changes != null && changes.isNotEmpty()) {
+            if (changes != null && changes.isNotEmpty()) {
                 var widgetPanel: JPanel? = null
-                widgetPanel = ChatComponents.createChangeWidget(project, changes) { 
+                widgetPanel = ChatComponents.createChangeWidget(project, changes) {
                     val idx = chat.messages.size - 1
                     if (idx >= 0) {
-                         chat.messages[idx] = chat.messages[idx].copy(changes = null)
+                        chat.messages[idx] = chat.messages[idx].copy(changes = null)
 
-                         val conversationsToSave = chatListModel.elements().toList()
-                         ApplicationManager.getApplication().executeOnPooledThread {
-                              PersistenceService.save(project, conversationsToSave, appSettings)
-                         }
+                        val conversationsToSave = chatListModel.elements().toList()
+                        ApplicationManager.getApplication().executeOnPooledThread {
+                            PersistenceService.save(project, conversationsToSave, appSettings)
+                        }
 
-                         if (widgetPanel != null) {
-                             chatContentPanel.remove(widgetPanel)
-                             chatContentPanel.revalidate()
-                             chatContentPanel.repaint()
-                         }
+                        if (widgetPanel != null) {
+                            chatContentPanel.remove(widgetPanel)
+                            chatContentPanel.revalidate()
+                            chatContentPanel.repaint()
+                        }
                     }
                 }
                 chatContentPanel.add(widgetPanel)
                 chatContentPanel.add(Box.createVerticalStrut(10))
-             }
+            }
         }
 
         val conversationsToSave = chatListModel.elements().toList()
         ApplicationManager.getApplication().executeOnPooledThread {
-             PersistenceService.save(project, conversationsToSave, appSettings)
+            PersistenceService.save(project, conversationsToSave, appSettings)
         }
         scrollToBottom()
     }
@@ -1280,7 +1281,7 @@ class MainPanel(val project: Project) {
     }
     
     private fun refreshTools() {
-         ApplicationManager.getApplication().executeOnPooledThread {
+        ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val tools = ApiClient.fetchMcpTools(appSettings.baseUrl)
                 SwingUtilities.invokeLater {
@@ -1293,18 +1294,18 @@ class MainPanel(val project: Project) {
 
     private fun openSettings() {
         ApplicationManager.getApplication().executeOnPooledThread {
-             ApiClient.fetchSystemPrompts(appSettings.baseUrl)
-             SwingUtilities.invokeLater {
-                 val dialog = SettingsDialog(project, appSettings, availableModels)
-                 if (dialog.showAndGet()) {
-                     val conversationsToSave = chatListModel.elements().toList()
-                     ApplicationManager.getApplication().executeOnPooledThread {
-                          PersistenceService.save(project, conversationsToSave, appSettings)
-                     }
-                     refreshModels()
-                     refreshTools()
-                 }
-             }
+            ApiClient.fetchSystemPrompts(appSettings.baseUrl)
+            SwingUtilities.invokeLater {
+                val dialog = SettingsDialog(project, appSettings, availableModels)
+                if (dialog.showAndGet()) {
+                    val conversationsToSave = chatListModel.elements().toList()
+                    ApplicationManager.getApplication().executeOnPooledThread {
+                        PersistenceService.save(project, conversationsToSave, appSettings)
+                    }
+                    refreshModels()
+                    refreshTools()
+                }
+            }
         }
     }
 

@@ -33,8 +33,8 @@ object ChatComponents {
         val isUser = role == "user"
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        // FIX: Increased right padding (24) to prevent content from being covered by the tool window scrollbar
-        wrapper.border = JBUI.Borders.empty(6, 12, 6, 24)
+        // FIX: Adjusted right padding (12) to match left padding
+        wrapper.border = JBUI.Borders.empty(6, 12, 6, 12)
 
         val bubble = RoundedPanel(isUser)
         bubble.layout = BorderLayout()
@@ -478,9 +478,8 @@ object ChatComponents {
 
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        // FIX: Aligned with message bubbles (12px left, 24px right) instead of indented 38px
-        // This ensures the "Apply" widget is aligned on the same line as chat content
-        wrapper.border = JBUI.Borders.empty(4, 12, 4, 24)
+        // FIX: Adjusted right padding (12) to match left
+        wrapper.border = JBUI.Borders.empty(4, 12, 4, 12)
 
         fun rebuild() {
             wrapper.removeAll()
