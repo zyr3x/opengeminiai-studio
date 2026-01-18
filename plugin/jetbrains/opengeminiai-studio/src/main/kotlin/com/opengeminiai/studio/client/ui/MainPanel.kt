@@ -643,21 +643,38 @@ class MainPanel(val project: Project) {
                         append(value.time, SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
                     }
                 }
-                JBPopupFactory.getInstance().createListPopupBuilder(list)
-                    .setTitle("Select Commits")
-                    .setItemChoosenCallback {
-                        ApplicationManager.getApplication().executeOnPooledThread {
-                            list.selectedValuesList.forEach { commit ->
-                                val sb = StringBuilder("Commit: ${commit.hash} - ${commit.message}\n")
-                                try {
-                                    val cmd = GeneralCommandLine("git", "show", commit.hash).apply { workDirectory = File(project.basePath ?: "") }
-                                    val out = ExecUtil.execAndGetOutput(cmd)
-                                    if (out.exitCode == 0) sb.append(out.stdout)
-                                } catch (ex: Exception) {}
-                                SwingUtilities.invokeLater { addAttachment(TextContext("Commit ${commit.hash.take(7)}", sb.toString(), AllIcons.Vcs.CommitNode)) }
-                            }
+                
+                val dialog = object : DialogWrapper(project) {
+                    init {
+                        title = "Select Commits"
+                        init()
+                    }
+                    override fun createCenterPanel(): JComponent {
+                        val p = JPanel(BorderLayout())
+                        p.add(JLabel("Select commits to include:"), BorderLayout.NORTH)
+                        val scroll = JBScrollPane(list)
+                        scroll.preferredSize = Dimension(600, 300)
+                        p.add(scroll, BorderLayout.CENTER)
+                        return p
+                    }
+                }
+
+                if (dialog.showAndGet()) {
+                    val selected = list.selectedValuesList
+                    if (selected.isEmpty()) return
+                    
+                    ApplicationManager.getApplication().executeOnPooledThread {
+                        selected.forEach { commit ->
+                            val sb = StringBuilder("Commit: ${commit.hash} - ${commit.message}\n")
+                            try {
+                                val cmd = GeneralCommandLine("git", "show", commit.hash).apply { workDirectory = File(project.basePath ?: "") }
+                                val out = ExecUtil.execAndGetOutput(cmd)
+                                if (out.exitCode == 0) sb.append(out.stdout)
+                            } catch (ex: Exception) {}
+                            SwingUtilities.invokeLater { addAttachment(TextContext("Commit ${commit.hash.take(7)}", sb.toString(), AllIcons.Vcs.CommitNode)) }
                         }
-                    }.createPopup().showUnderneathOf(component)
+                    }
+                }
             }
         })
 
