@@ -22,6 +22,16 @@
         </ol>
     ]]></description>
     <change-notes><![CDATA[<ul>
+    <li><b>v1.4.0</b>: Drafts, Regeneration & Project Prompts
+        <ul>
+            <li><b>Draft Auto-Save:</b> Never lose your work! Chat inputs and attachments are now automatically saved and restored.</li>
+            <li><b>Message Regeneration:</b> Added a "Regenerate" button to retry assistant responses.</li>
+            <li><b>Project Prompts:</b> Customize behavior per-project using <code>.opengemini/prompts/</code> files (chat.md, commit.md, etc.).</li>
+            <li><b>Enhanced Commit Gen:</b> Configurable limits for files and context size, plus a new modal dialog for selecting commits.</li>
+            <li><b>MCP Tool Selection:</b> Manually select which MCP tools to enable for a chat session.</li>
+            <li><b>UI Improvements:</b> Better spacing, tooltips, and variable substitution (e.g., {project_name}) in prompts.</li>
+        </ul>
+    </li>
     <li><b>v1.3.0</b>: Smart Titles & Editor Integration
         <ul>
             <li><b>Auto-Titles:</b> Chats now automatically generate concise titles based on your first prompt (configurable model/prompt).</li>

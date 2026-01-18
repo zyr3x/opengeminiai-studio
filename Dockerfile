@@ -54,6 +54,9 @@ COPY requirements.txt .
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Create log directory inside container
+RUN mkdir -p /var/log/gemini-proxy
+
 # Make port 8080 available to the world outside this container
 EXPOSE 8080
 
@@ -61,10 +64,11 @@ EXPOSE 8080
 # Use ASYNC_MODE environment variable to switch between sync and async modes
 # Default: sync mode (run.py)
 # Async mode: set ASYNC_MODE=true
+# Output is piped to tee to save logs to /app/var/log/output.log while keeping stdout active
 CMD if [ "$ASYNC_MODE" = "true" ]; then \
-      echo "🚀 Starting in ASYNC mode..."; \
-      python run.py; \
+      echo "🚀 Starting in ASYNC mode..." | tee -a /app/var/log/output.log; \
+      python -u run.py 2>&1 | tee -a /app/var/log/output.log; \
     else \
-      echo "🚀 Starting in SYNC mode..."; \
-      python run.py; \
+      echo "🚀 Starting in SYNC mode..." | tee -a /app/var/log/output.log; \
+      python -u run.py 2>&1 | tee -a /app/var/log/output.log; \
     fi

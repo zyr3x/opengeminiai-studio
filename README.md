@@ -1,4 +1,4 @@
-# OpenGeminiAI Studio V3.2
+# OpenGeminiAI Studio V3.3
 
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
 
@@ -16,6 +16,16 @@ In a world of AI coding assistants, OpenGeminiAI Studio stands out by combining 
 -   **Multi-Provider Freedom:** Use Gemini via Google AI Studio OR switch to **OpenRouter** to access Claude 3.7, GPT-4o, and DeepSeek via the same interface.
 -   **Total Control & Privacy:** Host it on your own machine. Sandbox the AI's access to specific project directories for complete peace of mind.
 -   **Cost-Effective:** Leverage powerful optimization features like selective context, prompt caching, and tool output summarization to significantly reduce token usage.
+
+## 🚀 What's New in V3.3 - Drafts, Regeneration & Project Prompts
+
+Version 3.3 brings significant usability improvements to the JetBrains plugin (v1.4.0) and the core proxy, focusing on state persistence and project-specific customization.
+
+-   **💾 Draft Persistence (Plugin):** Never lose your work again. Chat inputs and attachments are now automatically saved and restored, even if you close the IDE or switch projects.
+-   **🔄 Message Regeneration (Plugin):** Not happy with an answer? One-click regenerate assistant responses to get a better result.
+-   **📂 Project-Specific Prompts:** Customize the AI's behavior for each project by adding `chat.md`, `commit.md`, `edit.md`, or `title.md` to the `.opengemini/prompts/` directory in your project root.
+-   **🛠️ Manual MCP Tool Selection:** Explicitly select which MCP tools (built-in or server-based) to enable for a specific chat session, giving you granular control over the agent's capabilities.
+-   **📝 Enhanced Commit Generation:** New modal dialog for selecting commits and configurable limits for file count and context size to handle large changesets gracefully.
 
 ## 🚀 What's New in V3.2 - OpenRouter Integration & JetBrains Plugin
 
