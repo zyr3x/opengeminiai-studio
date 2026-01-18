@@ -399,6 +399,7 @@ class MainPanel(val project: Project) {
         headerInfoLabel.font = JBUI.Fonts.label(); headerInfoLabel.foreground = JBColor.foreground()
 
         val rightActions = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0))
+        rightActions.add(createIconButton(AllIcons.Actions.Refresh, "Regenerate Title") { regenerateCurrentTitle() })
         rightActions.add(createIconButton(AllIcons.General.Add, "New Chat") { createNewChat() })
 
         header.add(leftActions, BorderLayout.WEST)
@@ -968,7 +969,15 @@ class MainPanel(val project: Project) {
         Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
     }
 
-    private fun generateChatTitle(chat: Conversation, userContent: String) {
+    private fun regenerateCurrentTitle() {
+        val chat = currentConversation ?: return
+        val firstMsg = chat.messages.firstOrNull { it.role == "user" } ?: return
+        
+        headerInfoLabel.text = "<html><b>Generating title...</b></html>"
+        generateChatTitle(chat, firstMsg.content, true)
+    }
+
+    private fun generateChatTitle(chat: Conversation, userContent: String, force: Boolean = false) {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 // Use configured prompt and model for titles
@@ -994,8 +1003,8 @@ class MainPanel(val project: Project) {
 
                 if (newTitle.isNotBlank() && !newTitle.startsWith("Error") && !newTitle.contains("Error")) {
                     SwingUtilities.invokeLater {
-                        // Only update if it still has the default name and exists in the list
-                        if (chatListModel.contains(chat) && chat.title == "New Chat") {
+                        // Only update if it still has the default name and exists in the list OR if forced
+                        if (chatListModel.contains(chat) && (chat.title == "New Chat" || force)) {
                             chat.title = newTitle
                             if (currentConversation == chat) updateHeaderInfo()
                             refreshHistoryList()
@@ -1007,7 +1016,9 @@ class MainPanel(val project: Project) {
                         }
                     }
                 }
-            } catch (e: Exception) { }
+            } catch (e: Exception) { 
+                 SwingUtilities.invokeLater { if (currentConversation == chat) updateHeaderInfo() }
+            }
         }
     }
 
