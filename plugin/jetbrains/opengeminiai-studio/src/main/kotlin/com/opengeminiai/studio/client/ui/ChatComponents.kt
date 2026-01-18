@@ -478,7 +478,9 @@ object ChatComponents {
 
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        wrapper.border = JBUI.Borders.empty(2, 38, 2, 10)
+        // FIX: Aligned with message bubbles (12px left, 24px right) instead of indented 38px
+        // This ensures the "Apply" widget is aligned on the same line as chat content
+        wrapper.border = JBUI.Borders.empty(4, 12, 4, 24)
 
         fun rebuild() {
             wrapper.removeAll()
@@ -495,7 +497,8 @@ object ChatComponents {
                 row.isOpaque = false
                 row.maximumSize = Dimension(Int.MAX_VALUE, 24)
 
-                val leftPanel = JPanel(FlowLayout(FlowLayout.LEFT, 6, 0))
+                // FIX: Consistent gap 8
+                val leftPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0))
                 leftPanel.isOpaque = false
                 leftPanel.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 leftPanel.toolTipText = "Click to view diff"
@@ -521,6 +524,7 @@ object ChatComponents {
                     leftPanel.add(JLabel(AllIcons.Actions.Checked))
                 }
 
+                // FIX: Consistent gap 8
                 val rightPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0))
                 rightPanel.isOpaque = false
 
@@ -575,7 +579,8 @@ object ChatComponents {
                 val footer = JPanel(BorderLayout())
                 footer.isOpaque = false
 
-                val actionsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+                // FIX: Consistent gap 8 to align with file rows
+                val actionsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0))
                 actionsPanel.isOpaque = false
 
                 fun createLinkBtn(text: String, action: () -> Unit, color: Color? = null): JLabel {
@@ -618,6 +623,10 @@ object ChatComponents {
 
                 footer.add(actionsPanel, BorderLayout.WEST)
 
+                // FIX: Wrap dismiss button to align right edge with file rows
+                val dismissPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0))
+                dismissPanel.isOpaque = false
+
                 val dismissBtn = JLabel("Dismiss")
                 dismissBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 dismissBtn.font = JBUI.Fonts.smallFont()
@@ -625,8 +634,9 @@ object ChatComponents {
                 dismissBtn.addMouseListener(object : MouseAdapter() {
                     override fun mouseClicked(e: MouseEvent) { onDelete() }
                 })
+                dismissPanel.add(dismissBtn)
 
-                footer.add(dismissBtn, BorderLayout.EAST)
+                footer.add(dismissPanel, BorderLayout.EAST)
 
                 container.add(footer)
             }
