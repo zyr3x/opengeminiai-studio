@@ -486,7 +486,8 @@ object ChatComponents {
 
             val container = RoundedChangeWidgetPanel()
             container.layout = BoxLayout(container, BoxLayout.Y_AXIS)
-            container.border = JBUI.Borders.empty(6, 10)
+            // FIX: Padding 12 to match chat bubble padding (Aligns icons vertically)
+            container.border = JBUI.Borders.empty(6, 12)
             container.alignmentX = Component.LEFT_ALIGNMENT
 
             changes.forEachIndexed { index, change ->
@@ -496,8 +497,8 @@ object ChatComponents {
                 row.isOpaque = false
                 row.maximumSize = Dimension(Int.MAX_VALUE, 24)
 
-                // FIX: Consistent gap 8
-                val leftPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0))
+                // FIX: Gap 0 (handled by struts) to align perfectly with left border
+                val leftPanel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
                 leftPanel.isOpaque = false
                 leftPanel.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 leftPanel.toolTipText = "Click to view diff"
@@ -514,17 +515,19 @@ object ChatComponents {
                 val icon = if (File(change.path).isDirectory) AllIcons.Nodes.Folder else AllIcons.FileTypes.Any_type
 
                 leftPanel.add(JLabel(icon))
+                leftPanel.add(Box.createHorizontalStrut(8))
 
                 val nameLabel = JLabel(fileName)
                 nameLabel.font = JBUI.Fonts.label().deriveFont(Font.PLAIN)
                 leftPanel.add(nameLabel)
 
                 if (isApplied) {
+                    leftPanel.add(Box.createHorizontalStrut(8))
                     leftPanel.add(JLabel(AllIcons.Actions.Checked))
                 }
 
-                // FIX: Consistent gap 8
-                val rightPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0))
+                // FIX: Gap 0
+                val rightPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0))
                 rightPanel.isOpaque = false
 
                 val actionLabel = JLabel(if (isApplied) "Undo" else "Apply")
@@ -560,6 +563,7 @@ object ChatComponents {
                     dismissIcon.addMouseListener(object : MouseAdapter() {
                         override fun mouseClicked(e: MouseEvent) { onDelete() }
                     })
+                    rightPanel.add(Box.createHorizontalStrut(8))
                     rightPanel.add(dismissIcon)
                 }
 
@@ -578,8 +582,8 @@ object ChatComponents {
                 val footer = JPanel(BorderLayout())
                 footer.isOpaque = false
 
-                // FIX: Consistent gap 8 to align with file rows
-                val actionsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0))
+                // FIX: Gap 0 to align with file rows
+                val actionsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
                 actionsPanel.isOpaque = false
 
                 fun createLinkBtn(text: String, action: () -> Unit, color: Color? = null): JLabel {
@@ -622,8 +626,8 @@ object ChatComponents {
 
                 footer.add(actionsPanel, BorderLayout.WEST)
 
-                // FIX: Wrap dismiss button to align right edge with file rows
-                val dismissPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0))
+                // FIX: Gap 0
+                val dismissPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0))
                 dismissPanel.isOpaque = false
 
                 val dismissBtn = JLabel("Dismiss")
