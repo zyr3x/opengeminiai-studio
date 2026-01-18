@@ -1021,6 +1021,10 @@ class MainPanel(val project: Project) {
             generateChatTitle(chat, fullContent)
         }
 
+        generateAssistantResponse(chat, promptOverride)
+    }
+
+    private fun generateAssistantResponse(chat: Conversation, promptOverride: String? = null) {
         // API Call Preparation
         val model = currentModel
         val mode = currentMode
@@ -1082,6 +1086,26 @@ class MainPanel(val project: Project) {
                 }
             } finally {
                 SwingUtilities.invokeLater { if (currentApiCall == callToExecute) { currentApiCall = null; updateSendButtonState(false) } }
+            }
+        }
+    }
+
+    private fun handleRegenerate(index: Int) {
+        val chat = currentConversation ?: return
+        if (currentApiCall != null) return // Don't regenerate if busy
+
+        if (index >= 0 && index < chat.messages.size) {
+            val msg = chat.messages[index]
+            // Only allow regenerating assistant messages
+            if (msg.role == "assistant") {
+                // 1. Remove the assistant message from data
+                chat.messages.removeAt(index)
+                
+                // 2. Remove from UI (reloading chat is safest to ensure index integrity)
+                loadChat(chat)
+
+                // 3. Trigger generation based on the history up to that point
+                generateAssistantResponse(chat)
             }
         }
     }
@@ -1320,9 +1344,10 @@ class MainPanel(val project: Project) {
         isRestoringState = false
 
         chat.messages.forEachIndexed { index, msg ->
-            val bubble = ChatComponents.createMessageBubble(msg.role, msg.content, index) { idxToDelete ->
-                handleMessageDelete(idxToDelete)
-            }
+            val bubble = ChatComponents.createMessageBubble(msg.role, msg.content, index, 
+                onDelete = { idx -> handleMessageDelete(idx) },
+                onRegenerate = { idx -> handleRegenerate(idx) }
+            )
             chatContentPanel.add(bubble)
             chatContentPanel.add(Box.createVerticalStrut(10))
             msg.changes?.let { changes ->
@@ -1423,9 +1448,10 @@ class MainPanel(val project: Project) {
         val newMessage = ChatMessage(role, content)
         chat.messages.add(newMessage)
         val newIndex = chat.messages.indexOf(newMessage)
-        val bubble = ChatComponents.createMessageBubble(role, content, newIndex) { idxToDelete ->
-            handleMessageDelete(idxToDelete)
-        }
+        val bubble = ChatComponents.createMessageBubble(role, content, newIndex, 
+            onDelete = { idx -> handleMessageDelete(idx) },
+            onRegenerate = { idx -> handleRegenerate(idx) }
+        )
         chatContentPanel.add(bubble)
         chatContentPanel.add(Box.createVerticalStrut(10))
         return bubble

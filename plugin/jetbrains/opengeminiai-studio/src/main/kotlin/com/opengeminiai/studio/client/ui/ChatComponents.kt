@@ -29,27 +29,28 @@ object ChatComponents {
 
     private data class AttachedFile(val file: File, val params: String?)
 
-    fun createMessageBubble(role: String, content: String, messageIndex: Int? = null, onDelete: ((Int) -> Unit)? = null): JPanel {
+    fun createMessageBubble(role: String, content: String, messageIndex: Int? = null, onDelete: ((Int) -> Unit)? = null, onRegenerate: ((Int) -> Unit)? = null): JPanel {
         val isUser = role == "user"
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
         // FIX: Increased right padding (24) to prevent content from being covered by the tool window scrollbar
         wrapper.border = JBUI.Borders.empty(6, 12, 6, 24)
 
-        val avatarIcon = if (isUser) AllIcons.General.User else Icons.Logo
-        val avatarLabel = JLabel(avatarIcon)
-        avatarLabel.verticalAlignment = SwingConstants.TOP
-        avatarLabel.border = JBUI.Borders.empty(0, 8)
-
         val bubble = RoundedPanel(isUser)
-        bubble.layout = BoxLayout(bubble, BoxLayout.Y_AXIS)
-        // FIX: Increased internal padding for better readability
-        bubble.border = JBUI.Borders.empty(10, 12)
+        bubble.layout = BorderLayout()
+        // Internal padding for the bubble
+        bubble.border = JBUI.Borders.empty(10, 12, 6, 12)
 
+        // 1. Content Panel (Top/Center)
+        val contentPanel = JPanel()
+        contentPanel.layout = BoxLayout(contentPanel, BoxLayout.Y_AXIS)
+        contentPanel.isOpaque = false
+        contentPanel.putClientProperty("isContentPanel", true)
+
+        // --- Content Parsing Logic ---
         val textContentBuilder = StringBuilder()
         val attachedFilesForDisplay = mutableListOf<AttachedFile>()
 
-        // Pre-process markers to extract files and keep other content
         content.lines().forEach { line ->
             val trimmed = line.trim()
             if (trimmed.startsWith("image_path=") || trimmed.startsWith("code_path=") || trimmed.startsWith("pdf_path=")) {
@@ -67,7 +68,7 @@ object ChatComponents {
         }
         val actualTextContent = textContentBuilder.toString().trim()
 
-        populateBubbleContent(bubble, actualTextContent)
+        populateBubbleContent(contentPanel, actualTextContent)
 
         if (attachedFilesForDisplay.isNotEmpty()) {
             val attachmentsPanel = JPanel()
@@ -86,51 +87,81 @@ object ChatComponents {
                 attachmentsPanel.add(Box.createVerticalStrut(4))
             }
             attachmentsPanel.alignmentX = Component.LEFT_ALIGNMENT
-            bubble.add(attachmentsPanel)
+            contentPanel.add(attachmentsPanel)
         }
 
-        val copyBtn = JLabel(AllIcons.Actions.Copy)
-        copyBtn.toolTipText = "Copy raw content"
-        copyBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        copyBtn.border = JBUI.Borders.empty(6)
-        copyBtn.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                val selection = StringSelection(content)
-                Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
+        bubble.add(contentPanel, BorderLayout.CENTER)
+
+        // 2. Footer Status Bar (Bottom)
+        val footerPanel = JPanel(BorderLayout())
+        footerPanel.isOpaque = false
+        footerPanel.border = JBUI.Borders.emptyTop(8)
+
+        // Left Side: Avatar
+        val avatarIcon = if (isUser) AllIcons.General.User else Icons.Logo
+        val avatarLabel = JLabel(avatarIcon)
+        avatarLabel.toolTipText = if (isUser) "User" else "Gemini AI"
+        footerPanel.add(avatarLabel, BorderLayout.WEST)
+
+        // Right Side: Actions
+        val actionsPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
+        actionsPanel.isOpaque = false
+
+        // Regenerate Button (Only for Assistant)
+        if (!isUser && messageIndex != null && onRegenerate != null) {
+            val regenBtn = createActionButton(AllIcons.Actions.Refresh, "Regenerate Response") {
+                onRegenerate(messageIndex)
             }
-        })
-
-        val deleteBtn = JLabel(AllIcons.Actions.GC)
-        deleteBtn.toolTipText = "Delete Message"
-        deleteBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        deleteBtn.border = JBUI.Borders.empty(6)
-        if (messageIndex != null && onDelete != null) {
-            deleteBtn.addMouseListener(object : MouseAdapter() {
-                override fun mouseClicked(e: MouseEvent) { onDelete(messageIndex) }
-                override fun mouseEntered(e: MouseEvent) { deleteBtn.icon = AllIcons.Actions.Cancel }
-                override fun mouseExited(e: MouseEvent) { deleteBtn.icon = AllIcons.Actions.GC }
-            })
-        } else {
-            deleteBtn.isVisible = false
+            actionsPanel.add(regenBtn)
         }
 
+        // Copy Button
+        val copyBtn = createActionButton(AllIcons.Actions.Copy, "Copy raw content") {
+            val selection = StringSelection(content)
+            Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
+        }
+        actionsPanel.add(copyBtn)
+
+        // Delete Button
+        if (messageIndex != null && onDelete != null) {
+            val deleteBtn = createActionButton(AllIcons.Actions.GC, "Delete Message") {
+                onDelete(messageIndex)
+            }
+            deleteBtn.addMouseListener(object : MouseAdapter() {
+                 override fun mouseEntered(e: MouseEvent) { deleteBtn.icon = AllIcons.Actions.Cancel }
+                 override fun mouseExited(e: MouseEvent) { deleteBtn.icon = AllIcons.Actions.GC }
+            })
+            actionsPanel.add(deleteBtn)
+        }
+
+        footerPanel.add(actionsPanel, BorderLayout.EAST)
+        bubble.add(footerPanel, BorderLayout.SOUTH)
+
+        // Layout Wrapper
         val box = Box.createHorizontalBox()
         if (isUser) {
             box.add(Box.createHorizontalGlue())
-            box.add(copyBtn)
-            box.add(deleteBtn)
             box.add(bubble)
-            box.add(avatarLabel)
         } else {
-            box.add(avatarLabel)
             box.add(bubble)
-            box.add(copyBtn)
-            box.add(deleteBtn)
             box.add(Box.createHorizontalGlue())
         }
 
         wrapper.add(box, BorderLayout.CENTER)
         return wrapper
+    }
+
+    private fun createActionButton(icon: Icon, tooltip: String, action: () -> Unit): JLabel {
+        val btn = JLabel(icon)
+        btn.toolTipText = tooltip
+        btn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        btn.border = JBUI.Borders.empty(2)
+        btn.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (SwingUtilities.isLeftMouseButton(e)) action()
+            }
+        })
+        return btn
     }
 
     private fun parsePathAndParams(fullLine: String): Pair<String, String?> {
@@ -154,11 +185,14 @@ object ChatComponents {
 
     fun updateMessageBubble(bubbleWrapper: JPanel, content: String) {
         val bubble = findChildComponentRecursive(bubbleWrapper, RoundedPanel::class.java)
-        if (bubble != null) {
-            bubble.removeAll()
-            populateBubbleContent(bubble, content)
-            bubble.revalidate()
-            bubble.repaint()
+        // Find the content panel specifically by the client property we set
+        val contentPanel = bubble?.components?.find { (it as? JComponent)?.getClientProperty("isContentPanel") == true } as? JPanel
+
+        if (contentPanel != null) {
+            contentPanel.removeAll()
+            populateBubbleContent(contentPanel, content)
+            contentPanel.revalidate()
+            contentPanel.repaint()
         }
     }
 
