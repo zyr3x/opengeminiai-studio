@@ -220,11 +220,18 @@ class MainPanel(val project: Project) {
         appSettings = wrapper.settings ?: AppSettings()
         wrapper.conversations.forEach { chatListModel.addElement(it) }
 
-        lastChatModel = appSettings.defaultChatModel
-        lastQuickEditModel = appSettings.defaultQuickEditModel
+        // Restore State
+        lastChatModel = appSettings.lastUsedChatModel ?: appSettings.defaultChatModel
+        lastQuickEditModel = appSettings.lastUsedQuickEditModel ?: appSettings.defaultQuickEditModel
+        
+        if (appSettings.lastSelectedTools.isNotEmpty()) {
+            selectedMcpTools.clear()
+            selectedMcpTools.addAll(appSettings.lastSelectedTools)
+        }
+        updateToolsTooltip()
 
-        // Initialize Mode
-        setMode("Chat")
+        // Initialize Mode (Restore last active)
+        setMode(appSettings.lastActiveMode)
 
         if (chatListModel.isEmpty) createNewChat()
         else loadChat(chatListModel.firstElement())
@@ -479,7 +486,16 @@ class MainPanel(val project: Project) {
         modeButton.toolTipText = "Mode: $mode"
 
         val targetModel = if (mode == "Chat") lastChatModel else lastQuickEditModel
-        setModel(targetModel)
+        
+        // Update active model for this mode
+        currentModel = targetModel
+        modelButton.icon = AllIcons.Actions.Properties
+        modelButton.toolTipText = "Model: $targetModel"
+        updateHeaderInfo()
+        
+        // Save state
+        appSettings.lastActiveMode = mode
+        saveConversations()
     }
 
     private fun showModelPopup(component: Component) {
@@ -498,8 +514,17 @@ class MainPanel(val project: Project) {
         currentModel = model
         modelButton.icon = AllIcons.Actions.Properties
         modelButton.toolTipText = "Model: $model"
-        if (currentMode == "Chat") lastChatModel = model else lastQuickEditModel = model
+        
+        if (currentMode == "Chat") {
+            lastChatModel = model
+            appSettings.lastUsedChatModel = model
+        } else {
+            lastQuickEditModel = model
+            appSettings.lastUsedQuickEditModel = model
+        }
+        
         updateHeaderInfo()
+        saveConversations()
     }
     
     private fun updateToolsTooltip() {
@@ -522,9 +547,9 @@ class MainPanel(val project: Project) {
             override fun setSelected(e: AnActionEvent, state: Boolean) {
                 if (state) {
                     selectedMcpTools.clear()
+                    appSettings.lastSelectedTools = emptyList()
                     updateToolsTooltip()
-                    // Force repaint to update other toggles
-                    // In simple implementation, just update state
+                    saveConversations()
                 }
             }
         })
@@ -536,7 +561,9 @@ class MainPanel(val project: Project) {
                     override fun isSelected(e: AnActionEvent) = selectedMcpTools.contains(tool.name)
                     override fun setSelected(e: AnActionEvent, state: Boolean) {
                         if (state) selectedMcpTools.add(tool.name) else selectedMcpTools.remove(tool.name)
+                        appSettings.lastSelectedTools = selectedMcpTools.toList()
                         updateToolsTooltip()
+                        saveConversations()
                     }
                 })
             }
@@ -550,7 +577,9 @@ class MainPanel(val project: Project) {
                         override fun isSelected(e: AnActionEvent) = selectedMcpTools.contains(tool.name)
                         override fun setSelected(e: AnActionEvent, state: Boolean) {
                             if (state) selectedMcpTools.add(tool.name) else selectedMcpTools.remove(tool.name)
+                            appSettings.lastSelectedTools = selectedMcpTools.toList()
                             updateToolsTooltip()
+                            saveConversations()
                         }
                     })
                 }
@@ -1231,6 +1260,7 @@ class MainPanel(val project: Project) {
                     if (modelIds.isNotEmpty()) availableModels.addAll(modelIds)
                     else availableModels.add("gemini-2.5-flash")
 
+                    // Restore last used model based on mode
                     val targetModel = if (currentMode == "Chat") lastChatModel else lastQuickEditModel
                     setModel(targetModel)
                 }

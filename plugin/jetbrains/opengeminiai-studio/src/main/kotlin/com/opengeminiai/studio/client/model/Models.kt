@@ -33,6 +33,12 @@ data class AppSettings(
     var defaultCommitModel: String = "gemini-2.5-flash",
     var defaultTitleModel: String = "gemini-2.5-flash",
 
+    // State Restoration
+    var lastActiveMode: String = "Chat",
+    var lastUsedChatModel: String? = null,
+    var lastUsedQuickEditModel: String? = null,
+    var lastSelectedTools: List<String> = emptyList(),
+
     // Connection Settings
     var baseUrl: String = "http://localhost:8080",
 
