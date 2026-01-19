@@ -280,7 +280,26 @@ object ApiClient {
         }
 
         // 3. Perform Variable Substitution
-        return substituteVariables(rawPrompt, project)
+        var finalPrompt = substituteVariables(rawPrompt, project)
+
+        // 4. Append System Context (Only for Chat & Edit)
+        if (project != null && (type == PromptType.Chat || type == PromptType.QuickEdit)) {
+            val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+            val os = "${System.getProperty("os.name")} ${System.getProperty("os.version")} (${System.getProperty("os.arch")})"
+            val user = System.getProperty("user.name") ?: "User"
+            
+            finalPrompt += """
+                
+                ### SYSTEM CONTEXT
+                * **Project:** ${project.name}
+                * **Path:** ${project.basePath ?: ""}
+                * **User:** $user
+                * **Date:** $now
+                * **OS:** $os
+            """.trimIndent()
+        }
+
+        return finalPrompt
     }
 
     private fun substituteVariables(text: String, project: Project?): String {
