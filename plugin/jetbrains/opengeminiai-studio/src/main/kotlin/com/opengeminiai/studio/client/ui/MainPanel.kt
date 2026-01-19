@@ -36,7 +36,7 @@ import okhttp3.Call
 import java.awt.*
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
-import java.awt.dnd.*
+import java.awt.dnd.* 
 import java.awt.event.* 
 import java.io.File
 import javax.swing.* 
@@ -337,7 +337,7 @@ class MainPanel(val project: Project) {
             }
         }
 
-        filteredChats.forEach {
+        filteredChats.forEach { 
             historyContentPanel.add(createHistoryRow(it))
             historyContentPanel.add(Box.createVerticalStrut(5))
         }
@@ -1145,7 +1145,10 @@ class MainPanel(val project: Project) {
             var callToExecute: Call? = null
             try {
                 // Use dropLast(1) to exclude the placeholder we just added, effectively sending previous history
-                val historyToSend = chat.messages.dropLast(1)
+                // FIX: Synchronize to avoid ConcurrentModificationException if user edits/deletes during generation setup
+                val historyToSend = synchronized(chat) {
+                    chat.messages.dropLast(1).toList()
+                }
 
                 callToExecute = ApiClient.createChatCompletionCall(
                     historyToSend, model, systemPrompt, appSettings.baseUrl, true, toolsToSend
@@ -1177,7 +1180,7 @@ class MainPanel(val project: Project) {
                             }
 
                             if (wasAtBottom) {
-                                chatContentPanel.validate()
+                                chatContentPanel.revalidate()
                                 verticalBar.value = verticalBar.maximum
                             }
                         }
@@ -1258,8 +1261,7 @@ class MainPanel(val project: Project) {
         // Try to find the last valid bubble component in the chat panel
         for (i in chatContentPanel.componentCount - 1 downTo 0) {
             val comp = chatContentPanel.getComponent(i)
-            // Bubbles are usually panels with components inside
-            if (comp is JPanel && comp.components.isNotEmpty()) {
+            if (comp is JPanel && comp.getClientProperty("isBubble") == true) {
                  return comp
             }
         }
@@ -1316,7 +1318,7 @@ class MainPanel(val project: Project) {
         synchronized(chat) {
             val lastMsgIdx = chat.messages.size - 1
             if (lastMsgIdx >= 0 && chat.messages[lastMsgIdx].role == "assistant") {
-                chat.messages[lastMsgIdx] = ChatMessage("assistant", textPart, changes)
+                chat.messages[lastMsgIdx] = chat.messages[lastMsgIdx].copy(content = textPart, changes = changes)
             }
         }
         
@@ -1329,7 +1331,7 @@ class MainPanel(val project: Project) {
 
             if (changes != null && changes.isNotEmpty()) {
                 var widgetPanel: JPanel? = null
-                widgetPanel = ChatComponents.createChangeWidget(project, changes) {
+                widgetPanel = ChatComponents.createChangeWidget(project, changes) { 
                     // On Dismiss action
                     val idx = chat.messages.size - 1
                     if (idx >= 0) {

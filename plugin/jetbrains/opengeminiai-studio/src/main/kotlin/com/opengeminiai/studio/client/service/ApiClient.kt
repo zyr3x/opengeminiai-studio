@@ -16,6 +16,10 @@ object ApiClient {
     private val client = OkHttpClient.Builder()
         .connectTimeout(360, TimeUnit.SECONDS)
         .readTimeout(360, TimeUnit.SECONDS)
+        .dispatcher(Dispatcher().apply {
+            maxRequests = 200
+            maxRequestsPerHost = 20
+        })
         .build()
     private val gson = Gson()
 

@@ -9,15 +9,18 @@ import java.io.File
 
 object PersistenceService {
     private val gson = GsonBuilder().setPrettyPrinting().create()
+    private val saveLock = Any()
 
     fun save(project: Project, conversations: List<Conversation>, settings: AppSettings) {
-        try {
-            val ideaDir = File(project.basePath, ".idea")
-            if (!ideaDir.exists()) ideaDir.mkdirs()
-            val file = File(ideaDir, "opengeminiai.json")
-            val wrapper = StorageWrapper(conversations, settings)
-            file.writeText(gson.toJson(wrapper))
-        } catch (e: Exception) { e.printStackTrace() }
+        synchronized(saveLock) {
+            try {
+                val ideaDir = File(project.basePath, ".idea")
+                if (!ideaDir.exists()) ideaDir.mkdirs()
+                val file = File(ideaDir, "opengeminiai.json")
+                val wrapper = StorageWrapper(conversations, settings)
+                file.writeText(gson.toJson(wrapper))
+            } catch (e: Exception) { e.printStackTrace() }
+        }
     }
 
     fun load(project: Project): StorageWrapper {

@@ -33,8 +33,9 @@ object ChatComponents {
         val isUser = role == "user"
         val wrapper = JPanel(BorderLayout())
         wrapper.isOpaque = false
-        // FIX: Adjusted right padding (12) to match left padding
         wrapper.border = JBUI.Borders.empty(6, 12, 6, 12)
+        // Tag the wrapper for easy identification during streaming updates
+        wrapper.putClientProperty("isBubble", true)
 
         val bubble = RoundedPanel(isUser)
         bubble.layout = BorderLayout()
@@ -252,7 +253,7 @@ object ChatComponents {
 
         // FIX: Updated regex to require newline before closing backticks (\n```)
         // This prevents the parser from breaking when the code content itself contains inline triple backticks (e.g. inside strings)
-        val pattern = Pattern.compile("```(\\w*)\\n?([\\s\\S]*?)(?:\\n```|(?=\\z))|:::CTX:(.*?):(.*?):::\\n([\\s\\S]*?)\\n:::END:::")
+        val pattern = Pattern.compile("```(\\w*)\n?([\\s\\S]*?)(?:\n```|(?=\\z))|:::CTX:(.*?):(.*?):::\n([\\s\\S]*?)\n:::END:::")
         val matcher = pattern.matcher(text)
         var lastIndex = 0
 
@@ -378,7 +379,7 @@ object ChatComponents {
         return findChildComponentRecursive(parent, T::class.java)
     }
 
-    private fun <T : Component> findChildComponentRecursive(parent: Container, clazz: Class<T>): T? {
+    fun <T : Component> findChildComponentRecursive(parent: Container, clazz: Class<T>): T? {
         for (comp in parent.components) {
             if (clazz.isInstance(comp)) return clazz.cast(comp)
             if (comp is Container) {
