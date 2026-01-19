@@ -38,6 +38,7 @@ data class AppSettings(
     var lastUsedChatModel: String? = null,
     var lastUsedQuickEditModel: String? = null,
     var lastSelectedTools: List<String> = emptyList(),
+    var mcpToolsMode: String = "Auto", // "Auto", "Disabled", "Manual"
 
     // Connection Settings
     var baseUrl: String = "http://localhost:8080",

@@ -43,6 +43,7 @@ import javax.swing.*
 import java.util.regex.Pattern
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.ConcurrentHashMap
 
 class MainPanel(val project: Project) {
 
@@ -152,7 +153,9 @@ class MainPanel(val project: Project) {
     }
 
     private var sendBtn: JButton? = null
-    private var currentApiCall: Call? = null
+    
+    // MULTI-CHAT CONCURRENCY: Track active calls by Conversation ID
+    private val activeCalls = ConcurrentHashMap<String, Call>()
 
     // -- STATE FOR MODES --
     private var lastChatModel: String = "gemini-2.5-flash"
@@ -530,7 +533,11 @@ class MainPanel(val project: Project) {
     }
     
     private fun updateToolsTooltip() {
-        val text = if (selectedMcpTools.isEmpty()) "Tools: Auto" else "Tools: ${selectedMcpTools.size} selected"
+        val text = when (appSettings.mcpToolsMode) {
+            "Disabled" -> "Tools: Disabled"
+            "Manual" -> "Tools: ${selectedMcpTools.size} selected"
+            else -> "Tools: Auto"
+        }
         toolsButton.toolTipText = text
     }
     
@@ -543,11 +550,26 @@ class MainPanel(val project: Project) {
 
         val actions = DefaultActionGroup()
 
-        // Auto Toggle (Clears manual selection)
+        // Auto Toggle
         actions.add(object : ToggleAction("Auto-Detect Tools", "Let the agent decide which tools to use", AllIcons.Actions.Refresh) {
-            override fun isSelected(e: AnActionEvent): Boolean = selectedMcpTools.isEmpty()
+            override fun isSelected(e: AnActionEvent): Boolean = appSettings.mcpToolsMode == "Auto"
             override fun setSelected(e: AnActionEvent, state: Boolean) {
                 if (state) {
+                    appSettings.mcpToolsMode = "Auto"
+                    selectedMcpTools.clear()
+                    appSettings.lastSelectedTools = emptyList()
+                    updateToolsTooltip()
+                    saveConversations()
+                }
+            }
+        })
+
+        // Disable Toggle
+        actions.add(object : ToggleAction("Disable Tools", "Explicitly disable all MCP tools", AllIcons.Actions.Cancel) {
+            override fun isSelected(e: AnActionEvent): Boolean = appSettings.mcpToolsMode == "Disabled"
+            override fun setSelected(e: AnActionEvent, state: Boolean) {
+                if (state) {
+                    appSettings.mcpToolsMode = "Disabled"
                     selectedMcpTools.clear()
                     appSettings.lastSelectedTools = emptyList()
                     updateToolsTooltip()
@@ -560,8 +582,9 @@ class MainPanel(val project: Project) {
             actions.addSeparator("Built-in Tools")
             tools.built_in.forEach { tool ->
                 actions.add(object : ToggleAction(tool.name, tool.description ?: "", null) {
-                    override fun isSelected(e: AnActionEvent) = selectedMcpTools.contains(tool.name)
+                    override fun isSelected(e: AnActionEvent) = appSettings.mcpToolsMode == "Manual" && selectedMcpTools.contains(tool.name)
                     override fun setSelected(e: AnActionEvent, state: Boolean) {
+                        appSettings.mcpToolsMode = "Manual"
                         if (state) selectedMcpTools.add(tool.name) else selectedMcpTools.remove(tool.name)
                         appSettings.lastSelectedTools = selectedMcpTools.toList()
                         updateToolsTooltip()
@@ -576,8 +599,9 @@ class MainPanel(val project: Project) {
                 actions.addSeparator("Server: $serverName")
                 def.methods.forEach { tool ->
                     actions.add(object : ToggleAction(tool.name, tool.description ?: "", null) {
-                        override fun isSelected(e: AnActionEvent) = selectedMcpTools.contains(tool.name)
+                        override fun isSelected(e: AnActionEvent) = appSettings.mcpToolsMode == "Manual" && selectedMcpTools.contains(tool.name)
                         override fun setSelected(e: AnActionEvent, state: Boolean) {
+                            appSettings.mcpToolsMode = "Manual"
                             if (state) selectedMcpTools.add(tool.name) else selectedMcpTools.remove(tool.name)
                             appSettings.lastSelectedTools = selectedMcpTools.toList()
                             updateToolsTooltip()
@@ -1034,7 +1058,7 @@ class MainPanel(val project: Project) {
                         }
                     }
                 }
-            } catch (e: Exception) { 
+            } catch (e: Exception) {
                  SwingUtilities.invokeLater { if (currentConversation == chat) updateHeaderInfo() }
             }
         }
@@ -1042,19 +1066,18 @@ class MainPanel(val project: Project) {
 
     // Made public so it can be called from ChatInterfaceService
     fun sendMessage() {
-        if (currentApiCall != null) { stopSending(); return }
+        val chat = currentConversation ?: return
+        if (activeCalls.containsKey(chat.id)) { stopSending(); return }
         
         // Stop auto-save timer to prevent race conditions during send
         saveDebouncer.stop()
 
         val rawInput = inputArea.text.trim()
-        if ((rawInput.isEmpty() && attachments.isEmpty()) || currentConversation == null) return
+        if ((rawInput.isEmpty() && attachments.isEmpty())) return
 
         val inputWithVars = substituteVariables(rawInput)
         val (processedText, promptOverride) = processSlashCommands(inputWithVars)
         val fullContent = buildFullContent(processedText)
-
-        val chat = currentConversation!!
 
         // Auto-title generation check
         val shouldGenerateTitle = chat.messages.isEmpty() && chat.title == "New Chat"
@@ -1095,62 +1118,99 @@ class MainPanel(val project: Project) {
         }
         
         // TOOLS: Prepare selected tools list (or null for auto)
-        val toolsToSend = if (selectedMcpTools.isEmpty()) null else selectedMcpTools.toList()
+        val toolsToSend = when (appSettings.mcpToolsMode) {
+            "Disabled" -> emptyList<String>()
+            "Manual" -> selectedMcpTools.toList()
+            else -> null // Auto
+        }
 
-        updateSendButtonState(true)
-        val assistantBubblePanel = addBubble("assistant", "_Generating content..._")
-        scrollToBottom()
-        val targetBubble = assistantBubblePanel
+        // Add placeholder message to model
+        val placeholderMsg = ChatMessage("assistant", "_Generating content..._")
+        chat.messages.add(placeholderMsg)
+        val messageIndex = chat.messages.lastIndex
+
+        // Update UI only if this chat is active
+        if (currentConversation == chat) {
+             updateSendButtonState(true)
+             val bubble = ChatComponents.createMessageBubble("assistant", placeholderMsg.content, messageIndex, 
+                 onDelete = { idx -> handleMessageDelete(idx) },
+                 onRegenerate = { idx -> handleRegenerate(idx) }
+             )
+             chatContentPanel.add(bubble)
+             chatContentPanel.add(Box.createVerticalStrut(10))
+             scrollToBottom()
+        }
 
         ApplicationManager.getApplication().executeOnPooledThread {
             var callToExecute: Call? = null
             try {
-                // Remove the "Generaring..." placeholder message from history before sending
-                val msgToSend = chat.messages.removeAt(chat.messages.size - 1)
+                // Use dropLast(1) to exclude the placeholder we just added, effectively sending previous history
+                val historyToSend = chat.messages.dropLast(1)
 
                 callToExecute = ApiClient.createChatCompletionCall(
-                    chat.messages, model, systemPrompt, appSettings.baseUrl, true, toolsToSend
+                    historyToSend, model, systemPrompt, appSettings.baseUrl, true, toolsToSend
                 )
-                currentApiCall = callToExecute
-
-                // Add it back
-                chat.messages.add(msgToSend)
+                
+                activeCalls[chat.id] = callToExecute
 
                 var currentText = ""
                 val fullResponse = ApiClient.streamChatCompletion(callToExecute) { chunk ->
                     currentText += chunk
+                    
+                    // Update Model Thread-Safely (Create new copy with updated content)
+                    synchronized(chat) {
+                         if (messageIndex < chat.messages.size) {
+                             chat.messages[messageIndex] = chat.messages[messageIndex].copy(content = currentText)
+                         }
+                    }
+                    
                     SwingUtilities.invokeLater {
-                        // FIX: Smart Stick-to-Bottom Scrolling
-                        // 1. Check if user is ALREADY at the bottom (with some tolerance)
-                        val verticalBar = scrollPane.verticalScrollBar
-                        val wasAtBottom = (verticalBar.value + verticalBar.visibleAmount) >= (verticalBar.maximum - 60)
+                        // Update UI only if looking at this chat
+                        if (currentConversation == chat) {
+                            // Smart Scroll Logic
+                            val verticalBar = scrollPane.verticalScrollBar
+                            val wasAtBottom = (verticalBar.value + verticalBar.visibleAmount) >= (verticalBar.maximum - 60)
 
-                        // 2. Update content
-                        ChatComponents.updateMessageBubble(targetBubble, currentText)
+                            val targetBubble = findLastMessageBubble()
+                            if (targetBubble != null) {
+                                ChatComponents.updateMessageBubble(targetBubble, currentText)
+                            }
 
-                        // 3. Only scroll if we were already following the stream
-                        // This prevents jumping if the user scrolls up to read history
-                        if (wasAtBottom) {
-                            // Validate ensures the scrollbar maximum is updated immediately before we scroll
-                            chatContentPanel.validate()
-                            verticalBar.value = verticalBar.maximum
+                            if (wasAtBottom) {
+                                chatContentPanel.validate()
+                                verticalBar.value = verticalBar.maximum
+                            }
                         }
                     }
                 }
                 SwingUtilities.invokeLater { handleFinalResponse(fullResponse, chat) }
             } catch (e: Exception) {
                 if (e.message != "Socket closed" && e.message != "Canceled") {
-                    SwingUtilities.invokeLater { ChatComponents.updateMessageBubble(targetBubble, "Error: ${e.message}") }
+                    val errorText = "Error: ${e.message}"
+                    synchronized(chat) {
+                         if (messageIndex < chat.messages.size) {
+                             chat.messages[messageIndex] = chat.messages[messageIndex].copy(content = errorText)
+                         }
+                    }
+                    SwingUtilities.invokeLater {
+                        if (currentConversation == chat) {
+                            val targetBubble = findLastMessageBubble()
+                            if (targetBubble != null) ChatComponents.updateMessageBubble(targetBubble, errorText)
+                        }
+                    }
                 }
             } finally {
-                SwingUtilities.invokeLater { if (currentApiCall == callToExecute) { currentApiCall = null; updateSendButtonState(false) } }
+                activeCalls.remove(chat.id)
+                SwingUtilities.invokeLater { 
+                    if (currentConversation == chat) updateSendButtonState(false) 
+                }
             }
         }
     }
 
     private fun handleRegenerate(index: Int) {
         val chat = currentConversation ?: return
-        if (currentApiCall != null) return // Don't regenerate if busy
+        if (activeCalls.containsKey(chat.id)) return // Don't regenerate if busy
 
         if (index >= 0 && index < chat.messages.size) {
             val msg = chat.messages[index]
@@ -1192,6 +1252,18 @@ class MainPanel(val project: Project) {
             addActionListener { action(it) }
         }
         return btn
+    }
+    
+    private fun findLastMessageBubble(): JPanel? {
+        // Try to find the last valid bubble component in the chat panel
+        for (i in chatContentPanel.componentCount - 1 downTo 0) {
+            val comp = chatContentPanel.getComponent(i)
+            // Bubbles are usually panels with components inside
+            if (comp is JPanel && comp.components.isNotEmpty()) {
+                 return comp
+            }
+        }
+        return null
     }
 
     private fun handleFinalResponse(response: String, chat: Conversation) {
@@ -1240,15 +1312,25 @@ class MainPanel(val project: Project) {
             }
         }
 
-        val lastMsg = chat.messages.lastOrNull()
-        if (lastMsg != null && lastMsg.role == "assistant") {
-            chat.messages[chat.messages.size - 1] = ChatMessage("assistant", textPart, changes)
-            val bubblePanel = chatContentPanel.getComponent(chatContentPanel.componentCount - 2) as JPanel
-            ChatComponents.updateMessageBubble(bubblePanel, textPart)
+        // Update the last message with final text and parsed changes
+        synchronized(chat) {
+            val lastMsgIdx = chat.messages.size - 1
+            if (lastMsgIdx >= 0 && chat.messages[lastMsgIdx].role == "assistant") {
+                chat.messages[lastMsgIdx] = ChatMessage("assistant", textPart, changes)
+            }
+        }
+        
+        // UI Updates if this chat is currently active
+        if (currentConversation == chat) {
+            val bubblePanel = findLastMessageBubble()
+            if (bubblePanel != null) {
+                ChatComponents.updateMessageBubble(bubblePanel, textPart)
+            }
 
             if (changes != null && changes.isNotEmpty()) {
                 var widgetPanel: JPanel? = null
                 widgetPanel = ChatComponents.createChangeWidget(project, changes) {
+                    // On Dismiss action
                     val idx = chat.messages.size - 1
                     if (idx >= 0) {
                         chat.messages[idx] = chat.messages[idx].copy(changes = null)
@@ -1268,16 +1350,19 @@ class MainPanel(val project: Project) {
                 chatContentPanel.add(widgetPanel)
                 chatContentPanel.add(Box.createVerticalStrut(10))
             }
+            scrollToBottom()
         }
 
         val conversationsToSave = chatListModel.elements().toList()
         ApplicationManager.getApplication().executeOnPooledThread {
             PersistenceService.save(project, conversationsToSave, appSettings)
         }
-        scrollToBottom()
     }
 
-    private fun stopSending() { currentApiCall?.cancel() }
+    private fun stopSending() { 
+        val chat = currentConversation ?: return
+        activeCalls[chat.id]?.cancel()
+    }
 
     private fun refreshModels() {
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -1437,6 +1522,9 @@ class MainPanel(val project: Project) {
         cardLayout.show(centerPanel, "CHAT")
         scrollToBottom()
         updateHeaderInfo()
+        
+        // Update button state based on whether this specific chat has an active call running
+        updateSendButtonState(activeCalls.containsKey(chat.id))
     }
 
     private fun createNewChat() {

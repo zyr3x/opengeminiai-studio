@@ -29,10 +29,16 @@ async def async_chat_completions():
 
         # Check for explicit MCP tools in the request
         explicit_mcp_tools = openai_request.get('mcp_tools')
+
+        disable_mcp_tools = False
+
+        # Explicitly disable tools if empty list provided
+        if explicit_mcp_tools is not None and isinstance(explicit_mcp_tools, list) and len(explicit_mcp_tools) == 0:
+             disable_mcp_tools = True
+
         if explicit_mcp_tools and not isinstance(explicit_mcp_tools, list):
              explicit_mcp_tools = None
 
-        disable_mcp_tools = False
         enable_native_tools = False
         profile_selected_mcp_tools = []
 
@@ -76,15 +82,16 @@ async def async_chat_completions():
                             if find in content:
                                 content = content.replace(find, replace)
 
+                    processed_content, project_path_found, new_system_context = file_processing_utils.process_message_for_paths(
+                        content, processed_code_paths
+                    )
+
+                    message['content'] = processed_content
+
+                    if new_system_context:
+                        project_system_context_text = new_system_context
+
                     if not disable_mcp_tools:
-                        processed_content, project_path_found, new_system_context = file_processing_utils.process_message_for_paths(
-                            content, processed_code_paths
-                        )
-
-                        message['content'] = processed_content
-                        if new_system_context:
-                            project_system_context_text = new_system_context
-
                         if project_path_found and config.AGENT_INTELLIGENCE_ENABLED:
                             project_context_tools_requested = True
                             if isinstance(project_path_found, str):
@@ -115,18 +122,27 @@ async def async_chat_completions():
                     # Tools
                     openai_tools = []
                     builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
-                    
-                    if not disable_mcp_tools and explicit_mcp_tools:
-                        # Priority 1: Explicitly requested tools via API
-                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(explicit_mcp_tools))
-                    elif project_context_tools_requested:
-                        openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
-                    elif selected_mcp_tools: # Note: This variable (selected_mcp_tools) wasn't defined in quart context but profile_selected_mcp_tools is. Removing this line to match logic or assuming it meant profile.
-                        pass # Removed invalid reference
-                    elif profile_selected_mcp_tools:
-                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
-                    elif not disable_mcp_tools:
-                         openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tools))
+                    mcp_declarations_to_use = None
+                    if not disable_mcp_tools:
+                        if explicit_mcp_tools:
+                            # Priority 1: Explicitly requested tools via API
+                            mcp_declarations_to_use = mcp_handler.get_openai_compatible_tools(explicit_mcp_tools)
+                            utils.log(f"Using explicit MCP tools from request: {explicit_mcp_tools}")
+                        elif project_context_tools_requested:
+                            # Priority 2: Project context tools
+                            mcp_declarations_to_use = mcp_handler.get_openai_compatible_tools(builtin_tools)
+                            utils.log(f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tools}")
+                        elif profile_selected_mcp_tools:
+                            # Priority 3: Profile selected tools
+                            mcp_declarations_to_use = mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools)
+                            utils.log(
+                                f"Using MCP tools defined by prompt override profile: {profile_selected_mcp_tools}")
+                        else:
+                            mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
+                            utils.log(f"MCP tools enabled. Using context-aware selection based on prompt.")
+
+                    if mcp_declarations_to_use:
+                        openai_tools.extend(mcp_declarations_to_use)
 
                     if openai_tools:
                         request_data["tools"] = openai_tools
@@ -374,49 +390,41 @@ async def async_chat_completions():
                         request_data["systemInstruction"] = system_instruction
 
                 final_tools = []
-                mcp_declarations_to_use = None
-
                 builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
 
-                if not disable_mcp_tools and explicit_mcp_tools:
-                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(explicit_mcp_tools)
-                    utils.log(f"Using explicit MCP tools from request: {explicit_mcp_tools}")
-                elif project_context_tools_requested and not disable_mcp_tools and not mcp_handler.disable_all_mcp_tools:
-                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(
-                        builtin_tool_names
-                    )
-                    utils.log(
-                        f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tool_names}"
-                    )
-                elif not disable_mcp_tools and profile_selected_mcp_tools:
-                    mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(
-                        profile_selected_mcp_tools
-                    )
-                    utils.log(
-                        f"Using MCP tools defined by profile: {profile_selected_mcp_tools}"
-                    )
-                elif disable_mcp_tools:
-                    utils.log("MCP Tools disabled by profile or global setting.")
-                else:
-                    mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
-                    utils.log("MCP tools enabled. Using context-aware selection.")
+                if not disable_mcp_tools:
+                    mcp_declarations_to_use = None
+                    if explicit_mcp_tools:
+                        mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(explicit_mcp_tools)
+                        utils.log(f"Using explicit MCP tools from request: {explicit_mcp_tools}")
+                    elif project_context_tools_requested:
+                        mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(builtin_tool_names)
+                        utils.log(
+                            f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tool_names}")
+                    elif profile_selected_mcp_tools:
+                        mcp_declarations_to_use = mcp_handler.create_tool_declarations_from_list(
+                            profile_selected_mcp_tools)
+                        utils.log(f"Using MCP tools defined by prompt override profile: {profile_selected_mcp_tools}")
+                    else:
+                        mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
+                        utils.log(f"MCP tools enabled. Using context-aware selection based on prompt.")
 
-                if mcp_declarations_to_use:
-                    final_tools.extend(mcp_declarations_to_use)
+                    if mcp_declarations_to_use:
+                        final_tools.extend(mcp_declarations_to_use)
 
-                if enable_native_tools:
-                    final_tools.append({"google_search": {}})
-                    final_tools.append({"url_context": {}})
-                    utils.log("Added google_search and url_context to tools.")
+                    if enable_native_tools:
+                        final_tools.append({"google_search": {}})
+                        final_tools.append({"url_context": {}})
+                        utils.log("Added google_search and url_context to tools.")
 
-                if final_tools:
-                    request_data["tools"] = final_tools
-                    if not enable_native_tools:
-                        request_data["tool_config"] = {
-                            "function_calling_config": {
-                                "mode": "AUTO"
+                    if final_tools:
+                        request_data["tools"] = final_tools
+                        if not enable_native_tools:
+                            request_data["tool_config"] = {
+                                "function_calling_config": {
+                                    "mode": "AUTO"
+                                }
                             }
-                        }
 
                 GEMINI_STREAMING_URL = (
                     f"{config.UPSTREAM_URL}/v1beta/models/{COMPLETION_MODEL}:streamGenerateContent"
