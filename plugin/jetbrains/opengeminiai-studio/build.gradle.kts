@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.opengeminiai.studio"
-version = "1.4.0-beta-2"
+version = "1.4.0-beta-3"
 
 repositories { mavenCentral() }
 

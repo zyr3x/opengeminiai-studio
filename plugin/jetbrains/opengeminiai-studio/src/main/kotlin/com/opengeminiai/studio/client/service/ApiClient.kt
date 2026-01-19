@@ -8,6 +8,8 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
@@ -249,7 +251,14 @@ object ApiClient {
     }
 
     fun getPromptText(project: Project?, key: String, type: PromptType): String {
-        // Local project override check
+        var rawPrompt = type.defaultText
+
+        // 1. Try to get from Cache (Server)
+        if (key != "Default" && cachedPrompts.containsKey(key)) {
+            rawPrompt = cachedPrompts[key]?.prompt ?: type.defaultText
+        }
+
+        // 2. Try to get from Local Project File (Override)
         if (project != null && project.basePath != null) {
             val filename = when (type) {
                 PromptType.Chat -> "chat.md"
@@ -261,15 +270,32 @@ object ApiClient {
             if (promptFile.exists() && promptFile.isFile) {
                 try {
                     val content = promptFile.readText().trim()
-                    if (content.isNotEmpty()) return content
+                    if (content.isNotEmpty()) {
+                        rawPrompt = content
+                    }
                 } catch (e: Exception) {
-                    // Ignore read errors, fallback to default
+                    // Ignore read errors, keep previous value
                 }
             }
         }
 
-        if (key == "Default") return type.defaultText
-        return cachedPrompts[key]?.prompt ?: type.defaultText
+        // 3. Perform Variable Substitution
+        return substituteVariables(rawPrompt, project)
+    }
+
+    private fun substituteVariables(text: String, project: Project?): String {
+        if (project == null || !text.contains("{")) return text
+        
+        var result = text
+        val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+        
+        result = result.replace("{project_path}", project.basePath ?: "")
+        result = result.replace("{project_name}", project.name)
+        result = result.replace("{os_version}", "${System.getProperty("os.name")} ${System.getProperty("os.version")} (${System.getProperty("os.arch")})")
+        result = result.replace("{current_datetime}", now)
+        result = result.replace("{user_name}", System.getProperty("user.name") ?: "User")
+        
+        return result
     }
 
     enum class PromptType(val defaultText: String) {
