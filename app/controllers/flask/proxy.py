@@ -26,14 +26,7 @@ def chat_completions():
         messages = openai_request.get('messages', [])
         
         disable_mcp_tools = False
-
-        # Check for explicit MCP tools in the request
         explicit_mcp_tools = openai_request.get('mcp_tools')
-
-        # Support disabling tools via explicit empty list []
-        if isinstance(explicit_mcp_tools, list) and len(explicit_mcp_tools) == 0:
-             disable_mcp_tools = True
-
         if explicit_mcp_tools and not isinstance(explicit_mcp_tools, list):
              explicit_mcp_tools = None
 
@@ -156,6 +149,9 @@ def chat_completions():
                             "HTTP-Referer": "https://github.com/zyr3x/opengeminiai-studio",
                             "X-Title": "OpenGeminiAI Studio"
                         }
+
+                        utils.debug(f"Outgoing OpenRouter Request Data: {utils.pretty_json(request_data)}")
+
                         response = requests.post(
                             f"{config.OPENAI_BASE_URL}/chat/completions",
                             headers=headers,

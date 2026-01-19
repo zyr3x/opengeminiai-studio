@@ -27,15 +27,8 @@ async def async_chat_completions():
         utils.debug(f"Incoming Request: {utils.pretty_json(openai_request)}")
         messages = openai_request.get('messages', [])
 
-        # Check for explicit MCP tools in the request
-        explicit_mcp_tools = openai_request.get('mcp_tools')
-
         disable_mcp_tools = False
-
-        # Explicitly disable tools if empty list provided
-        if explicit_mcp_tools is not None and isinstance(explicit_mcp_tools, list) and len(explicit_mcp_tools) == 0:
-             disable_mcp_tools = True
-
+        explicit_mcp_tools = openai_request.get('mcp_tools')
         if explicit_mcp_tools and not isinstance(explicit_mcp_tools, list):
              explicit_mcp_tools = None
 
@@ -152,9 +145,11 @@ async def async_chat_completions():
                         session = await quart_utils.get_async_session()
                         headers = {
                             "Content-Type": "application/json",
-                            "Authorization": f"Bearer {config.OPENAI_API_KEY}"
+                            "Authorization": f"Bearer {config.OPENAI_API_KEY}",
+                            "HTTP-Referer": "https://github.com/zyr3x/opengeminiai-studio",
+                            "X-Title": "OpenGeminiAI Studio"
                         }
-                        
+                        utils.debug(f"Outgoing OpenRouter Request Data: {utils.pretty_json(request_data)}")
                         # Note: This uses aiohttp session which is async
                         async with session.post(
                             f"{config.OPENAI_BASE_URL}/chat/completions",

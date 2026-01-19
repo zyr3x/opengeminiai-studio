@@ -1038,7 +1038,7 @@ class MainPanel(val project: Project) {
                 val finalContent = if (contentPreview.isBlank()) "Analyze attached files" else contentPreview
 
                 val msgs = listOf(ChatMessage("user", finalContent))
-                val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt, appSettings.baseUrl, false)
+                val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt, appSettings.baseUrl, false, listOf("TOOLS_DISABLED"))
                 val response = ApiClient.processCallResponse(call)
 
                 val newTitle = response.trim().removeSurrounding("\"").removeSuffix(".")
@@ -1119,7 +1119,7 @@ class MainPanel(val project: Project) {
         
         // TOOLS: Prepare selected tools list (or null for auto)
         val toolsToSend = when (appSettings.mcpToolsMode) {
-            "Disabled" -> emptyList<String>()
+            "Disabled" -> listOf("TOOLS_DISABLED")
             "Manual" -> selectedMcpTools.toList()
             else -> null // Auto
         }

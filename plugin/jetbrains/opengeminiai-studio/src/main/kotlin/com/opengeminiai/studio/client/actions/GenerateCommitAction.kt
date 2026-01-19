@@ -136,7 +136,7 @@ class GenerateCommitAction : DumbAwareAction() {
                     val fullPrompt = "Generate a concise, conventional git commit message (e.g., 'feat: ...', 'fix: ...') for the following changes. Output ONLY the message text.\n\n$diffText"
 
                     val msgs = listOf(ChatMessage("user", fullPrompt))
-                    val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt, baseUrl)
+                    val call = ApiClient.createChatCompletionCall(msgs, model, systemPrompt, baseUrl, false, listOf("TOOLS_DISABLED"))
                     val response = ApiClient.processCallResponse(call)
 
                     ApplicationManager.getApplication().invokeLater {
