@@ -95,7 +95,23 @@ object ChatComponents {
         // 2. Footer Status Bar (Bottom)
         val footerPanel = JPanel(BorderLayout())
         footerPanel.isOpaque = false
-        footerPanel.border = JBUI.Borders.emptyTop(8)
+        
+        // Create a separator color that matches the bubble border
+        val separatorColor = if (isUser) {
+            JBColor(Color(200, 210, 240), Color(85, 65, 105))
+        } else {
+            // Styled gray color for assistant separator to match user bubble style
+            JBColor(Color(230, 230, 230), Color(60, 63, 65))
+        }
+
+        // Add visual separator between content and footer
+        footerPanel.border = JBUI.Borders.compound(
+            JBUI.Borders.emptyTop(6),
+            JBUI.Borders.compound(
+                JBUI.Borders.customLine(separatorColor, 1, 0, 0, 0),
+                JBUI.Borders.emptyTop(6)
+            )
+        )
 
         // Left Side: Avatar
         val avatarIcon = if (isUser) AllIcons.General.User else Icons.Logo
@@ -666,7 +682,7 @@ object ChatComponents {
                 g2.color = JBColor(Color(255, 255, 255), Color(40, 42, 44))
             }
             g2.fillRoundRect(0, 0, width - 1, height - 1, 16, 16)
-            g2.color = if(isUser) JBColor(Color(200, 210, 240), Color(85, 65, 105)) else JBColor.border()
+            g2.color = if(isUser) JBColor(Color(200, 210, 240), Color(85, 65, 105)) else JBColor(Color(230, 230, 230), Color(60, 63, 65))
             g2.drawRoundRect(0, 0, width - 1, height - 1, 16, 16)
             super.paintComponent(g)
         }
