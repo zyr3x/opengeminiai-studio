@@ -332,8 +332,11 @@ class MainPanel(val project: Project) {
             allChats
         } else {
             allChats.filter { chat ->
-                chat.title.lowercase().contains(filter) ||
-                        chat.messages.any { msg -> msg.content.lowercase().contains(filter) }
+                // FIX: Synchronize to prevent ConcurrentModificationException if background thread is updating messages
+                synchronized(chat) {
+                    chat.title.lowercase().contains(filter) ||
+                            chat.messages.any { msg -> msg.content.lowercase().contains(filter) }
+                }
             }
         }
 

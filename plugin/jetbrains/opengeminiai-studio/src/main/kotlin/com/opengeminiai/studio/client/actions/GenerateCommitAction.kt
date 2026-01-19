@@ -14,7 +14,11 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.ui.AnimatedIcon
+import com.intellij.openapi.vcs.changes.patch.IdeaTextPatchBuilder
+import com.intellij.openapi.diff.impl.patch.UnifiedDiffWriter
 import java.util.concurrent.atomic.AtomicBoolean
+import java.io.StringWriter
+import java.nio.file.Paths
 
 class GenerateCommitAction : DumbAwareAction() {
 
@@ -102,30 +106,34 @@ class GenerateCommitAction : DumbAwareAction() {
                              if (virtualFile != null && virtualFile.fileType.isBinary) {
                                  contentBuilder.append("File: $path (Binary file changed)\n\n")
                              } else {
-                                 contentBuilder.append("File: $path\n")
                                  try {
-                                     val before = change.beforeRevision?.content
-                                     val after = change.afterRevision?.content
+                                     val basePath = project.basePath
+                                     if (basePath != null) {
+                                         val baseDirPath = Paths.get(basePath)
+                                         val patches = IdeaTextPatchBuilder.buildPatch(project, listOf(change), baseDirPath, false)
+                                         
+                                         if (patches.isNotEmpty()) {
+                                             val writer = StringWriter()
+                                             UnifiedDiffWriter.write(project, patches, writer, "\n", null)
+                                             val diffString = writer.toString()
 
-                                     when {
-                                         before != null && after != null -> {
-                                             val cleanContent = after.take(2000)
-                                             contentBuilder.append("Status: Modified\nContent Preview:\n$cleanContent\n")
-                                             if (after.length > 2000) contentBuilder.append("...(truncated)\n")
+                                             // Soft limit per file to prevent OOM before global truncation
+                                             val maxFileDiff = 8000
+                                             if (diffString.length > maxFileDiff) {
+                                                 contentBuilder.append(diffString.take(maxFileDiff)).append("\n...(diff truncated for this file)\n")
+                                             } else {
+                                                 contentBuilder.append(diffString)
+                                             }
+                                             contentBuilder.append("\n")
+                                         } else {
+                                             contentBuilder.append("File: $path (Empty diff generated)\n")
                                          }
-                                         after != null -> {
-                                             val cleanContent = after.take(2000)
-                                             contentBuilder.append("Status: Created\nContent:\n$cleanContent\n")
-                                             if (after.length > 2000) contentBuilder.append("...(truncated)\n")
-                                         }
-                                         before != null -> {
-                                             contentBuilder.append("Status: Deleted\n")
-                                         }
+                                     } else {
+                                          contentBuilder.append("File: $path (Cannot generate diff - project path missing)\n")
                                      }
                                  } catch (e: Exception) {
-                                     contentBuilder.append("(Error reading file content)\n")
+                                     contentBuilder.append("File: $path (Error generating diff: ${e.message})\n")
                                  }
-                                 contentBuilder.append("\n")
                              }
                          }
                     }
