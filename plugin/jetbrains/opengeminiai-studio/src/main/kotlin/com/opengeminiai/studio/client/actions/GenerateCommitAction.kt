@@ -14,11 +14,10 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.ui.AnimatedIcon
-import com.intellij.openapi.vcs.changes.patch.IdeaTextPatchBuilder
-import com.intellij.openapi.diff.impl.patch.UnifiedDiffWriter
+import com.intellij.diff.comparison.ComparisonManager
+import com.intellij.diff.comparison.ComparisonPolicy
+import com.intellij.openapi.progress.DumbProgressIndicator
 import java.util.concurrent.atomic.AtomicBoolean
-import java.io.StringWriter
-import java.nio.file.Paths
 
 class GenerateCommitAction : DumbAwareAction() {
 
@@ -107,29 +106,67 @@ class GenerateCommitAction : DumbAwareAction() {
                                  contentBuilder.append("File: $path (Binary file changed)\n\n")
                              } else {
                                  try {
-                                     val basePath = project.basePath
-                                     if (basePath != null) {
-                                         val baseDirPath = Paths.get(basePath)
-                                         val patches = IdeaTextPatchBuilder.buildPatch(project, listOf(change), baseDirPath, false)
-                                         
-                                         if (patches.isNotEmpty()) {
-                                             val writer = StringWriter()
-                                             UnifiedDiffWriter.write(project, patches, writer, "\n", null)
-                                             val diffString = writer.toString()
-
-                                             // Soft limit per file to prevent OOM before global truncation
-                                             val maxFileDiff = 8000
-                                             if (diffString.length > maxFileDiff) {
-                                                 contentBuilder.append(diffString.take(maxFileDiff)).append("\n...(diff truncated for this file)\n")
-                                             } else {
-                                                 contentBuilder.append(diffString)
-                                             }
-                                             contentBuilder.append("\n")
-                                         } else {
-                                             contentBuilder.append("File: $path (Empty diff generated)\n")
-                                         }
+                                     val beforeContent = change.beforeRevision?.content
+                                     val afterContent = change.afterRevision?.content
+                                     
+                                     if (beforeContent == null && afterContent == null) {
+                                         // Ignore empty/error states
+                                     } else if (beforeContent == null) {
+                                         // New File
+                                         contentBuilder.append("File: $path (New File)\n")
+                                         val addedText = afterContent ?: ""
+                                         // Truncate new file content if huge
+                                         contentBuilder.append(addedText.take(4000))
+                                         if (addedText.length > 4000) contentBuilder.append("\n...(truncated)...")
+                                         contentBuilder.append("\n\n")
+                                     } else if (afterContent == null) {
+                                         // Deleted File
+                                         contentBuilder.append("File: $path (Deleted File)\n\n")
                                      } else {
-                                          contentBuilder.append("File: $path (Cannot generate diff - project path missing)\n")
+                                         // Modified File - Compute Diff Manually
+                                         contentBuilder.append("File: $path\n")
+                                         
+                                         val fragments = ComparisonManager.getInstance().compareLines(
+                                             beforeContent, 
+                                             afterContent, 
+                                             ComparisonPolicy.DEFAULT, 
+                                             DumbProgressIndicator.INSTANCE
+                                         )
+                                         
+                                         val beforeLines = beforeContent.lines()
+                                         val afterLines = afterContent.lines()
+                                         var fileDiffLen = 0
+                                         val maxFileDiff = 8000
+                                         
+                                         for (fragment in fragments) {
+                                             if (fileDiffLen > maxFileDiff) {
+                                                 contentBuilder.append("...(diff truncated for this file)...\n")
+                                                 break
+                                             }
+                                             
+                                             val header = "@@ -${fragment.startLine1 + 1},${fragment.endLine1 - fragment.startLine1} +${fragment.startLine2 + 1},${fragment.endLine2 - fragment.startLine2} @@\n"
+                                             contentBuilder.append(header)
+                                             fileDiffLen += header.length
+                                             
+                                             // Add removed lines
+                                             for (i in fragment.startLine1 until fragment.endLine1) {
+                                                 if (i < beforeLines.size) {
+                                                     val line = "- ${beforeLines[i]}\n"
+                                                     contentBuilder.append(line)
+                                                     fileDiffLen += line.length
+                                                 }
+                                             }
+                                             
+                                             // Add added lines
+                                             for (i in fragment.startLine2 until fragment.endLine2) {
+                                                 if (i < afterLines.size) {
+                                                     val line = "+ ${afterLines[i]}\n"
+                                                     contentBuilder.append(line)
+                                                     fileDiffLen += line.length
+                                                 }
+                                             }
+                                         }
+                                         contentBuilder.append("\n")
                                      }
                                  } catch (e: Exception) {
                                      contentBuilder.append("File: $path (Error generating diff: ${e.message})\n")

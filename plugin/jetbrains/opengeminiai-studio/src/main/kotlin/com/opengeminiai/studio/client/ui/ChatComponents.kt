@@ -228,7 +228,8 @@ object ChatComponents {
                         }
                         panel.add(createGeneratingPlaceholder(lastFileName))
                     } else {
-                        panel.add(createCodePanel(segment.content))
+                        // Updated to pass language
+                        panel.add(createCodePanel(segment.content, segment.language))
                     }
                 }
                 SegmentType.CONTEXT -> {
@@ -246,13 +247,14 @@ object ChatComponents {
     }
 
     enum class SegmentType { TEXT, CODE, CONTEXT }
-    private data class MessageSegment(val content: String, val type: SegmentType, val title: String? = null, val contentType: String? = null)
+    // Added language field
+    private data class MessageSegment(val content: String, val type: SegmentType, val title: String? = null, val contentType: String? = null, val language: String? = null)
 
     private fun parseSegments(text: String): List<MessageSegment> {
         val segments = mutableListOf<MessageSegment>()
 
-        // FIX: Updated regex to require newline before closing backticks (\n```)
-        // This prevents the parser from breaking when the code content itself contains inline triple backticks (e.g. inside strings)
+        // Updated regex to require newline before closing backticks (\n```)
+        // This prevents the parser from breaking when the code content itself contains inline triple backticks
         val pattern = Pattern.compile("```(\\w*)\n?([\\s\\S]*?)(?:\n```|(?=\\z))|:::CTX:(.*?):(.*?):::\n([\\s\\S]*?)\n:::END:::")
         val matcher = pattern.matcher(text)
         var lastIndex = 0
@@ -264,7 +266,8 @@ object ChatComponents {
             }
 
             if (matcher.group(2) != null) {
-                segments.add(MessageSegment(matcher.group(2).trim(), SegmentType.CODE))
+                val lang = matcher.group(1)?.takeIf { it.isNotBlank() }
+                segments.add(MessageSegment(matcher.group(2).trim(), SegmentType.CODE, language = lang))
             } else if (matcher.group(3) != null) {
                 val title = matcher.group(3)
                 val type = matcher.group(4)
@@ -334,29 +337,77 @@ object ChatComponents {
         dialog.show()
     }
 
-    private fun createCodePanel(code: String): JComponent {
+    private fun createCodePanel(code: String, language: String? = null): JComponent {
+        val outerPanel = JPanel(BorderLayout())
+        // Border for the whole block
+        val borderColor = if (UIUtil.isUnderDarcula()) Color(50, 50, 50) else Color(200, 200, 200)
+        outerPanel.border = JBUI.Borders.customLine(borderColor)
+        outerPanel.alignmentX = Component.LEFT_ALIGNMENT
+
+        // --- Header ---
+        val header = JPanel(BorderLayout())
+        val headerBg = if (UIUtil.isUnderDarcula()) Color(45, 47, 49) else Color(225, 227, 229)
+        header.background = headerBg
+        header.border = JBUI.Borders.empty(4, 8)
+
+        val langText = if (!language.isNullOrBlank()) language.uppercase() else "CODE"
+        val langLabel = JLabel(langText)
+        langLabel.font = JBUI.Fonts.smallFont().deriveFont(Font.BOLD)
+        langLabel.foreground = JBColor.GRAY
+        header.add(langLabel, BorderLayout.WEST)
+
+        val copyBtn = JLabel(AllIcons.Actions.Copy)
+        copyBtn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        copyBtn.toolTipText = "Copy content"
+        copyBtn.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (SwingUtilities.isLeftMouseButton(e)) {
+                    try {
+                        val selection = StringSelection(code)
+                        Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
+                        
+                        // Feedback
+                        val originalIcon = copyBtn.icon
+                        copyBtn.icon = AllIcons.Actions.Checked
+                        val timer = Timer(1500) { copyBtn.icon = originalIcon }
+                        timer.isRepeats = false
+                        timer.start()
+                    } catch (ex: Exception) {}
+                }
+            }
+        })
+        header.add(copyBtn, BorderLayout.EAST)
+        outerPanel.add(header, BorderLayout.NORTH)
+
+        // --- Code Area ---
         val textArea = JTextArea(code)
         textArea.font = JBUI.Fonts.create("JetBrains Mono", 12)
         textArea.isEditable = false
-        textArea.background = if (UIUtil.isUnderDarcula()) Color(30, 31, 33) else Color(242, 244, 245)
+        val codeBg = if (UIUtil.isUnderDarcula()) Color(30, 31, 33) else Color(242, 244, 245)
+        textArea.background = codeBg
         textArea.foreground = if (UIUtil.isUnderDarcula()) Color(169, 183, 198) else Color(8, 8, 8)
         textArea.margin = JBUI.insets(8)
 
         val scroll = JBScrollPane(textArea)
-        scroll.border = JBUI.Borders.customLine(if (UIUtil.isUnderDarcula()) Color(50, 50, 50) else Color(200, 200, 200))
+        scroll.border = null
         scroll.viewportBorder = null
 
         val metrics = textArea.getFontMetrics(textArea.font)
         val lineHeight = metrics.height
         val lines = code.lines().size
-        val maxHeight = 300
-        val prefHeight = min(maxHeight, (lines * lineHeight) + 24)
+        val maxCodeHeight = 300
+        val codeHeight = min(maxCodeHeight, (lines * lineHeight) + 24)
 
-        scroll.preferredSize = Dimension(-1, prefHeight)
-        scroll.maximumSize = Dimension(Int.MAX_VALUE, prefHeight)
-        scroll.alignmentX = Component.LEFT_ALIGNMENT
+        scroll.preferredSize = Dimension(-1, codeHeight)
+        
+        outerPanel.add(scroll, BorderLayout.CENTER)
+        
+        // Set layout sizes for the wrapper
+        val headerHeight = 28 // Approximate
+        outerPanel.preferredSize = Dimension(-1, codeHeight + headerHeight)
+        outerPanel.maximumSize = Dimension(Int.MAX_VALUE, codeHeight + headerHeight)
 
-        return scroll
+        return outerPanel
     }
 
     private fun createTextPanel(text: String): JComponent {
