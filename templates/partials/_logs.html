@@ -1,0 +1,79 @@
+<div id="logs" class="content-section" style="display: none;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><span class="material-icons me-2">terminal</span>System Logs</h2>
+        <div class="d-flex gap-2">
+            <input type="text" id="log-search-input" class="form-control form-control-sm" placeholder="Filter logs..." style="width: 250px;">
+            <button class="btn btn-sm btn-primary d-flex align-items-center" onclick="fetchLogs()">
+                <span class="material-icons" style="font-size: 1.2rem;">refresh</span> Refresh
+            </button>
+        </div>
+    </div>
+    
+    <div class="card shadow-sm">
+        <div class="card-header  d-flex justify-content-between align-items-center py-1">
+            <span class="small font-monospace">/app/var/log/output.log</span>
+            <span class="badge bg-secondary" id="log-count-badge">0 lines</span>
+        </div>
+        <div class="card-body p-0 ">
+            <pre id="log-container" class="m-0 p-3 font-monospace" style="background-color:unset;height: 65vh; overflow-y: auto; font-size: 0.8rem; white-space: pre-wrap;">Loading...</pre>
+        </div>
+    </div>
+</div>
+
+<script>
+async function fetchLogs() {
+    const container = document.getElementById('log-container');
+    const search = document.getElementById('log-search-input').value;
+    const badge = document.getElementById('log-count-badge');
+    
+    if (container.innerText === 'Loading...') {
+        container.style.opacity = '0.5';
+    }
+    
+    try {
+        const response = await fetch(`/logs/data?limit=2000&search=${encodeURIComponent(search)}`);
+        const data = await response.json();
+        
+        container.style.opacity = '1';
+        
+        if (data.error) {
+            container.innerHTML = `<span class="text-danger">${data.error}</span>`;
+            return;
+        }
+        
+        if (!data.logs || data.logs.length === 0) {
+            container.innerHTML = '<span class="text-muted">No logs found matching your criteria.</span>';
+            badge.innerText = '0 lines';
+        } else {
+            container.innerText = data.logs.join('');
+            badge.innerText = `${data.logs.length} lines`;
+            container.scrollTop = container.scrollHeight;
+        }
+    } catch (err) {
+        container.style.opacity = '1';
+        container.innerText = "Error fetching logs: " + err;
+    }
+}
+
+document.getElementById('log-search-input')?.addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') {
+        fetchLogs();
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const logsEl = document.getElementById('logs');
+    if (logsEl) {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                    if (logsEl.style.display !== 'none') {
+                        setTimeout(fetchLogs, 100);
+                    }
+                }
+            });
+        });
+        observer.observe(logsEl, { attributes: true });
+    }
+});
+</script>

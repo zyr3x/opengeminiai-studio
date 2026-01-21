@@ -23,6 +23,7 @@ def create_flask_app(app: Flask):
     from app.controllers.flask.web_ui import web_ui_bp
     from app.controllers.flask.web_ui_chat import web_ui_chat_bp
     from app.controllers.flask.metrics import metrics_bp
+    from app.controllers.flask.logs import logs_bp
     app.register_blueprint(proxy_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(mcp_settings_bp)
@@ -30,6 +31,7 @@ def create_flask_app(app: Flask):
     app.register_blueprint(web_ui_bp)
     app.register_blueprint(web_ui_chat_bp)
     app.register_blueprint(metrics_bp)
+    app.register_blueprint(logs_bp)
     return app
 def run_flask_app(app: Flask):
     app = create_flask_app(app)
@@ -50,6 +52,7 @@ async def create_quart_app(app: Quart):
     from app.controllers.quart.web_ui import web_ui_bp
     from app.controllers.quart.web_ui_chat import web_ui_chat_bp
     from app.controllers.quart.metrics import metrics_bp
+    from app.controllers.quart.logs import logs_bp
     app.register_blueprint(async_proxy_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(mcp_settings_bp)
@@ -57,6 +60,7 @@ async def create_quart_app(app: Quart):
     app.register_blueprint(web_ui_bp)
     app.register_blueprint(web_ui_chat_bp)
     app.register_blueprint(metrics_bp)
+    app.register_blueprint(logs_bp)
     @app.before_serving
     async def startup():
         print("🚀 Starting OpenGeminiAI Studio (Async Mode)")
