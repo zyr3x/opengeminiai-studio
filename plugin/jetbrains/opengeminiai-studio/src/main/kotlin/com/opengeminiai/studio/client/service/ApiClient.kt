@@ -4,6 +4,8 @@ import com.opengeminiai.studio.client.model.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.project.Project
+import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.util.ExecUtil
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -253,6 +255,18 @@ object ApiClient {
     fun getAvailablePromptKeys(): List<String> {
         return listOf("Default") + cachedPrompts.keys.sorted()
     }
+    
+    fun getCurrentBranch(project: Project): String {
+        return try {
+            val basePath = project.basePath ?: return "Unknown"
+            val cmd = GeneralCommandLine("git", "rev-parse", "--abbrev-ref", "HEAD")
+                .apply { workDirectory = File(basePath) }
+            val output = ExecUtil.execAndGetOutput(cmd)
+            if (output.exitCode == 0) output.stdout.trim() else "Unknown"
+        } catch (e: Exception) {
+            "Unknown"
+        }
+    }
 
     fun getPromptText(project: Project?, key: String, type: PromptType): String {
         var rawPrompt = type.defaultText
@@ -287,19 +301,21 @@ object ApiClient {
         var finalPrompt = substituteVariables(rawPrompt, project)
 
         // 4. Append System Context (Only for Chat & Edit)
-        if (project != null && (type == PromptType.Chat || type == PromptType.QuickEdit)) {
+        if (project != null) {
             val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
             val os = "${System.getProperty("os.name")} ${System.getProperty("os.version")} (${System.getProperty("os.arch")})"
             val user = System.getProperty("user.name") ?: "User"
+            val branch = getCurrentBranch(project)
             
             finalPrompt += """
-                
+
                 ### SYSTEM CONTEXT
                 * **Project:** ${project.name}
                 * **Path:** ${project.basePath ?: ""}
                 * **User:** $user
                 * **Date:** $now
                 * **OS:** $os
+                * **Branch:** $branch
             """.trimIndent()
         }
 
@@ -317,6 +333,10 @@ object ApiClient {
         result = result.replace("{os_version}", "${System.getProperty("os.name")} ${System.getProperty("os.version")} (${System.getProperty("os.arch")})")
         result = result.replace("{current_datetime}", now)
         result = result.replace("{user_name}", System.getProperty("user.name") ?: "User")
+        
+        if (result.contains("{current_branch}")) {
+            result = result.replace("{current_branch}", getCurrentBranch(project))
+        }
         
         return result
     }

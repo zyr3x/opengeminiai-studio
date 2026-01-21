@@ -936,6 +936,10 @@ class MainPanel(val project: Project) {
         result = result.replace("{current_datetime}", now)
         result = result.replace("{user_name}", System.getProperty("user.name") ?: "User")
         
+        if (result.contains("{current_branch}")) {
+            result = result.replace("{current_branch}", ApiClient.getCurrentBranch(project))
+        }
+        
         return result
     }
 
