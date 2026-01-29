@@ -1,8 +1,8 @@
 {
   "name": "opengeminiai-studio",
   "displayName": "OpenGeminiAI Studio",
-  "description": "AI Coding Assistant powered by OpenGemini",
-  "version": "1.4.0",
+  "description": "AI Coding Assistant powered by OpenGemini Studia",
+  "version": "1.0.0",
   "publisher": "opengeminiai",
   "engines": {
     "vscode": "^1.80.0"
@@ -14,7 +14,6 @@
   "main": "./out/extension.js",
   "activationEvents": [
     "onView:opengeminiai.chatView",
-    "onView:opengeminiai.webView",
     "onCommand:opengeminiai.explain",
     "onCommand:opengeminiai.refactor",
     "onCommand:opengeminiai.generateTests",
@@ -44,11 +43,6 @@
           "type": "webview",
           "id": "opengeminiai.chatView",
           "name": "OG Studio"
-        },
-        {
-          "type": "webview",
-          "id": "opengeminiai.webView",
-          "name": "Gemini Web"
         }
       ]
     },

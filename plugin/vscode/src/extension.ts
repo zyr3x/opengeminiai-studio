@@ -1,14 +1,11 @@
 import * as vscode from 'vscode';
 import { ChatViewProvider } from './providers/ChatViewProvider';
-import { WebPanelProvider } from './providers/WebPanelProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     const chatProvider = new ChatViewProvider(context);
-    const webProvider = new WebPanelProvider();
 
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider('opengeminiai.chatView', chatProvider),
-        vscode.window.registerWebviewViewProvider('opengeminiai.webView', webProvider)
+        vscode.window.registerWebviewViewProvider('opengeminiai.chatView', chatProvider)
     );
 
     // Slash command shortcuts
