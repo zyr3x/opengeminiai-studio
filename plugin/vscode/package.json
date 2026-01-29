@@ -1,0 +1,108 @@
+{
+  "name": "opengeminiai-studio",
+  "displayName": "OpenGeminiAI Studio",
+  "description": "AI Coding Assistant powered by OpenGemini",
+  "version": "1.4.0",
+  "publisher": "opengeminiai",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onView:opengeminiai.chatView",
+    "onView:opengeminiai.webView",
+    "onCommand:opengeminiai.explain",
+    "onCommand:opengeminiai.refactor",
+    "onCommand:opengeminiai.generateTests",
+    "onCommand:opengeminiai.findBugs",
+    "onCommand:opengeminiai.analyzeError",
+    "onCommand:opengeminiai.generateCommit"
+  ],
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "opengeminiai-sidebar",
+          "title": "OpenGeminiAI",
+          "icon": "logo.svg"
+        }
+      ]
+    },
+    "views": {
+      "opengeminiai-sidebar": [
+        {
+          "type": "webview",
+          "id": "opengeminiai.chatView",
+          "name": "OG Studio"
+        },
+        {
+          "type": "webview",
+          "id": "opengeminiai.webView",
+          "name": "Gemini Web"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "opengeminiai.explain",
+        "title": "Explain Code"
+      },
+      {
+        "command": "opengeminiai.refactor",
+        "title": "Refactor / Optimize"
+      },
+      {
+        "command": "opengeminiai.generateTests",
+        "title": "Generate Tests"
+      },
+      {
+        "command": "opengeminiai.findBugs",
+        "title": "Find Bugs"
+      },
+      {
+        "command": "opengeminiai.analyzeError",
+        "title": "Analyze Error / Log"
+      },
+      {
+        "command": "opengeminiai.generateCommit",
+        "title": "Generate Commit Message"
+      }
+    ],
+    "configuration": {
+      "title": "OpenGeminiAI Studio",
+      "properties": {
+        "opengeminiai.baseUrl": {
+          "type": "string",
+          "default": "http://localhost:8080"
+        },
+        "opengeminiai.chatModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash"
+        },
+        "opengeminiai.editModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.0"
+  }
+}
