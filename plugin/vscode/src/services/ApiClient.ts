@@ -3,11 +3,16 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { McpToolsResponse } from '../model';
 
 export class ApiClient {
+    private static getBaseUrl(): string {
+        return (vscode.workspace.getConfiguration('opengeminiai').get('baseUrl') as string).replace(/\/$/, '');
+    }
+
     static async getPromptText(type: string): Promise<string> {
-        const config = vscode.workspace.getConfiguration('opengeminiai');
         const workspace = vscode.workspace.workspaceFolders?.[0];
+        const config = vscode.workspace.getConfiguration('opengeminiai');
 
         let rawPrompt = this.getDefaultPrompt(type);
 
@@ -24,43 +29,99 @@ export class ApiClient {
     }
 
     private static getDefaultPrompt(type: string): string {
-        // Копирует логику из ApiClient.kt
-        if (type === 'Chat') return "You are an advanced AI Coding Agent... [Full Text]";
-        if (type === 'QuickEdit') return "You are an advanced AI Coding Agent... [Full Protocol]";
-        return "";
+        if (type === 'Chat') return `You are an advanced AI Coding Agent integrated directly into VS Code via OpenGeminiAi Studio.
+Your goal is to assist the user by analyzing code, answering questions, and providing code snippets.
+
+### OUTPUT FORMAT
+* **Markdown:** Use standard Markdown formatting for all responses.
+* **Code Blocks:** ALWAYS wrap code in triple backticks with the language identifier.`;
+        
+        if (type === 'QuickEdit') return `You are an advanced AI Coding Agent integrated into VS Code.
+Your goal is to modify files based on user requests.
+
+### CRITICAL PROTOCOL FOR FILE MODIFICATIONS
+You generally have access to read files, BUT you have **NO** direct ability to write files.
+Instead, you must instruct the IDE Plugin to apply changes locally by outputting a JSON block.
+
+### JSON FORMAT
+To apply changes, output a single JSON block formatted as follows at the END of your answer:
+
+\`\`\`json
+{
+  "action": "propose_changes",
+  "changes": [
+    {
+      "path": "/absolute/path/to/project/filename.extension",
+      "content": "FULL NEW CONTENT OF THE FILE GOES HERE"
+    }
+  ]
+}
+\`\`\``;
+        
+        return "Summarize the user request into a short, concise title (max 4-6 words).";
     }
 
     private static substituteVariables(text: string): string {
         const workspace = vscode.workspace.workspaceFolders?.[0];
         const now = new Date().toLocaleString();
-        return text
+        const os = `${process.platform} ${process.arch}`;
+        
+        let result = text
             .replace(/{project_name}/g, workspace?.name || 'Unknown')
             .replace(/{project_path}/g, workspace?.uri.fsPath || '')
             .replace(/{current_datetime}/g, now)
             .replace(/{user_name}/g, process.env.USER || 'User')
             .replace(/{current_branch}/g, this.getBranch());
+
+        // Add System Context
+        result += `\n\n### SYSTEM CONTEXT\n* **Project:** ${workspace?.name}\n* **Path:** ${workspace?.uri.fsPath}\n* **Date:** ${now}\n* **OS:** ${os}\n* **Branch:** ${this.getBranch()}\n`;
+        
+        return result;
     }
 
     private static getBranch(): string {
         try {
             const workspace = vscode.workspace.workspaceFolders?.[0];
-            return execSync('git rev-parse --abbrev-ref HEAD', { cwd: workspace?.uri.fsPath }).toString().trim();
-        } catch { return 'Unknown'; }
+            if (workspace) {
+                return execSync('git rev-parse --abbrev-ref HEAD', { cwd: workspace.uri.fsPath }).toString().trim();
+            }
+        } catch {} 
+        return 'Unknown';
     }
 
-    static async streamChat(messages: any[], model: string, onChunk: (val: string) => void) {
-        const baseUrl = vscode.workspace.getConfiguration('opengeminiai').get('baseUrl') as string;
-        const response = await axios.post(`${baseUrl}/v1/chat/completions`, { model, messages, stream: true }, { responseType: 'stream' });
+    static async getModels(): Promise<string[]> {
+        try {
+            const res = await axios.get(`${this.getBaseUrl()}/v1/models`, { timeout: 3000 });
+            if (res.data && res.data.data) {
+                return res.data.data.map((m: any) => m.id);
+            }
+        } catch {}
+        return ['gemini-2.5-flash'];
+    }
 
-        return new Promise((resolve) => {
+    static async getMcpTools(): Promise<McpToolsResponse | null> {
+        try {
+            const res = await axios.get(`${this.getBaseUrl()}/api/mcp/list`, { timeout: 3000 });
+            return res.data;
+        } catch { return null; }
+    }
+
+    static async streamChat(messages: any[], model: string, onChunk: (val: string) => void, tools: string[] | null = null) {
+        const body: any = { model, messages, stream: true };
+        if (tools) body.mcp_tools = tools;
+
+        const response = await axios.post(`${this.getBaseUrl()}/v1/chat/completions`, body, { responseType: 'stream' });
+
+        return new Promise<void>((resolve) => {
             response.data.on('data', (chunk: Buffer) => {
                 const lines = chunk.toString().split('\n');
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
+                        const data = line.slice(6).trim();
                         if (data === '[DONE]') break;
                         try {
-                            const content = JSON.parse(data).choices[0].delta.content;
+                            const parsed = JSON.parse(data);
+                            const content = parsed.choices?.[0]?.delta?.content;
                             if (content) onChunk(content);
                         } catch {}
                     }
