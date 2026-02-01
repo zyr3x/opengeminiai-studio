@@ -35,7 +35,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     async resolveWebviewView(webviewView: vscode.WebviewView) {
         this._view = webviewView;
-        webviewView.webview.options = { 
+        webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: [this.context.extensionUri] 
         };
@@ -259,6 +259,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         :root { --bg: var(--vscode-sideBar-background); --fg: var(--vscode-sideBar-foreground); --border: var(--vscode-panel-border); }
         body { margin: 0; padding: 0; font-family: var(--vscode-font-family); background: var(--bg); color: var(--fg); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         .header { padding: 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-toggle { cursor: pointer; padding: 4px; font-size: 16px; }
         .main { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 12px; }
         .bubble { padding: 8px 12px; border-radius: 6px; font-size: 13px; max-width: 95%; }
         .user { align-self: flex-end; background: var(--vscode-button-secondaryBackground); }
@@ -273,11 +274,27 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         .menu { position: absolute; background: var(--vscode-menu-background); border: 1px solid var(--border); z-index: 100; display: none; }
         .menu div { padding: 4px 12px; cursor: pointer; }
         .menu div:hover { background: var(--vscode-menu-item-activeBackground); }
+        .chat-list { position: fixed; top: 0; left: -250px; width: 250px; height: 100%; background: var(--vscode-sideBar-background); border-right: 1px solid var(--border); transition: left 0.3s; z-index: 1000; display: flex; flex-direction: column; }
+        .chat-list.open { left: 0; }
+        .chat-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 12px; }
+        .chat-item:hover { background: var(--vscode-list-hoverBackground); }
+        .chat-item.active { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
     </style>
 </head>
 <body>
+    <div id="sidebar" class="chat-list">
+        <div class="header">
+            <span>Conversations</span>
+            <button class="btn" onclick="toggleSidebar()">✕</button>
+        </div>
+        <div id="history-list" style="flex:1; overflow-y:auto"></div>
+    </div>
+
     <div class="header">
-        <span id="title">New Chat</span>
+        <div style="display:flex; align-items:center; gap:8px">
+            <span class="sidebar-toggle" onclick="toggleSidebar()">☰</span>
+            <span id="title">New Chat</span>
+        </div>
         <div style="display:flex; gap:4px">
             <button class="btn" onclick="vscode.postMessage({type:'newChat'})">+</button>
             <button class="btn" onclick="vscode.postMessage({type:'openSettings'})">⚙️</button>
@@ -308,6 +325,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         
         const attachBtn = document.getElementById('attach-btn');
         const menu = document.getElementById('ctx-menu');
+        const sidebar = document.getElementById('sidebar');
+
+        function toggleSidebar() { sidebar.classList.toggle('open'); }
 
         attachBtn.onclick = (e) => {
             menu.style.display = 'block';
@@ -315,7 +335,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             menu.style.top = (e.pageY - 60) + 'px';
         };
 
-        window.onclick = (e) => { if (e.target !== attachBtn) menu.style.display = 'none'; };
+        window.onclick = (e) => {
+             if (e.target !== attachBtn) menu.style.display = 'none';
+             if (!sidebar.contains(e.target) && !e.target.classList.contains('sidebar-toggle')) sidebar.classList.remove('open');
+        };
 
         function sendCtx(opt) { vscode.postMessage({type: 'addContext', option: opt}); }
 
@@ -330,10 +353,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         window.onmessage = (e) => {
             const d = e.data;
             if (d.type === 'render') {
-                document.getElementById('title').innerText = d.chats.find(c=>c.id===d.currentId)?.title || 'New Chat';
+                const currentChat = d.chats.find(c=>c.id===d.currentId);
+                document.getElementById('title').innerText = currentChat?.title || 'New Chat';
+                
+                // Render History Sidebar
+                const hist = document.getElementById('history-list');
+                hist.innerHTML = '';
+                d.chats.forEach(c => {
+                    const item = document.createElement('div');
+                    item.className = 'chat-item' + (c.id === d.currentId ? ' active' : '');
+                    item.innerHTML = "\uD83D\uDDE2 " + c.title;
+                    const del = document.createElement('span');
+                    del.innerHTML = '🗑️';
+                    del.style.cursor = 'pointer';
+                    del.onclick = (e) => { e.stopPropagation(); vscode.postMessage({type:'deleteChat', id: c.id}); };
+                    item.onclick = () => { vscode.postMessage({type:'loadChat', id: c.id}); toggleSidebar(); };
+                    item.appendChild(del);
+                    hist.appendChild(item);
+                });
+
                 const list = document.getElementById('list');
                 list.innerHTML = '';
-                (d.chats.find(c=>c.id===d.currentId)?.messages || []).forEach(m => {
+                (currentChat?.messages || []).forEach(m => {
                     const div = document.createElement('div');
                     div.className = 'bubble ' + m.role;
                     div.innerHTML = marked.parse(m.content);
