@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Stop script on error
-set -e
-
 echo "🚀 Starting Full Build process..."
 
 # Ensure we are in the script directory
@@ -30,7 +27,7 @@ npm run compile
 # 4. Package Extension
 echo "📦 Packaging Extension (.vsix)..."
 # Use npx to run vsce without global installation requirement
-npx vsce package
+npx vsce package --allow-missing-repository
 
 echo "✅ Build Complete!"
 ls -lh *.vsix

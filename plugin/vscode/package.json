@@ -1,7 +1,7 @@
 {
   "name": "opengeminiai-studio",
   "displayName": "OpenGeminiAI Studio",
-  "description": "AI Coding Assistant powered by OpenGemini Studia",
+  "description": "AI Coding Assistant powered by OpenGemini Studio",
   "version": "1.0.0",
   "publisher": "opengeminiai",
   "engines": {
@@ -14,11 +14,6 @@
   "main": "./out/extension.js",
   "activationEvents": [
     "onView:opengeminiai.chatView",
-    "onCommand:opengeminiai.explain",
-    "onCommand:opengeminiai.refactor",
-    "onCommand:opengeminiai.generateTests",
-    "onCommand:opengeminiai.findBugs",
-    "onCommand:opengeminiai.analyzeError",
     "onCommand:opengeminiai.generateCommit"
   ],
   "scripts": {
@@ -48,44 +43,25 @@
     },
     "commands": [
       {
-        "command": "opengeminiai.explain",
-        "title": "Explain Code"
-      },
-      {
-        "command": "opengeminiai.refactor",
-        "title": "Refactor / Optimize"
-      },
-      {
-        "command": "opengeminiai.generateTests",
-        "title": "Generate Tests"
-      },
-      {
-        "command": "opengeminiai.findBugs",
-        "title": "Find Bugs"
-      },
-      {
-        "command": "opengeminiai.analyzeError",
-        "title": "Analyze Error / Log"
-      },
-      {
         "command": "opengeminiai.generateCommit",
-        "title": "Generate Commit Message"
+        "title": "OG: Generate Commit Message",
+        "icon": "$(git-commit)"
       }
     ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "opengeminiai.generateCommit",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "OpenGeminiAI Studio",
       "properties": {
         "opengeminiai.baseUrl": {
           "type": "string",
           "default": "http://localhost:8080"
-        },
-        "opengeminiai.chatModel": {
-          "type": "string",
-          "default": "gemini-2.5-flash"
-        },
-        "opengeminiai.editModel": {
-          "type": "string",
-          "default": "gemini-2.5-flash"
         }
       }
     }

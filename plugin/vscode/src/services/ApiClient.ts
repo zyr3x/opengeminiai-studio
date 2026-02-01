@@ -12,11 +12,8 @@ export class ApiClient {
 
     static async getPromptText(type: string): Promise<string> {
         const workspace = vscode.workspace.workspaceFolders?.[0];
-        const config = vscode.workspace.getConfiguration('opengeminiai');
-
         let rawPrompt = this.getDefaultPrompt(type);
 
-        // Local overrides from .opengemini/prompts/
         if (workspace) {
             const fileName = type === 'Chat' ? 'chat.md' : type === 'QuickEdit' ? 'edit.md' : type === 'Commit' ? 'commit.md' : 'title.md';
             const localPath = path.join(workspace.uri.fsPath, '.opengemini', 'prompts', fileName);
@@ -57,6 +54,8 @@ To apply changes, output a single JSON block formatted as follows at the END of 
   ]
 }
 \`\`\``;
+
+        if (type === 'Commit') return `Generate a professional git commit message based on the provided changes. Follow Conventional Commits format.`;
         
         return "Summarize the user request into a short, concise title (max 4-6 words).";
     }
@@ -65,16 +64,16 @@ To apply changes, output a single JSON block formatted as follows at the END of 
         const workspace = vscode.workspace.workspaceFolders?.[0];
         const now = new Date().toLocaleString();
         const os = `${process.platform} ${process.arch}`;
+        const branch = this.getBranch();
         
         let result = text
             .replace(/{project_name}/g, workspace?.name || 'Unknown')
             .replace(/{project_path}/g, workspace?.uri.fsPath || '')
             .replace(/{current_datetime}/g, now)
             .replace(/{user_name}/g, process.env.USER || 'User')
-            .replace(/{current_branch}/g, this.getBranch());
+            .replace(/{current_branch}/g, branch);
 
-        // Add System Context
-        result += `\n\n### SYSTEM CONTEXT\n* **Project:** ${workspace?.name}\n* **Path:** ${workspace?.uri.fsPath}\n* **Date:** ${now}\n* **OS:** ${os}\n* **Branch:** ${this.getBranch()}\n`;
+        result += `\n\n### SYSTEM CONTEXT\n* **Project:** ${workspace?.name}\n* **Path:** ${workspace?.uri.fsPath}\n* **Date:** ${now}\n* **OS:** ${os}\n* **Branch:** ${branch}\n`;
         
         return result;
     }
@@ -96,7 +95,7 @@ To apply changes, output a single JSON block formatted as follows at the END of 
                 return res.data.data.map((m: any) => m.id);
             }
         } catch {}
-        return ['gemini-2.5-flash'];
+        return ['gemini-2.5-flash', 'gemini-3-pro-preview', 'gemini-2.5-flash-lite'];
     }
 
     static async getMcpTools(): Promise<McpToolsResponse | null> {
@@ -112,7 +111,7 @@ To apply changes, output a single JSON block formatted as follows at the END of 
 
         const response = await axios.post(`${this.getBaseUrl()}/v1/chat/completions`, body, { responseType: 'stream' });
 
-        return new Promise<void>((resolve) => {
+        return new Promise<void>((resolve, reject) => {
             response.data.on('data', (chunk: Buffer) => {
                 const lines = chunk.toString().split('\n');
                 for (const line of lines) {
@@ -128,6 +127,7 @@ To apply changes, output a single JSON block formatted as follows at the END of 
                 }
             });
             response.data.on('end', resolve);
+            response.data.on('error', reject);
         });
     }
 }
