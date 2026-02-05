@@ -14,6 +14,9 @@ services:
       # Configure Git to skip strict host checking (avoids interactive prompts inside container)
       - GIT_SSH_COMMAND=ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no
     restart: unless-stopped
+    # Map host.docker.internal to the host gateway to access local ports
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
        - ${PROJECTS_PATH}:${PROJECTS_PATH}
        - ./:/app/

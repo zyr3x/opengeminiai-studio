@@ -503,7 +503,7 @@ def get_provider_for_model(model_name: str) -> str:
     model_lower = model_name.lower()
 
     # Check for free OpenRouter model postfix :free
-    if model_lower.endswith(':free'):
+    if model_lower.endswith(':free') or model_lower.startswith('gemini-web-'):
         return 'openai'
 
     # Check for known Google model prefixes
