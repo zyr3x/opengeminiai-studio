@@ -1278,6 +1278,7 @@ class MainPanel(val project: Project) {
     private fun handleFinalResponse(response: String, chat: Conversation) {
         var textPart = response.trim()
         var changes: List<FileChange>? = null
+        var parsingError: String? = null
 
         val startMarkerPattern = Pattern.compile("```json\\s*")
         val matcher = startMarkerPattern.matcher(response)
@@ -1292,19 +1293,26 @@ class MainPanel(val project: Project) {
                 if (endIndex == -1) break
 
                 val jsonContent = response.substring(contentStart, endIndex).trim()
-                try {
-                    val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
-                    if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
-                        changes = request.changes
-                        textPart = (response.substring(0, matcher.start()) + response.substring(endIndex + endMarker.length)).trim()
-                        break
+                // Only attempt if it looks like a change proposal to avoid false positives on random JSON
+                if (jsonContent.contains("\"propose_changes\"")) {
+                    try {
+                        val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
+                        if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
+                            changes = request.changes
+                            // Remove the JSON block from the text shown to user
+                            textPart = (response.substring(0, matcher.start()) + response.substring(endIndex + endMarker.length)).trim()
+                            break 
+                        }
+                    } catch (e: Exception) {
+                        parsingError = "Invalid JSON in response: ${e.message}"
                     }
-                } catch (e: Exception) { }
+                }
                 searchStart = endIndex + 1
             }
         }
 
-        if (changes == null) {
+        // Fallback for raw JSON if no markdown block matched or parsed
+        if (changes == null && parsingError == null) {
             val jsonStart = response.indexOf("{")
             val jsonEnd = response.lastIndexOf("}")
             if (jsonStart != -1 && jsonEnd > jsonStart) {
@@ -1316,9 +1324,15 @@ class MainPanel(val project: Project) {
                             changes = request.changes
                             textPart = response.replace(potentialJson, "").trim()
                         }
-                    } catch (e: Exception) { }
+                    } catch (e: Exception) {
+                         parsingError = "Invalid raw JSON in response: ${e.message}"
+                    }
                 }
             }
+        }
+
+        if (parsingError != null) {
+            textPart += "\n\n> ⚠️ **System Error:** $parsingError"
         }
 
         // Update the last message with final text and parsed changes
