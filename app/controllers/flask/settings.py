@@ -52,10 +52,33 @@ def set_aux_model_enhanced_settings():
     settings_logic.handle_set_aux_model_enhanced_settings(request.form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
 
+# Legacy endpoint for single form, now updates default provider in manager
 @settings_bp.route('/set_ai_provider_settings', methods=['POST'])
 def set_ai_provider_settings():
     settings_logic.handle_set_ai_provider_settings(request.form)
     return redirect(url_for('web_ui.index', _anchor='configuration'))
+
+# --- New Multi-Provider Endpoints ---
+
+@settings_bp.route('/get_ai_providers', methods=['GET'])
+def get_ai_providers():
+    data, status = settings_logic.handle_get_ai_providers()
+    return jsonify(data), status
+
+@settings_bp.route('/save_ai_provider', methods=['POST'])
+def save_ai_provider():
+    data, status = settings_logic.handle_save_ai_provider(request.json)
+    return jsonify(data), status
+
+@settings_bp.route('/delete_ai_provider', methods=['POST'])
+def delete_ai_provider():
+    data, status = settings_logic.handle_delete_ai_provider(request.json)
+    return jsonify(data), status
+
+@settings_bp.route('/set_active_ai_provider', methods=['POST'])
+def set_active_ai_provider():
+    data, status = settings_logic.handle_set_active_ai_provider(request.json)
+    return jsonify(data), status
 
 @settings_bp.route('/get_agent_stats', methods=['GET'])
 def get_agent_stats():

@@ -1,25 +1,25 @@
-<!-- Configuration Section -->
+
 <div id="configuration" class="content-section">
     <h1 class="mt-4">⚙️ Configuration</h1>
 
-    <!-- API Key Management Card -->
+    
     <div class="card">
         <div class="card-body">
             <h5 class="card-title">API Key Management</h5>
             <p class="card-text">Manage multiple Gemini API keys. Select an active key for use in requests.</p>
 
-            <!-- Active Key Selection -->
+            
             <div class="mb-3">
                 <label for="active-key-select" class="form-label">Active API Key</label>
                 <div class="input-group">
                     <select class="form-select" id="active-key-select">
-                        <!-- Options will be populated by JavaScript -->
+                        
                     </select>
                     <button class="btn btn-secondary" type="button" id="set-active-key-btn">Set Active</button>
                 </div>
             </div>
 
-            <!-- Add/Update Key Form -->
+            
             <div class="accordion" id="add-key-accordion">
                 <div class="accordion-item">
                     <h2 class="accordion-header" id="headingOne">
@@ -55,7 +55,7 @@
                 </div>
             </div>
 
-            <!-- Stored Keys List -->
+            
             <h6 class="mt-4">Stored Keys</h6>
             <table class="table">
                 <thead>
@@ -67,36 +67,95 @@
                     </tr>
                 </thead>
                 <tbody id="api-key-list-body">
-                    <!-- Rows will be populated by JavaScript -->
+                    
                 </tbody>
             </table>
         </div>
     </div>
 
+    
     <div class="card mt-3">
         <div class="card-body">
-            <h5 class="card-title">🔌 Secondary AI Provider (OpenAI Compatible)</h5>
-            <p class="card-text">Configure a secondary provider (like OpenRouter, OpenAI, or local models) to use when non-Gemini models are requested.</p>
-            <form action="/set_ai_provider_settings" method="POST">
-                <div class="mb-3">
-                    <label for="openai_base_url" class="form-label">Base URL</label>
-                    <input type="text" class="form-control" id="openai_base_url" name="openai_base_url"
-                        value="{{ openai_base_url }}" placeholder="https://openrouter.ai/api/v1">
+            <h5 class="card-title">🔌 AI Providers Management</h5>
+            <p class="card-text">Configure OpenAI-compatible providers (OpenRouter, OpenAI, LocalAI, etc.).</p>
+
+            
+            <div class="mb-3">
+                <label for="active-provider-select" class="form-label">Active Provider</label>
+                <div class="input-group">
+                    <select class="form-select" id="active-provider-select">
+                        
+                    </select>
+                    <button class="btn btn-secondary" type="button" id="set-active-provider-btn">Set Active</button>
                 </div>
-                <div class="mb-3">
-                    <label for="openai_api_key" class="form-label">API Key</label>
-                    <input type="password" class="form-control" id="openai_api_key" name="openai_api_key"
-                        value="{{ openai_api_key }}" placeholder="sk-...">
+            </div>
+
+            
+            <div class="accordion" id="add-provider-accordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingProviderOne">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#collapseProviderOne" aria-expanded="false" aria-controls="collapseProviderOne">
+                            Add or Update Provider
+                        </button>
+                    </h2>
+                    <div id="collapseProviderOne" class="accordion-collapse collapse" aria-labelledby="headingProviderOne"
+                        data-bs-parent="#add-provider-accordion">
+                        <div class="accordion-body">
+                            <form id="provider-manager-form">
+                                <input type="hidden" id="provider-id-hidden">
+                                <div class="mb-3">
+                                    <label for="provider-name-input" class="form-label">Display Name</label>
+                                    <input type="text" class="form-control" id="provider-name-input"
+                                        placeholder="e.g., OpenRouter" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="provider-base-url-input" class="form-label">Base URL</label>
+                                    <input type="text" class="form-control" id="provider-base-url-input"
+                                        placeholder="https://openrouter.ai/api/v1" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="provider-api-key-input" class="form-label">API Key</label>
+                                    <input type="password" class="form-control" id="provider-api-key-input"
+                                        placeholder="sk-...">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="provider-model-input" class="form-label">Default Model</label>
+                                    <input type="text" class="form-control" id="provider-model-input"
+                                        placeholder="openai/gpt-4o-mini">
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="provider-set-active-checkbox">
+                                    <label class="form-check-label" for="provider-set-active-checkbox">
+                                        Set as active upon saving
+                                    </label>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Provider</button>
+                                <button type="button" class="btn btn-secondary" id="reset-provider-form-btn">Clear Form</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label for="openai_model_name" class="form-label">Default Model Name</label>
-                    <input type="text" class="form-control" id="openai_model_name" name="openai_model_name"
-                        value="{{ openai_model_name }}" placeholder="openai/gpt-4o-mini">
-                </div>
-                <button type="submit" class="btn btn-primary">Save Provider Settings</button>
-            </form>
+            </div>
+
+            
+            <h6 class="mt-4">Configured Providers</h6>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Base URL</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="provider-list-body">
+                    
+                </tbody>
+            </table>
         </div>
     </div>
+
 
     <div class="card mt-3">
         <div class="card-body">
@@ -165,14 +224,7 @@
         <div class="card-body">
             <h5 class="card-title">🚀 Streaming Settings</h5>
             <form action="/set_streaming_settings" method="POST">
-                <!--
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" role="switch" id="streaming_enabled" name="streaming_enabled"
-                           {% if streaming_enabled %}checked{% endif %} onchange="this.form.submit()">
-                    <label class="form-check-label" for="streaming_enabled">Enable Response Streaming</label>
-                </div>
-                <div class="form-text">When enabled, the model's response will be streamed back to the client as it's generated.</div>
-                -->
+                
                 <div class="form-check form-switch mt-3">
                     <input class="form-check-input" type="checkbox" role="switch" id="streaming_progress_enabled"
                         name="streaming_progress_enabled" {% if streaming_progress_enabled %}checked{% endif %}
@@ -408,6 +460,132 @@
             </form>
         </div>
     </div>
-
-
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadProviders();
+    
+    // Handle Provider Form Submit
+    document.getElementById('provider-manager-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        saveProvider();
+    });
+    
+    document.getElementById('reset-provider-form-btn').addEventListener('click', resetProviderForm);
+    
+    document.getElementById('set-active-provider-btn').addEventListener('click', function() {
+        const selectedId = document.getElementById('active-provider-select').value;
+        if(selectedId) setActiveProvider(selectedId);
+    });
+});
+
+function loadProviders() {
+    fetch('/get_ai_providers')
+    .then(response => response.json())
+    .then(data => {
+        const providers = data.providers || {};
+        const activeId = data.active_provider_id;
+        const tbody = document.getElementById('provider-list-body');
+        const select = document.getElementById('active-provider-select');
+        
+        tbody.innerHTML = '';
+        select.innerHTML = '';
+        
+        Object.values(providers).forEach(p => {
+            const isActive = p.id === activeId;
+            const tr = document.createElement('tr');
+            if(isActive) tr.classList.add('table-active');
+            
+            tr.innerHTML = `
+                <td>${p.name || 'Unnamed'}</td>
+                <td><small>${p.base_url}</small></td>
+                <td>${isActive ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
+                <td>
+                    <button class="btn btn-sm btn-primary me-1" onclick="editProvider('${p.id}')">Edit</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteProvider('${p.id}')">Delete</button>
+                    ${!isActive ? `<button class="btn btn-sm btn-outline-success ms-1" onclick="setActiveProvider('${p.id}')">Set Active</button>` : ''}
+                </td>
+            `;
+            tbody.appendChild(tr);
+            
+            const option = document.createElement('option');
+            option.value = p.id;
+            option.text = `${p.name} ${isActive ? '(Active)' : ''}`;
+            option.selected = isActive;
+            select.appendChild(option);
+        });
+        
+        // Store data globally for edit access
+        window.allProviders = providers;
+    });
+}
+
+function saveProvider() {
+    const id = document.getElementById('provider-id-hidden').value;
+    const data = {
+        id: id || undefined,
+        name: document.getElementById('provider-name-input').value,
+        base_url: document.getElementById('provider-base-url-input').value,
+        api_key: document.getElementById('provider-api-key-input').value,
+        model: document.getElementById('provider-model-input').value,
+        set_active: document.getElementById('provider-set-active-checkbox').checked
+    };
+    
+    fetch('/save_ai_provider', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    }).then(res => res.json())
+      .then(() => {
+          loadProviders();
+          resetProviderForm();
+          // Close accordion if open
+          const accordionBtn = document.querySelector('#headingProviderOne button');
+          if(!accordionBtn.classList.contains('collapsed')) accordionBtn.click();
+      });
+}
+
+function editProvider(id) {
+    const p = window.allProviders[id];
+    if(!p) return;
+    
+    document.getElementById('provider-id-hidden').value = p.id;
+    document.getElementById('provider-name-input').value = p.name;
+    document.getElementById('provider-base-url-input').value = p.base_url;
+    document.getElementById('provider-api-key-input').value = p.api_key || '';
+    document.getElementById('provider-model-input').value = p.model || '';
+    document.getElementById('provider-set-active-checkbox').checked = false;
+    
+    // Open accordion
+    const accordionBtn = document.querySelector('#headingProviderOne button');
+    if(accordionBtn.classList.contains('collapsed')) accordionBtn.click();
+}
+
+function deleteProvider(id) {
+    if(!confirm('Delete this provider?')) return;
+    fetch('/delete_ai_provider', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+    }).then(() => loadProviders());
+}
+
+function setActiveProvider(id) {
+    fetch('/set_active_ai_provider', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+    }).then(() => loadProviders());
+}
+
+function resetProviderForm() {
+    document.getElementById('provider-manager-form').reset();
+    document.getElementById('provider-id-hidden').value = '';
+}
+
+// Make functions global for onclick events
+window.editProvider = editProvider;
+window.deleteProvider = deleteProvider;
+window.setActiveProvider = setActiveProvider;
+</script>

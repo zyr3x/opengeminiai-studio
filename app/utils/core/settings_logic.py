@@ -1,6 +1,7 @@
 from app.config import config
 from app.utils.core import tools as utils, mcp_handler
 from app.utils.core.api_key_manager import api_key_manager
+from app.utils.core.ai_provider_manager import ai_provider_manager
 from dotenv import set_key
 import os
 def handle_add_or_update_api_key(data):
@@ -231,13 +232,64 @@ def handle_set_ai_provider_settings(form):
     openai_api_key = form.get('openai_api_key', '').strip()
     openai_model_name = form.get('openai_model_name', '').strip()
 
+    # Legacy support: also update env vars for default behavior
     env_file = '.env'
     set_key(env_file, 'OPENAI_BASE_URL', openai_base_url)
     set_key(env_file, 'OPENAI_API_KEY', openai_api_key)
     set_key(env_file, 'OPENAI_MODEL_NAME', openai_model_name)
 
-    config.OPENAI_BASE_URL = openai_base_url
-    config.OPENAI_API_KEY = openai_api_key
-    config.OPENAI_MODEL_NAME = openai_model_name
+    # Also update the manager's default provider if it exists
+    # or create it if not
+    data = {
+        "id": "default_env",
+        "name": "Default (from .env)",
+        "base_url": openai_base_url,
+        "api_key": openai_api_key,
+        "model": openai_model_name,
+        "set_active": True
+    }
+    ai_provider_manager.add_or_update_provider(data)
+    ai_provider_manager.set_active_provider("default_env")
+    config.load_ai_provider()
 
-    utils.log(f"AI Provider settings updated: base_url={openai_base_url}, model={openai_model_name}")
+    utils.log(f"AI Provider settings updated via legacy form: base_url={openai_base_url}, model={openai_model_name}")
+
+# --- Multi-Provider Logic ---
+
+def handle_get_ai_providers():
+    return ai_provider_manager.get_all_providers_data(), 200
+
+def handle_save_ai_provider(data):
+    if not data:
+        return {"error": "No data provided"}, 400
+    
+    if not data.get('name') or not data.get('base_url'):
+        return {"error": "Name and Base URL are required"}, 400
+        
+    provider_id = ai_provider_manager.add_or_update_provider(data)
+    
+    if data.get('set_active'):
+        ai_provider_manager.set_active_provider(provider_id)
+        config.load_ai_provider()
+        
+    return {"message": "Provider saved successfully", "id": provider_id}, 200
+
+def handle_delete_ai_provider(data):
+    p_id = data.get('id')
+    if not p_id:
+        return {"error": "ID is required"}, 400
+        
+    if ai_provider_manager.delete_provider(p_id):
+        config.load_ai_provider()
+        return {"message": "Provider deleted"}, 200
+    return {"error": "Provider not found"}, 404
+
+def handle_set_active_ai_provider(data):
+    p_id = data.get('id')
+    if not p_id:
+        return {"error": "ID is required"}, 400
+        
+    if ai_provider_manager.set_active_provider(p_id):
+        config.load_ai_provider()
+        return {"message": "Active provider updated"}, 200
+    return {"error": "Provider not found"}, 404

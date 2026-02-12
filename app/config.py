@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv, set_key
 from app.utils.core.api_key_manager import api_key_manager
+from app.utils.core.ai_provider_manager import ai_provider_manager
+
 load_dotenv()
 class AppConfig:
     def __init__(self):
@@ -22,11 +24,7 @@ class AppConfig:
         self.AGENT_AUX_MODEL_NAME = os.getenv("AGENT_AUX_MODEL_NAME", "gemini-flash-latest")
         
         # AI Provider settings
-        # Provider is determined automatically from model name.
-        # These settings are used when the detected provider is 'openai'
-        self.OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
-        self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-        self.OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
+        self.load_ai_provider()
 
         # Agent Intelligence settings
         self.AGENT_INTELLIGENCE_ENABLED = os.getenv("AGENT_INTELLIGENCE_ENABLED", "true").lower() == "true"
@@ -67,6 +65,21 @@ class AppConfig:
         self.FAVICON = ''
         with open(os.path.realpath(os.path.expanduser("static/img/logo.svg")), 'r', encoding='utf-8', errors='ignore') as f:
             self.FAVICON = f.read()
+            
+    def load_ai_provider(self):
+        """Load the active AI provider settings"""
+        # Default from env
+        self.OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+        self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+        self.OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
+
+        # Override with active provider from manager
+        active = ai_provider_manager.get_active_provider()
+        if active:
+            self.OPENAI_BASE_URL = active.get('base_url', self.OPENAI_BASE_URL)
+            self.OPENAI_API_KEY = active.get('api_key', self.OPENAI_API_KEY)
+            self.OPENAI_MODEL_NAME = active.get('model', self.OPENAI_MODEL_NAME)
+            
     def set_param(self, name: str, value: str):
         setattr(self, name, value)
         set_key('.env', name, str(value))
