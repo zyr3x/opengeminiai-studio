@@ -2,6 +2,7 @@ import json
 import os
 import time
 import fnmatch
+import asyncio
 from quart import Blueprint, request, jsonify, Response
 from typing import AsyncGenerator
 from app.config import config
@@ -9,8 +10,11 @@ from app.utils.core import tools as utils
 from app.utils.core import tool_config_utils
 from app.utils.quart import optimization, utils as quart_utils, mcp_handler as async_mcp_handler
 from app.utils.core import mcp_handler
+from app.utils.core import file_processing_utils
 import traceback
+
 async_proxy_bp = Blueprint('proxy', __name__)
+
 @async_proxy_bp.route('/v1/chat/completions', methods=['POST'])
 async def async_chat_completions():
     if not config.API_KEY:
@@ -62,7 +66,6 @@ async def async_chat_completions():
             if override_config['profile_selected_mcp_tools']:
                 profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
 
-            from app.utils.core import file_processing_utils
             processed_messages = []
             processed_code_paths = set()
 
@@ -75,7 +78,9 @@ async def async_chat_completions():
                             if find in content:
                                 content = content.replace(find, replace)
 
-                    processed_content, project_path_found, new_system_context = file_processing_utils.process_message_for_paths(
+                    # Offload file processing to thread to avoid blocking the event loop
+                    processed_content, project_path_found, new_system_context = await asyncio.to_thread(
+                        file_processing_utils.process_message_for_paths,
                         content, processed_code_paths
                     )
 
@@ -203,7 +208,13 @@ async def async_chat_completions():
                             # Process tools
                             current_messages.append({"role": "assistant", "content": full_response_text, "tool_calls": tool_calls})
                             
-                            tool_calls_list = [{'name': tc['function']['name'], 'args': json.loads(tc['function']['arguments'])} for tc in tool_calls]
+                            tool_calls_list = []
+                            for tc in tool_calls:
+                                try:
+                                    args = json.loads(tc['function']['arguments'])
+                                except:
+                                    args = {}
+                                tool_calls_list.append({'name': tc['function']['name'], 'args': args})
                             
                             tool_results = await async_mcp_handler.execute_multiple_tools_async(tool_calls_list, project_context_root)
                             

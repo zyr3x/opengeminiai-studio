@@ -1,6 +1,7 @@
 import json
 import os
 import fnmatch
+import asyncio
 from quart import Blueprint, request, jsonify, Response, send_from_directory
 from app.config import config
 from app.utils.core import mcp_handler
@@ -12,12 +13,12 @@ from app.utils.quart import mcp_handler as async_mcp_handler
 from app.utils.core import chat_web_logic
 web_ui_chat_bp = Blueprint('web_ui_chat', __name__)
 @web_ui_chat_bp.route('/api/chats', methods=['GET'])
-def get_chats():
-    chats = chat_db_utils.get_all_chats()
+async def get_chats():
+    chats = await asyncio.to_thread(chat_db_utils.get_all_chats)
     return jsonify(chats)
 @web_ui_chat_bp.route('/api/chats', methods=['POST'])
-def create_chat():
-    new_chat = chat_db_utils.create_new_chat()
+async def create_chat():
+    new_chat = await asyncio.to_thread(chat_db_utils.create_new_chat)
     return jsonify(new_chat), 201
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>/title', methods=['PUT'])
 async def update_chat_title(chat_id):
@@ -26,23 +27,23 @@ async def update_chat_title(chat_id):
     if not new_title:
         return jsonify({'error': 'Title is required'}), 400
     try:
-        chat_db_utils.update_chat_title_in_db(chat_id, new_title)
+        await asyncio.to_thread(chat_db_utils.update_chat_title_in_db, chat_id, new_title)
         return jsonify({'success': True, 'new_title': new_title})
     except Exception as e:
         tools.log(f"Error updating title for chat {chat_id}: {e}")
         return jsonify({'error': str(e)}), 500
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>', methods=['DELETE'])
-def delete_chat(chat_id):
-    chat_db_utils.delete_chat_and_files(chat_id)
+async def delete_chat(chat_id):
+    await asyncio.to_thread(chat_db_utils.delete_chat_and_files, chat_id)
     return jsonify({'success': True}), 200
 @web_ui_chat_bp.route('/api/chats/<int:chat_id>/messages', methods=['GET'])
-def get_chat_messages(chat_id):
-    formatted_messages = chat_db_utils.get_messages_for_chat(chat_id)
+async def get_chat_messages(chat_id):
+    formatted_messages = await asyncio.to_thread(chat_db_utils.get_messages_for_chat, chat_id)
     return jsonify(formatted_messages)
 @web_ui_chat_bp.route('/api/messages/<int:message_id>', methods=['DELETE'])
-def delete_message(message_id):
+async def delete_message(message_id):
     try:
-        chat_db_utils.delete_message_from_db(message_id)
+        await asyncio.to_thread(chat_db_utils.delete_message_from_db, message_id)
         return jsonify({'success': True}), 200
     except Exception as e:
         tools.log(f"Error deleting message {message_id}: {e}")
@@ -134,7 +135,10 @@ async def generate_image_api():
     model = form.get('model', 'gemini-2.5-flash-image')
     prompt = form.get('prompt', '')
     generation_type = form.get('generation_type', 'image')
-    result, status_code = chat_web_logic.generate_image_logic(chat_id, model, prompt, generation_type)
+    # Offload synchronous request to thread
+    result, status_code = await asyncio.to_thread(
+        chat_web_logic.generate_image_logic, chat_id, model, prompt, generation_type
+    )
     return jsonify(result), status_code
 @web_ui_chat_bp.route('/chat_api', methods=['POST'])
 async def chat_api():
@@ -142,7 +146,14 @@ async def chat_api():
         return jsonify({"error": "API key not configured."}), 401
 
     try:
-        data, status, error = chat_web_logic.prepare_chat_data(await request.form, await request.files)
+        # Prepare chat data runs DB and File operations sync, offload it
+        form_data = await request.form
+        files_data = await request.files
+        
+        data, status, error = await asyncio.to_thread(
+            chat_web_logic.prepare_chat_data, form_data, files_data
+        )
+        
         if error:
             return jsonify(data), status
 
@@ -246,7 +257,7 @@ async def chat_api():
                             if current_tool_call: tool_calls.append(current_tool_call)
                             
                             if full_response_text:
-                                tools.add_message_to_db(chat_id, 'model', [{"text": full_response_text}])
+                                await asyncio.to_thread(tools.add_message_to_db, chat_id, 'model', [{"text": full_response_text}])
                                 messages.append({"role": "assistant", "content": full_response_text})
                             
                             if not tool_calls:
@@ -278,7 +289,7 @@ async def chat_api():
                                 })
                             
                             if tool_response_parts:
-                                tools.add_message_to_db(chat_id, 'tool', tool_response_parts)
+                                await asyncio.to_thread(tools.add_message_to_db, chat_id, 'tool', tool_response_parts)
 
                     except Exception as e:
                         yield f"ERROR: OpenAI Provider: {e}"
@@ -388,7 +399,7 @@ async def chat_api():
                         yield final_text
 
                 if model_response_parts:
-                    bot_message_id = tools.add_message_to_db(chat_id, 'model', model_response_parts)
+                    bot_message_id = await asyncio.to_thread(tools.add_message_to_db, chat_id, 'model', model_response_parts)
                     yield f'__LLM_EVENT__{json.dumps({"type": "message_id", "id": bot_message_id})}'
 
                 if not tool_calls:
@@ -402,7 +413,7 @@ async def chat_api():
                 tool_response_parts = await async_mcp_handler.execute_multiple_tools_async(tool_calls_list, project_root_override=project_context_root)
 
                 if tool_response_parts:
-                    tools.add_message_to_db(chat_id, 'tool', tool_response_parts)
+                    await asyncio.to_thread(tools.add_message_to_db, chat_id, 'tool', tool_response_parts)
                 current_contents.append({"role": "tool", "parts": tool_response_parts})
 
         return Response(generate(), mimetype='text/event-stream')
