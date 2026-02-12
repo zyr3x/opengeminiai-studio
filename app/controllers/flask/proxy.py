@@ -12,6 +12,7 @@ from app.utils.core import mcp_handler, tools as utils
 from app.utils.core import tool_config_utils
 from app.utils.flask.optimization import record_token_usage
 from app.utils.core.optimization_utils import can_execute_parallel
+from app.utils.core.ai_provider_manager import ai_provider_manager
 
 import traceback
 from app.utils.core import file_processing_utils
@@ -92,9 +93,21 @@ def chat_completions():
             full_prompt_text = ""
 
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
-        provider = utils.get_provider_for_model(COMPLETION_MODEL)
+        
+        # Determine provider: Check registration first to catch custom providers serving Gemini models
+        if ai_provider_manager.is_model_registered(COMPLETION_MODEL):
+            provider = 'openai'
+        else:
+            provider = utils.get_provider_for_model(COMPLETION_MODEL)
 
         if provider == 'openai':
+            # Resolve provider credentials dynamically
+            provider_conf = ai_provider_manager.get_provider_for_model(COMPLETION_MODEL)
+            
+            # Fallback values from config if provider lookup fails or returns partial data
+            base_url = provider_conf.get('base_url') if provider_conf else config.OPENAI_BASE_URL
+            api_key = provider_conf.get('api_key') if provider_conf else config.OPENAI_API_KEY
+            
             def generate_openai():
                 current_messages = messages.copy()
                 # Inject system prompt if needed
@@ -144,7 +157,7 @@ def chat_completions():
                     try:
                         headers = {
                             "Content-Type": "application/json",
-                            "Authorization": f"Bearer {config.OPENAI_API_KEY}",
+                            "Authorization": f"Bearer {api_key}",
                             # OpenRouter specific headers
                             "HTTP-Referer": "https://github.com/zyr3x/opengeminiai-studio",
                             "X-Title": "OpenGeminiAI Studio"
@@ -153,7 +166,7 @@ def chat_completions():
                         utils.debug(f"Outgoing OpenRouter Request Data: {utils.pretty_json(request_data)}")
 
                         response = requests.post(
-                            f"{config.OPENAI_BASE_URL}/chat/completions",
+                            f"{base_url}/chat/completions",
                             headers=headers,
                             json=request_data,
                             stream=True,
@@ -161,7 +174,7 @@ def chat_completions():
                         )
                         response.raise_for_status()
                     except Exception as e:
-                        err_msg = f"OpenAI Provider Error: {e}"
+                        err_msg = f"OpenAI Provider Error ({base_url}): {e}"
                         utils.log(err_msg)
                         error_chunk = {
                             "id": f"chatcmpl-{os.urandom(12).hex()}",
@@ -670,29 +683,47 @@ def list_models():
         except Exception as e:
             utils.log(f"Error fetching Gemini models: {e}")
 
-        # 2. Fetch OpenAI/OpenRouter Models
-        if config.OPENAI_API_KEY and config.OPENAI_BASE_URL:
-            try:
-                OPENAI_MODELS_URL = f"{config.OPENAI_BASE_URL}/models"
-                headers = {
-                    "Authorization": f"Bearer {config.OPENAI_API_KEY}",
-                    "HTTP-Referer": "https://github.com/zyr3x/opengeminiai-studio",
-                    "X-Title": "OpenGeminiAI Studio"
-                }
-                response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
-                if response.status_code == 200:
-                    openai_models_data = response.json()
-                    for model in openai_models_data.get("data", []):
-                        openai_models_list.append({
-                            "id": model.get("id"), "object": "model",
-                            "created": model.get("created", 1677649553),
-                            "owned_by": model.get("owned_by", "openai-compatible"),
-                            "permission": []
-                        })
-                else:
-                    utils.log(f"Error fetching OpenAI models: Status {response.status_code}")
-            except Exception as e:
-                utils.log(f"Error fetching OpenAI models: {e}")
+        # 2. Fetch OpenAI/OpenRouter Models from ALL configured providers
+        providers = ai_provider_manager.get_all_providers_data().get('providers', {}).values()
+        
+        for provider in providers:
+            if provider.get('api_key') and provider.get('base_url'):
+                try:
+                    OPENAI_MODELS_URL = f"{provider['base_url']}/models"
+                    headers = {
+                        "Authorization": f"Bearer {provider['api_key']}",
+                        "HTTP-Referer": "https://github.com/zyr3x/opengeminiai-studio",
+                        "X-Title": "OpenGeminiAI Studio"
+                    }
+                    response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
+                    if response.status_code == 200:
+                        openai_models_data = response.json()
+                        for model in openai_models_data.get("data", []):
+                            model_id = model.get("id")
+                            openai_models_list.append({
+                                "id": model_id, "object": "model",
+                                "created": model.get("created", 1677649553),
+                                "owned_by": model.get("owned_by", "openai-compatible"),
+                                "permission": []
+                            })
+                            # Register model mapping to this provider
+                            ai_provider_manager.register_model(model_id, provider.get('id'))
+                    else:
+                        utils.log(f"Error fetching models from {provider.get('name')}: Status {response.status_code}")
+                except Exception as e:
+                    utils.log(f"Error fetching models from {provider.get('name')}: {e}")
+
+        # Deduplicate models (case-sensitive)
+        seen_ids = set()
+        unique_models_list = []
+        for m in openai_models_list:
+            if m['id'] not in seen_ids:
+                unique_models_list.append(m)
+                seen_ids.add(m['id'])
+        openai_models_list = unique_models_list
+
+        # Save model mappings to persist across restarts
+        ai_provider_manager.save_providers()
 
         if config.ALLOWED_MODELS and '*' not in config.ALLOWED_MODELS:
             openai_models_list = [
@@ -712,7 +743,6 @@ def list_models():
 
     except Exception as e:
         return jsonify({"error": f"Internal server error: {e}"}), 500
-
 @proxy_bp.route('/v1/system_prompts', methods=['GET'])
 def list_system_prompts():
     try:

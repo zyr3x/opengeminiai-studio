@@ -9,6 +9,8 @@ from app.utils.core import mcp_handler, tools as utils, logging, chat_db_utils
 from app.db import UPLOAD_FOLDER
 from app.utils.flask.optimization import record_token_usage
 from app.utils.core import chat_web_logic
+from app.utils.core.ai_provider_manager import ai_provider_manager
+
 web_ui_chat_bp = Blueprint('web_ui_chat', __name__)
 @web_ui_chat_bp.route('/api/chats', methods=['GET'])
 def get_chats():
@@ -52,8 +54,8 @@ def list_models():
     if not config.API_KEY:
         return jsonify({"error": {"message": "API key not configured.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:
-        if utils.cached_models_response:
-            return jsonify(utils.cached_models_response)
+        # if utils.cached_models_response:
+        #     return jsonify(utils.cached_models_response)
 
         openai_models_list = []
 
@@ -74,25 +76,43 @@ def list_models():
         except Exception as e:
             utils.log(f"Error fetching Gemini models: {e}")
 
-        # 2. Fetch OpenAI Models
-        if config.OPENAI_API_KEY and config.OPENAI_BASE_URL:
-            try:
-                OPENAI_MODELS_URL = f"{config.OPENAI_BASE_URL}/models"
-                headers = {"Authorization": f"Bearer {config.OPENAI_API_KEY}"}
-                response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
-                if response.status_code == 200:
-                    openai_models_data = response.json()
-                    for model in openai_models_data.get("data", []):
-                        openai_models_list.append({
-                            "id": model.get("id"), "object": "model",
-                            "created": model.get("created", 1677649553),
-                            "owned_by": model.get("owned_by", "openai-compatible"),
-                            "permission": []
-                        })
-                else:
-                    utils.log(f"Error fetching OpenAI models: Status {response.status_code}")
-            except Exception as e:
-                utils.log(f"Error fetching OpenAI models: {e}")
+        # 2. Fetch OpenAI Models from ALL configured providers
+        providers = ai_provider_manager.get_all_providers_data().get('providers', {}).values()
+        
+        for provider in providers:
+            if provider.get('api_key') and provider.get('base_url'):
+                try:
+                    OPENAI_MODELS_URL = f"{provider['base_url']}/models"
+                    headers = {"Authorization": f"Bearer {provider['api_key']}"}
+                    response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
+                    if response.status_code == 200:
+                        openai_models_data = response.json()
+                        for model in openai_models_data.get("data", []):
+                            model_id = model.get("id")
+                            openai_models_list.append({
+                                "id": model_id, "object": "model",
+                                "created": model.get("created", 1677649553),
+                                "owned_by": model.get("owned_by", "openai-compatible"),
+                                "permission": []
+                            })
+                            # Register mapping
+                            ai_provider_manager.register_model(model_id, provider.get('id'))
+                    else:
+                        utils.log(f"Error fetching OpenAI models from {provider.get('name')}: Status {response.status_code}")
+                except Exception as e:
+                    utils.log(f"Error fetching OpenAI models from {provider.get('name')}: {e}")
+
+        # Deduplicate
+        seen_ids = set()
+        unique_models_list = []
+        for m in openai_models_list:
+            if m['id'] not in seen_ids:
+                unique_models_list.append(m)
+                seen_ids.add(m['id'])
+        openai_models_list = unique_models_list
+
+        # Save mappings to disk
+        ai_provider_manager.save_providers()
 
         if config.ALLOWED_MODELS and '*' not in config.ALLOWED_MODELS:
             openai_models_list = [
@@ -141,8 +161,14 @@ def chat_api():
         profile_selected_mcp_tools = data['profile_selected_mcp_tools']
         disable_mcp_tools = data['disable_mcp_tools']
         enable_native_tools = data['enable_native_tools']
+        
+        # Determine provider: Check registration first to catch custom providers serving Gemini models
+        if ai_provider_manager.is_model_registered(model):
+            provider = 'openai'
+        else:
+            provider = utils.get_provider_for_model(model)
 
-        if utils.get_provider_for_model(model) == 'openai':
+        if provider == 'openai':
             def generate_openai():
                 # Reconstruct OpenAI style messages from gemini_contents
                 # This is an approximation as gemini_contents are already converted.
@@ -183,13 +209,20 @@ def chat_api():
                         request_data["tool_choice"] = "auto"
 
                     try:
+                        # Resolve provider credentials dynamically
+                        provider_conf = ai_provider_manager.get_provider_for_model(model)
+                        
+                        # Fallback values from config
+                        base_url = provider_conf.get('base_url') if provider_conf else config.OPENAI_BASE_URL
+                        api_key = provider_conf.get('api_key') if provider_conf else config.OPENAI_API_KEY
+
                         import requests
                         headers = {
                             "Content-Type": "application/json",
-                            "Authorization": f"Bearer {config.OPENAI_API_KEY}"
+                            "Authorization": f"Bearer {api_key}"
                         }
                         response = requests.post(
-                            f"{config.OPENAI_BASE_URL}/chat/completions",
+                            f"{base_url}/chat/completions",
                             headers=headers,
                             json=request_data,
                             stream=True,
@@ -197,7 +230,7 @@ def chat_api():
                         )
                         response.raise_for_status()
                     except Exception as e:
-                        yield f"ERROR: OpenAI Provider: {e}"
+                        yield f"ERROR: OpenAI Provider Error: {e}"
                         return
 
                     tool_calls = []

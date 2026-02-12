@@ -1,6 +1,6 @@
 from flask import Blueprint, request, redirect, url_for, jsonify
 from app.utils.core.api_key_manager import api_key_manager
-from app.utils.core import settings_logic
+from app.utils.core import settings_logic, tools as utils
 settings_bp = Blueprint('settings', __name__)
 @settings_bp.route('/get_api_key_data', methods=['GET'])
 def get_api_key_data():
@@ -56,6 +56,7 @@ def set_aux_model_enhanced_settings():
 @settings_bp.route('/set_ai_provider_settings', methods=['POST'])
 def set_ai_provider_settings():
     settings_logic.handle_set_ai_provider_settings(request.form)
+    utils.cached_models_response = None  # Clear model cache
     return redirect(url_for('web_ui.index', _anchor='configuration'))
 
 # --- New Multi-Provider Endpoints ---
@@ -68,16 +69,19 @@ def get_ai_providers():
 @settings_bp.route('/save_ai_provider', methods=['POST'])
 def save_ai_provider():
     data, status = settings_logic.handle_save_ai_provider(request.json)
+    utils.cached_models_response = None  # Clear model cache
     return jsonify(data), status
 
 @settings_bp.route('/delete_ai_provider', methods=['POST'])
 def delete_ai_provider():
     data, status = settings_logic.handle_delete_ai_provider(request.json)
+    utils.cached_models_response = None  # Clear model cache
     return jsonify(data), status
 
 @settings_bp.route('/set_active_ai_provider', methods=['POST'])
 def set_active_ai_provider():
     data, status = settings_logic.handle_set_active_ai_provider(request.json)
+    utils.cached_models_response = None  # Clear model cache
     return jsonify(data), status
 
 @settings_bp.route('/get_agent_stats', methods=['GET'])
