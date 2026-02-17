@@ -661,8 +661,8 @@ def list_models():
     if not config.API_KEY:
         return jsonify({"error": {"message": "API key not configured.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:
-        #if utils.cached_models_response:
-        #    return jsonify(utils.cached_models_response)
+        if utils.cached_models_response:
+            return jsonify(utils.cached_models_response)
 
         openai_models_list = []
 
