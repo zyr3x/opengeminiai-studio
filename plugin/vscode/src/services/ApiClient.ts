@@ -7,7 +7,9 @@ import { McpToolsResponse } from '../model';
 
 export class ApiClient {
     private static getBaseUrl(): string {
-        return (vscode.workspace.getConfiguration('opengeminiai').get('baseUrl') as string).replace(/\/$/, '');
+        const config = vscode.workspace.getConfiguration('opengeminiai');
+        const url = config.get<string>('baseUrl') || 'http://localhost:8080';
+        return url.replace(/\/$/, '');
     }
 
     static async getPromptText(type: string): Promise<string> {

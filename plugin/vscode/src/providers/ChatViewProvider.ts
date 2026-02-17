@@ -55,6 +55,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 case 'updateState': this.updateState(m.key, m.value); break;
                 case 'addContext': this.openContextDialog(m.option); break;
                 case 'openSettings': vscode.commands.executeCommand('workbench.action.openSettings', 'opengeminiai'); break;
+                case 'filesDropped': this.handleFilesDropped(m.paths); break;
             }
         });
     }
@@ -194,6 +195,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         await editor.edit(edit => edit.replace(fullRange, content));
     }
 
+    private handleFilesDropped(paths: string[]) {
+        const attachments = paths.map(p => ({
+            type: 'file' as const,
+            name: path.basename(p),
+            data: p
+        }));
+        this._view?.webview.postMessage({ type: 'addAttachments', attachments });
+    }
+
     private createNewChat() {
         const id = Date.now().toString();
         this.conversations.unshift({ id, title: "New Chat", messages: [], timestamp: Date.now(), draftInput: "", draftAttachments: [] });
@@ -260,7 +270,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         body { margin: 0; padding: 0; font-family: var(--vscode-font-family); background: var(--bg); color: var(--fg); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         .header { padding: 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .sidebar-toggle { cursor: pointer; padding: 4px; font-size: 16px; }
-        .main { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 12px; }
+        .main { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 12px; transition: background 0.2s; }
+        .main.drag-over { background: rgba(127, 127, 127, 0.2); }
         .bubble { padding: 8px 12px; border-radius: 6px; font-size: 13px; max-width: 95%; }
         .user { align-self: flex-end; background: var(--vscode-button-secondaryBackground); }
         .assistant { align-self: flex-start; background: var(--vscode-editor-background); border: 1px solid var(--border); }
@@ -303,7 +314,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     <div class="main" id="list"></div>
     <div class="footer">
         <div id="attachments" style="display:flex; gap:4px; margin-bottom:4px; flex-wrap:wrap"></div>
-        <div class="input-box"><textarea id="input" placeholder="Ask AI..."></textarea></div>
+        <div class="input-box"><textarea id="input" placeholder="Ask AI... (Drag & Drop files here)"></textarea></div>
         <div class="actions">
             <div style="display:flex; gap:4px">
                 <button class="btn" id="attach-btn">📎</button>
@@ -326,6 +337,36 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const attachBtn = document.getElementById('attach-btn');
         const menu = document.getElementById('ctx-menu');
         const sidebar = document.getElementById('sidebar');
+
+        // Drag and Drop Logic
+        const dropZone = document.body;
+        const mainList = document.getElementById('list');
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            mainList.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Only remove if we left the window, otherwise it flickers
+            if (e.clientX === 0 || e.clientY === 0) {
+                 mainList.classList.remove('drag-over');
+            }
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            mainList.classList.remove('drag-over');
+            
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const files = Array.from(e.dataTransfer.files).map(f => f.path);
+                vscode.postMessage({type: 'filesDropped', paths: files});
+            }
+        });
 
         function toggleSidebar() { sidebar.classList.toggle('open'); }
 
