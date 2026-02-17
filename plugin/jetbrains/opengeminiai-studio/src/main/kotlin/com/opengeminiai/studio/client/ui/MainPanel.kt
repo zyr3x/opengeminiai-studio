@@ -6,6 +6,7 @@ import com.opengeminiai.studio.client.service.ChatInterfaceService
 import com.opengeminiai.studio.client.service.PersistenceService
 import com.opengeminiai.studio.client.Icons
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.util.ExecUtil
 import com.intellij.openapi.actionSystem.*
@@ -47,7 +48,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class MainPanel(val project: Project) {
 
-    private val gson = Gson()
+    private val gson = GsonBuilder().setLenient().create()
     private val chatListModel = DefaultListModel<Conversation>()
     private var currentConversation: Conversation? = null
     private var appSettings: AppSettings = AppSettings()
@@ -1280,54 +1281,33 @@ class MainPanel(val project: Project) {
         var changes: List<FileChange>? = null
         var parsingError: String? = null
 
-        val startMarkerPattern = Pattern.compile("```json\\s*")
-        val matcher = startMarkerPattern.matcher(response)
-
-        if (matcher.find()) {
-            val contentStart = matcher.end()
-            val endMarker = "```"
-            var searchStart = contentStart
-
-            while (true) {
-                val endIndex = response.indexOf(endMarker, searchStart)
-                if (endIndex == -1) break
-
-                val jsonContent = response.substring(contentStart, endIndex).trim()
-                // Only attempt if it looks like a change proposal to avoid false positives on random JSON
-                if (jsonContent.contains("\"propose_changes\"")) {
-                    try {
-                        val request = gson.fromJson(jsonContent, ChangeRequest::class.java)
-                        if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
-                            changes = request.changes
-                            // Remove the JSON block from the text shown to user
-                            textPart = (response.substring(0, matcher.start()) + response.substring(endIndex + endMarker.length)).trim()
-                            break 
-                        }
-                    } catch (e: Exception) {
-                        parsingError = "Invalid JSON in response: ${e.message}"
+        // Strategy 1: Look for Markdown Code Blocks (```json, ```, etc)
+        val codeBlockPattern = Pattern.compile("```(?:json)?\\s*(\\{[\\s\\S]*?\\})\\s*```", Pattern.CASE_INSENSITIVE)
+        val matcher = codeBlockPattern.matcher(response)
+        
+        while (matcher.find()) {
+            val content = matcher.group(1).trim()
+            if (content.contains("\"propose_changes\"")) {
+                 try {
+                    val request = gson.fromJson(content, ChangeRequest::class.java)
+                    if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
+                        changes = request.changes
+                        // Remove the whole block
+                        textPart = response.replace(matcher.group(0), "").trim()
+                        break
                     }
-                }
-                searchStart = endIndex + 1
+                } catch (e: Exception) { }
             }
         }
 
-        // Fallback for raw JSON if no markdown block matched or parsed
-        if (changes == null && parsingError == null) {
-            val jsonStart = response.indexOf("{")
-            val jsonEnd = response.lastIndexOf("}")
-            if (jsonStart != -1 && jsonEnd > jsonStart) {
-                val potentialJson = response.substring(jsonStart, jsonEnd + 1)
-                if (potentialJson.contains("\"propose_changes\"")) {
-                    try {
-                        val request = gson.fromJson(potentialJson, ChangeRequest::class.java)
-                        if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
-                            changes = request.changes
-                            textPart = response.replace(potentialJson, "").trim()
-                        }
-                    } catch (e: Exception) {
-                         parsingError = "Invalid raw JSON in response: ${e.message}"
-                    }
-                }
+        // Strategy 2: Fallback to scanning raw text using brace balancing
+        if (changes == null) {
+            val (extractedChanges, remainingText) = extractJsonChange(response)
+            if (extractedChanges != null) {
+                changes = extractedChanges
+                textPart = remainingText
+            } else if (response.contains("\"propose_changes\"")) {
+                parsingError = "Detected 'propose_changes' but failed to extract valid JSON. Please check formatting."
             }
         }
 
@@ -1380,6 +1360,65 @@ class MainPanel(val project: Project) {
         ApplicationManager.getApplication().executeOnPooledThread {
             PersistenceService.save(project, conversationsToSave, appSettings)
         }
+    }
+
+    private fun extractJsonChange(text: String): Pair<List<FileChange>?, String> {
+        if (!text.contains("propose_changes")) return null to text
+
+        var cursor = -1
+        while (true) {
+            cursor = text.indexOf("{", cursor + 1)
+            if (cursor == -1) break
+
+            val closingIndex = findMatchingClosingBrace(text, cursor)
+            if (closingIndex != -1) {
+                val candidate = text.substring(cursor, closingIndex + 1)
+                // Check if this block looks like what we want before parsing
+                if (candidate.contains("\"action\"") && candidate.contains("\"propose_changes\"")) {
+                    try {
+                        val request = gson.fromJson(candidate, ChangeRequest::class.java)
+                        if (request.action == "propose_changes" && !request.changes.isNullOrEmpty()) {
+                            val newText = text.replaceRange(cursor, closingIndex + 1, "").trim()
+                            return request.changes to newText
+                        }
+                    } catch (e: Exception) {
+                        // Invalid JSON, ignore
+                    }
+                }
+            }
+        }
+        return null to text
+    }
+
+    private fun findMatchingClosingBrace(text: String, openIndex: Int): Int {
+        var balance = 0
+        var inString = false
+        var isEscaped = false
+        for (i in openIndex until text.length) {
+            val c = text[i]
+
+            if (isEscaped) {
+                isEscaped = false
+                continue
+            }
+            if (c == '\\') {
+                isEscaped = true
+                continue
+            }
+            if (c == '"') {
+                inString = !inString
+            }
+
+            if (!inString) {
+                if (c == '{') {
+                    balance++
+                } else if (c == '}') {
+                    balance--
+                    if (balance == 0) return i
+                }
+            }
+        }
+        return -1
     }
 
     private fun stopSending() { 
