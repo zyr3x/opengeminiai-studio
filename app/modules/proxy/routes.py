@@ -212,8 +212,12 @@ def chat_completions():
                                         # Record using the active provider's API key and model
                                         record_token_usage(api_key, COMPLETION_MODEL, prompt_tokens, completion_tokens)
 
-                                delta = chunk.get('choices', [{}])[0].get('delta', {})
-                                finish_reason = chunk.get('choices', [{}])[0].get('finish_reason')
+                                choices = chunk.get('choices', [])
+                                if not choices:
+                                    continue
+                                    
+                                delta = choices[0].get('delta', {})
+                                finish_reason = choices[0].get('finish_reason')
 
                                 if 'content' in delta and delta['content']:
                                     content_chunk = delta['content']

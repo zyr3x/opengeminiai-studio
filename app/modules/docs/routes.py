@@ -5,7 +5,7 @@ from apispec.ext.marshmallow import MarshmallowPlugin
 
 # Initialize APISpec
 spec = APISpec(
-    title="GeminiProxy Unified API",
+    title="OpenGeminiAI Studio Unified API",
     version="1.0.0",
     openapi_version="3.0.2",
     plugins=[MarshmallowPlugin()],
@@ -117,6 +117,6 @@ swagger_ui_bp = get_swaggerui_blueprint(
     swagger_url,
     api_url,
     config={
-        'app_name': "GeminiProxy API"
+        'app_name': "OpenGeminiAI Studio API"
     }
 )

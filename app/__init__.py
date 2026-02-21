@@ -8,7 +8,7 @@ from .autoloader import Autoloader
 from asgiref.wsgi import WsgiToAsgi
 
 def create_app():
-    """Application factory for the GeminiProxy unified architecture."""
+    """Application factory for the OpenGeminiAI Studio unified architecture."""
     template_dir = Path(__file__).parent.parent / 'templates'
     static_dir = Path(__file__).parent.parent / 'static'
     
@@ -50,7 +50,7 @@ async def run_asgi(app: Flask):
     hypercorn_config.accesslog = "-"
     hypercorn_config.errorlog = "-"
     
-    print(f"🚀 Starting Unified GeminiProxy on http://{settings.SERVER_HOST}:{settings.SERVER_PORT}")
+    print(f"🚀 Starting Unified OpenGeminiAI Studio on http://{settings.SERVER_HOST}:{settings.SERVER_PORT}")
     
     # Serve the wrapped ASGI Flask app asynchronously
     await serve(asgi_flask_app, hypercorn_config)
