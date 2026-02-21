@@ -16,3 +16,4 @@ package-lock.json
 .vscode/
 out/
 node_modules/
+*.pyc
