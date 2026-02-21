@@ -79,9 +79,9 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#logs">
+                        <a class="nav-link text-nowrap" href="#logs">
                             <i class="material-icons me-1">terminal</i>
-                            Logs
+                            DevOps & Logs
                         </a>
                     </li>
                     <li class="nav-item">
@@ -93,9 +93,6 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#mcp"><span class="material-icons">handyman</span> MCP</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#devops"><span class="material-icons">rocket_launch</span> DevOps</a>
                     </li>
                     <li class="nav-item d-flex align-items-center ms-md-3">
                         <div class="form-check form-switch mb-0">
@@ -154,13 +151,13 @@
         mermaid.initialize({ startOnLoad: false, theme: theme });
         window.mermaid = mermaid;
     </script>
-    <script src="{{ url_for('static', filename='js/mcp_editor.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/prompt_editor.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/agent_stats.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/metrics_updater.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/logs.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/mcp_editor.js') }}?v=v4.1"></script>
+    <script src="{{ url_for('static', filename='js/prompt_editor.js') }}?v=v4.1"></script>
+    <script src="{{ url_for('static', filename='js/agent_stats.js') }}?v=v4.1"></script>
+    <script src="{{ url_for('static', filename='js/metrics_updater.js') }}?v=v4.1"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}?v=v4.1"></script>
+    <script src="{{ url_for('static', filename='js/logs.js') }}?v=v4.1"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=v4.1"></script>
 
     <!-- Module Hooks: base_scripts -->
     {{ render_hooks('base_scripts') | safe }}

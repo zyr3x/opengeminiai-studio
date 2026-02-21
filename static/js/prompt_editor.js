@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const promptForm = document.getElementById('prompt-form');
     if (!promptForm) {
         return; // Don't run if the prompt editor form is not on the page
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     // Add event delegation for the enabled switch to visually update the item
-    promptProfilesContainer.addEventListener('change', function(e) {
+    promptProfilesContainer.addEventListener('change', function (e) {
         if (e.target.classList.contains('enabled-switch')) {
             const accordionItem = e.target.closest('.accordion-item');
             if (accordionItem) {
@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Add event delegation for system prompt enabled switch to visually update the item
-    systemPromptProfilesContainer?.addEventListener('change', function(e) {
+    systemPromptProfilesContainer?.addEventListener('change', function (e) {
         if (e.target.classList.contains('system-enabled-switch')) {
             const accordionItem = e.target.closest('.accordion-item');
             if (accordionItem) {
@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Add event delegation for Agent prompt container
-    agentPromptProfilesContainer?.addEventListener('change', function(e) {
+    agentPromptProfilesContainer?.addEventListener('change', function (e) {
         // Agent prompts do not have an 'enabled' switch yet, but we keep the structure flexible
     });
 
@@ -121,17 +121,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // for existing profiles, or immediately for new ones that start 'show'.
 
         // Delete Profile
-        profileDiv.querySelector('.delete-profile-btn')?.addEventListener('click', function() {
+        profileDiv.querySelector('.delete-profile-btn')?.addEventListener('click', function () {
             // Destroy TomSelect instance before removing the element
             const mcpToolsSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
             if (mcpToolsSelect && mcpToolsSelect.tomselect) {
-                    mcpToolsSelect.tomselect.destroy();
+                mcpToolsSelect.tomselect.destroy();
             }
             profileDiv.remove();
         });
 
         // Add Trigger
-        profileDiv.querySelector('.add-trigger-btn')?.addEventListener('click', function() {
+        profileDiv.querySelector('.add-trigger-btn')?.addEventListener('click', function () {
             const triggersContainer = profileDiv.querySelector('.triggers-container');
             const newTriggerHtml = `
                 <div class="input-group mb-2">
@@ -141,13 +141,13 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             triggersContainer.insertAdjacentHTML('beforeend', newTriggerHtml);
             // Re-attach remove listener for the new trigger input
-            triggersContainer.lastElementChild.querySelector('.remove-item-btn')?.addEventListener('click', function() {
+            triggersContainer.lastElementChild.querySelector('.remove-item-btn')?.addEventListener('click', function () {
                 this.closest('.input-group').remove();
             });
         });
 
         // Add Override
-        profileDiv.querySelector('.add-override-btn')?.addEventListener('click', function() {
+        profileDiv.querySelector('.add-override-btn')?.addEventListener('click', function () {
             const overridesContainer = profileDiv.querySelector('.overrides-container');
             const newOverrideHtml = `
                 <div class="input-group mb-2">
@@ -160,20 +160,20 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             overridesContainer.insertAdjacentHTML('beforeend', newOverrideHtml);
             // Re-attach remove listener for the new override input
-            overridesContainer.lastElementChild.querySelector('.remove-item-btn')?.addEventListener('click', function() {
+            overridesContainer.lastElementChild.querySelector('.remove-item-btn')?.addEventListener('click', function () {
                 this.closest('.input-group').remove();
             });
         });
 
         // Attach listeners for existing remove buttons within the new profile
         profileDiv.querySelectorAll('.remove-item-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
+            btn.addEventListener('click', function () {
                 this.closest('.input-group').remove();
             });
         });
 
         // Update accordion button text if profile name changes
-        profileDiv.querySelector('.profile-name-input')?.addEventListener('input', function() {
+        profileDiv.querySelector('.profile-name-input')?.addEventListener('input', function () {
             const headerButton = profileDiv.querySelector('.accordion-header button');
             if (headerButton) {
                 headerButton.textContent = this.value || 'Unnamed Profile';
@@ -182,7 +182,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Add listener to toggle MCP select based on disable switch
         const disableToolsSwitch = profileDiv.querySelector('.disable-tools-switch');
-        disableToolsSwitch?.addEventListener('change', function() {
+        disableToolsSwitch?.addEventListener('change', function () {
             const mcpSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
             if (mcpSelect && mcpSelect.tomselect) {
                 if (this.checked) {
@@ -200,17 +200,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // for existing profiles, or immediately for new ones that start 'show'.
 
         // Delete Profile
-        profileDiv.querySelector('.system-delete-profile-btn')?.addEventListener('click', function() {
-             // Destroy TomSelect instance before removing the element
-             const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
-             if (sysMcpToolsSelect && sysMcpToolsSelect.tomselect) {
-                    sysMcpToolsSelect.tomselect.destroy();
-             }
-             profileDiv.remove();
+        profileDiv.querySelector('.system-delete-profile-btn')?.addEventListener('click', function () {
+            // Destroy TomSelect instance before removing the element
+            const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
+            if (sysMcpToolsSelect && sysMcpToolsSelect.tomselect) {
+                sysMcpToolsSelect.tomselect.destroy();
+            }
+            profileDiv.remove();
         });
 
         // Update accordion button text if profile name changes
-        profileDiv.querySelector('.system-prompt-name-input')?.addEventListener('input', function() {
+        profileDiv.querySelector('.system-prompt-name-input')?.addEventListener('input', function () {
             const headerButton = profileDiv.querySelector('.accordion-header button');
             if (headerButton) {
                 headerButton.textContent = this.value || 'Unnamed Prompt';
@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Add listener to toggle MCP select based on disable switch
         const disableToolsSwitch = profileDiv.querySelector('.system-disable-tools-switch');
-        disableToolsSwitch?.addEventListener('change', function() {
+        disableToolsSwitch?.addEventListener('change', function () {
             const mcpSelect = profileDiv.querySelector('.system-mcp-tools-select');
             if (mcpSelect && mcpSelect.tomselect) {
                 if (this.checked) {
@@ -234,12 +234,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to attach event listeners to a newly added or existing agent prompt profile div
     function attachAgentPromptEventListeners(profileDiv) {
         // Delete Profile
-        profileDiv.querySelector('.agent-delete-profile-btn')?.addEventListener('click', function() {
-                profileDiv.remove();
+        profileDiv.querySelector('.agent-delete-profile-btn')?.addEventListener('click', function () {
+            profileDiv.remove();
         });
 
         // Update accordion button text if profile name changes
-        profileDiv.querySelector('.agent-prompt-name-input')?.addEventListener('input', function() {
+        profileDiv.querySelector('.agent-prompt-name-input')?.addEventListener('input', function () {
             const headerButton = profileDiv.querySelector('.accordion-header button');
             if (headerButton) {
                 headerButton.textContent = this.value || 'Unnamed Agent Prompt';
@@ -264,7 +264,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add new profile button logic
     if (addProfileBtn && !addProfileBtn.dataset.listenerAttached) {
         addProfileBtn.dataset.listenerAttached = 'true';
-        addProfileBtn.addEventListener('click', function() {
+        addProfileBtn.addEventListener('click', function () {
             const newProfileIndex = promptProfilesContainer.children.length + 1; // Simple incrementing index
             const mcpToolOptions = generateMcpToolOptions();
             const newProfileHtml = `
@@ -347,7 +347,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add new system prompt button logic
     if (addSystemPromptBtn && !addSystemPromptBtn.dataset.listenerAttached) {
         addSystemPromptBtn.dataset.listenerAttached = 'true';
-        addSystemPromptBtn.addEventListener('click', function() {
+        addSystemPromptBtn.addEventListener('click', function () {
             if (!systemPromptProfilesContainer) return;
             const newProfileIndex = systemPromptProfilesContainer.children.length + 1;
             const profileId = `sys-${newProfileIndex}-${Date.now()}`; // Ensure unique IDs
@@ -413,7 +413,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add new agent prompt button logic
     if (addAgentPromptBtn && !addAgentPromptBtn.dataset.listenerAttached) {
         addAgentPromptBtn.dataset.listenerAttached = 'true';
-        addAgentPromptBtn.addEventListener('click', function() {
+        addAgentPromptBtn.addEventListener('click', function () {
             if (!agentPromptProfilesContainer) return;
             const newProfileIndex = agentPromptProfilesContainer.children.length + 1;
             const profileId = `agent-${newProfileIndex}-${Date.now()}`; // Ensure unique IDs
@@ -461,7 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 plugins: ['remove_button', 'optgroup_columns'],
                 placeholder: 'Select MCP Functions (optional)...',
                 dropdownParent: 'body', // Fixes dropdown being clipped by accordion
-                onChange: function(value) {
+                onChange: function (value) {
                     // if value includes '*' and has other items, just keep '*'
                     if (Array.isArray(value) && value.includes('*') && value.length > 1) {
                         this.setValue('*', true); // a silent update
@@ -481,7 +481,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Listen for Bootstrap's 'shown.bs.collapse' event on the containers
     // to initialize Tom Select for existing (collapsed) profiles when they are opened.
     if (promptProfilesContainer) {
-        promptProfilesContainer.addEventListener('shown.bs.collapse', function(event) {
+        promptProfilesContainer.addEventListener('shown.bs.collapse', function (event) {
             const profileDiv = event.target.closest('.accordion-item');
             if (profileDiv) {
                 const mcpToolsSelect = profileDiv.querySelector('.prompt-mcp-tools-select');
@@ -491,7 +491,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (systemPromptProfilesContainer) {
-        systemPromptProfilesContainer.addEventListener('shown.bs.collapse', function(event) {
+        systemPromptProfilesContainer.addEventListener('shown.bs.collapse', function (event) {
             const profileDiv = event.target.closest('.accordion-item');
             if (profileDiv) {
                 const sysMcpToolsSelect = profileDiv.querySelector('.system-mcp-tools-select');
@@ -501,7 +501,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Form submission handler for the user-friendly editor
-    promptForm.addEventListener('submit', function(event) {
+    promptForm.addEventListener('submit', function (event) {
         if (promptEditorModeSwitch.checked) {
             event.preventDefault(); // Prevent default submission to serialize and then submit
 
@@ -567,7 +567,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Form submission handler for the user-friendly editor (System Prompts)
-    systemPromptForm?.addEventListener('submit', function(event) {
+    systemPromptForm?.addEventListener('submit', function (event) {
         if (systemPromptEditorModeSwitch && systemPromptEditorModeSwitch.checked) {
             event.preventDefault(); // Prevent default submission to serialize and then submit
 
@@ -615,7 +615,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Form submission handler for the user-friendly editor (Agent Prompts)
-    agentPromptForm?.addEventListener('submit', function(event) {
+    agentPromptForm?.addEventListener('submit', function (event) {
         if (agentPromptEditorModeSwitch && agentPromptEditorModeSwitch.checked) {
             event.preventDefault(); // Prevent default submission to serialize and then submit
 
@@ -650,6 +650,150 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Now submit the form manually
             agentPromptForm.submit();
+        }
+    });
+
+    // --- Dynamic Variables Autocomplete ---
+    const availableVariables = [
+        { name: '{project_root}', description: 'Absolute path to current project context' },
+        { name: '{current_date}', description: 'Current system date and time' },
+        { name: '{clipboard_content}', description: 'Contents of the user clipboard (if supported)' },
+        { name: '{latest_file_content}', description: 'Content of the most recently modified file' },
+        { name: '{mcp_tools_list}', description: 'List of all available MCP tools' }
+    ];
+
+    let autocompleteDropdown = null;
+    let activeTextarea = null;
+    let dropdownSearchQuery = '';
+    let dropdownCursorOffset = 0;
+
+    function createAutocompleteDropdown() {
+        if (autocompleteDropdown) return;
+        autocompleteDropdown = document.createElement('ul');
+        autocompleteDropdown.className = 'dropdown-menu show shadow autocomplete-dropdown';
+        autocompleteDropdown.style.position = 'absolute';
+        autocompleteDropdown.style.zIndex = '1050';
+        autocompleteDropdown.style.maxHeight = '200px';
+        autocompleteDropdown.style.overflowY = 'auto';
+        document.body.appendChild(autocompleteDropdown);
+    }
+
+    function removeAutocompleteDropdown() {
+        if (autocompleteDropdown) {
+            autocompleteDropdown.remove();
+            autocompleteDropdown = null;
+            activeTextarea = null;
+            dropdownSearchQuery = '';
+        }
+    }
+
+    function renderAutocompleteOptions(textarea, coords) {
+        if (!autocompleteDropdown) createAutocompleteDropdown();
+
+        autocompleteDropdown.innerHTML = '';
+        const filteredVars = availableVariables.filter(v => v.name.toLowerCase().includes('{' + dropdownSearchQuery.toLowerCase()));
+
+        if (filteredVars.length === 0) {
+            removeAutocompleteDropdown();
+            return;
+        }
+
+        filteredVars.forEach((v, index) => {
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.className = 'dropdown-item' + (index === 0 ? ' active' : '');
+            a.href = '#';
+            a.innerHTML = `<strong>${v.name}</strong> - <small class="text-muted">${v.description}</small>`;
+            a.onclick = (e) => {
+                e.preventDefault();
+                insertVariable(textarea, v.name);
+            };
+            li.appendChild(a);
+            autocompleteDropdown.appendChild(li);
+        });
+
+        autocompleteDropdown.style.left = `${coords.x}px`;
+        autocompleteDropdown.style.top = `${coords.y + 20}px`; // slightly below cursor
+    }
+
+    function insertVariable(textarea, varName) {
+        const textBefore = textarea.value.substring(0, dropdownCursorOffset - 1 - dropdownSearchQuery.length);
+        const textAfter = textarea.value.substring(textarea.selectionStart);
+        textarea.value = textBefore + varName + textAfter;
+        textarea.selectionStart = textarea.selectionEnd = textBefore.length + varName.length;
+        textarea.focus();
+        removeAutocompleteDropdown();
+        // Trigger input event to resize textarea or update state if needed
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // A simple function to get approximate cursor coordinates in a textarea
+    function getCaretCoordinates(element, position) {
+        const rect = element.getBoundingClientRect();
+        return {
+            x: rect.left + window.scrollX + 10,
+            y: rect.top + window.scrollY + 30
+        };
+    }
+
+    document.addEventListener('input', function (e) {
+        const t = e.target;
+        if (t.classList.contains('system-prompt-text-input') ||
+            t.classList.contains('agent-prompt-text-input') ||
+            t.classList.contains('override-value-input')) {
+
+            const pos = t.selectionStart;
+            const textToCursor = t.value.substring(0, pos);
+            const lastOpenBrace = textToCursor.lastIndexOf('{');
+            const lastCloseBrace = textToCursor.lastIndexOf('}');
+
+            if (lastOpenBrace !== -1 && lastOpenBrace >= lastCloseBrace) {
+                // We are inside a brace
+                dropdownSearchQuery = textToCursor.substring(lastOpenBrace + 1);
+                // Check if query contains spaces or newlines (abort if so)
+                if (/[\s\n]/.test(dropdownSearchQuery)) {
+                    removeAutocompleteDropdown();
+                } else {
+                    activeTextarea = t;
+                    dropdownCursorOffset = pos;
+                    const coords = getCaretCoordinates(t, pos);
+                    renderAutocompleteOptions(t, coords);
+                }
+            } else {
+                removeAutocompleteDropdown();
+            }
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (autocompleteDropdown && activeTextarea === e.target) {
+            const items = autocompleteDropdown.querySelectorAll('.dropdown-item');
+            if (items.length === 0) return;
+
+            let activeIndex = Array.from(items).findIndex(i => i.classList.contains('active'));
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                items[activeIndex]?.classList.remove('active');
+                activeIndex = (activeIndex + 1) % items.length;
+                items[activeIndex].classList.add('active');
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                items[activeIndex]?.classList.remove('active');
+                activeIndex = (activeIndex - 1 + items.length) % items.length;
+                items[activeIndex].classList.add('active');
+            } else if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                items[activeIndex]?.click();
+            } else if (e.key === 'Escape') {
+                removeAutocompleteDropdown();
+            }
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (autocompleteDropdown && !autocompleteDropdown.contains(e.target)) {
+            removeAutocompleteDropdown();
         }
     });
 });
