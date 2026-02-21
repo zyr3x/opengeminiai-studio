@@ -163,6 +163,10 @@ def chat_completions():
                             "X-Title": "OpenGeminiAI Studio"
                         }
 
+                        # Force stream options to get token usage back from OpenRouter
+                        request_data["stream"] = True
+                        request_data["stream_options"] = {"include_usage": True}
+
                         utils.debug(f"Outgoing OpenRouter Request Data: {utils.pretty_json(request_data)}")
 
                         response = requests.post(
@@ -198,8 +202,18 @@ def chat_completions():
                             if decoded_line == 'data: [DONE]': break
                             try:
                                 chunk = json.loads(decoded_line[6:])
-                                delta = chunk['choices'][0]['delta']
-                                finish_reason = chunk['choices'][0].get('finish_reason')
+                                
+                                # Track token usage from OpenAI/OpenRouter responses
+                                if 'usage' in chunk and chunk['usage']:
+                                    usage = chunk['usage']
+                                    prompt_tokens = usage.get('prompt_tokens', 0)
+                                    completion_tokens = usage.get('completion_tokens', 0)
+                                    if prompt_tokens > 0 or completion_tokens > 0:
+                                        # Record using the active provider's API key and model
+                                        record_token_usage(api_key, COMPLETION_MODEL, prompt_tokens, completion_tokens)
+
+                                delta = chunk.get('choices', [{}])[0].get('delta', {})
+                                finish_reason = chunk.get('choices', [{}])[0].get('finish_reason')
 
                                 if 'content' in delta and delta['content']:
                                     content_chunk = delta['content']
