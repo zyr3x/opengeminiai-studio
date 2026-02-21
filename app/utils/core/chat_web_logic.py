@@ -116,6 +116,15 @@ def prepare_chat_data(form, files):
         return {"error": "chat_id is required"}, 400, None
     model = form.get('model', 'gemini-flash-latest')
     user_message = form.get('message', '')
+    gemini_contents = form.get('gemini_contents', [])
+    if isinstance(gemini_contents, str):
+        try:
+            gemini_contents = json.loads(gemini_contents)
+        except json.JSONDecodeError:
+            gemini_contents = []
+            
+    raw_gemini_contents_fallback = gemini_contents.copy() if gemini_contents else []
+
     attached_files = files.getlist('file')
     system_prompt_name = form.get('system_prompt_name')
     selected_mcp_tools = form.getlist('mcp_tools')
@@ -238,13 +247,17 @@ def prepare_chat_data(form, files):
     if mcp_handler.disable_all_mcp_tools:
         disable_mcp_tools = True
         profile_selected_mcp_tools = []
-    for m in db_messages:
-        role = m['role']
-        reconstructed_parts = utils.prepare_message_parts_for_gemini(m['parts'])
-        if gemini_contents and gemini_contents[-1]['role'] == role:
-            gemini_contents[-1]['parts'].extend(reconstructed_parts)
-        else:
-            gemini_contents.append({'role': role, 'parts': reconstructed_parts})
+    if not db_messages and raw_gemini_contents_fallback:
+        gemini_contents = raw_gemini_contents_fallback
+    else:
+        for m in db_messages:
+            role = m['role']
+            reconstructed_parts = utils.prepare_message_parts_for_gemini(m['parts'])
+            if gemini_contents and gemini_contents[-1]['role'] == role:
+                gemini_contents[-1]['parts'].extend(reconstructed_parts)
+            else:
+                gemini_contents.append({'role': role, 'parts': reconstructed_parts})
+
     if gemini_contents and gemini_contents[0]['role'] == 'model':
         gemini_contents.insert(0, {'role': 'user', 'parts': [{'text': '----'}]})
     data = {

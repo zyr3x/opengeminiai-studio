@@ -1,0 +1,81 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.8, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/zyr3x/Development/projects/gemini-proxy
+configfile: pytest.ini
+plugins: anyio-4.12.1, asyncio-1.3.0, cov-7.0.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 35 items
+
+tests/test_config.py ...                                                 [  8%]
+tests/test_config_loader.py .......                                      [ 28%]
+tests/test_demo.py ..                                                    [ 34%]
+tests/test_hooks.py ..                                                   [ 40%]
+tests/test_logging.py ....                                               [ 51%]
+tests/test_metrics_utils.py ..                                           [ 57%]
+tests/test_observer.py ..                                                [ 62%]
+tests/test_prompt_loader.py ...                                          [ 71%]
+tests/test_proxy.py ..                                                   [ 77%]
+tests/test_schemas.py ...                                                [ 85%]
+tests/test_streaming.py ...                                              [ 94%]
+tests/test_web_ui.py ..                                                  [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform darwin, python 3.12.8-final-0 _______________
+
+Name                                          Stmts   Miss  Cover
+-----------------------------------------------------------------
+app/__init__.py                                  35     12    66%
+app/api/__init__.py                               0      0   100%
+app/autoloader.py                                76     30    61%
+app/config.py                                    70      1    99%
+app/core/__init__.py                              0      0   100%
+app/core/config.py                               13      0   100%
+app/core/mcp_server.py                            2      0   100%
+app/db.py                                        23     16    30%
+app/modules/__init__.py                           0      0   100%
+app/modules/demo_module/routes.py                 5      0   100%
+app/modules/demo_module/tools/math_tools.py       5      1    80%
+app/modules/docs/routes.py                       15      4    73%
+app/modules/proxy/routes.py                     490    357    27%
+app/modules/web_ui/chat_routes.py               324    251    23%
+app/modules/web_ui/logs.py                       19     13    32%
+app/modules/web_ui/mcp_settings.py               49     36    27%
+app/modules/web_ui/metrics.py                    22     10    55%
+app/modules/web_ui/prompt_settings.py            21     12    43%
+app/modules/web_ui/routes.py                     11      1    91%
+app/modules/web_ui/settings.py                   91     49    46%
+app/schemas/__init__.py                           0      0   100%
+app/schemas/requests.py                          15      0   100%
+app/schemas/responses.py                         13      0   100%
+app/services/__init__.py                          0      0   100%
+app/services/ai_proxy.py                          8      8     0%
+app/utils/__init__.py                             0      0   100%
+app/utils/core/__init__.py                        0      0   100%
+app/utils/core/agent_integration.py             120    120     0%
+app/utils/core/agent_intelligence.py            173    173     0%
+app/utils/core/ai_provider_manager.py            99     53    46%
+app/utils/core/api_key_manager.py                72     43    40%
+app/utils/core/aux_model_enhanced.py            158    158     0%
+app/utils/core/chat_db_utils.py                  50     40    20%
+app/utils/core/chat_web_logic.py                215    201     7%
+app/utils/core/config_loader.py                  39      5    87%
+app/utils/core/context_selector.py              117     92    21%
+app/utils/core/file_processing_utils.py         217    201     7%
+app/utils/core/logging.py                        13      0   100%
+app/utils/core/mcp_handler.py                  1752   1658     5%
+app/utils/core/metrics_utils.py                  11      0   100%
+app/utils/core/optimization.py                  253    165    35%
+app/utils/core/optimization_utils.py            136    110    19%
+app/utils/core/prompt_loader.py                  12      0   100%
+app/utils/core/settings_logic.py                215    188    13%
+app/utils/core/streaming.py                      19      0   100%
+app/utils/core/tool_config_utils.py              25     17    32%
+app/utils/core/tools.py                         367    284    23%
+app/utils/core/ui_utils.py                       66     13    80%
+app/utils/flask/__init__.py                       0      0   100%
+app/utils/flask/optimization.py                  22     18    18%
+app/utils/hooks.py                               26      9    65%
+app/utils/observer.py                            36      7    81%
+-----------------------------------------------------------------
+TOTAL                                          5520   4356    21%
+============================== 35 passed in 7.47s ==============================

@@ -1,0 +1,63 @@
+The test suite failed or coverage is below 100%.
+Please review the test output and fix the code to ensure all tests pass and coverage reaches 100%.
+
+TEST OUTPUT:
+============================= test session starts ==============================
+platform darwin -- Python 3.12.8, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/zyr3x/Development/projects/gemini-proxy
+configfile: pytest.ini
+plugins: anyio-4.12.1, asyncio-1.3.0, cov-7.0.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 2 items
+
+tests/test_demo.py ..                                                    [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform darwin, python 3.12.8-final-0 _______________
+
+Name                                          Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------------
+app/__init__.py                                  33     11    67%   35-56, 60-61
+app/api/__init__.py                               0      0   100%
+app/autoloader.py                                50     11    78%   19-20, 35-37, 40-41, 54-55, 64-65
+app/config.py                                    70     70     0%   1-93
+app/controllers/__init__.py                       0      0   100%
+app/core/__init__.py                              0      0   100%
+app/core/config.py                               13      0   100%
+app/core/mcp_server.py                            2      0   100%
+app/db.py                                        23     23     0%   1-24
+app/modules/__init__.py                           0      0   100%
+app/modules/demo_module/routes.py                 5      0   100%
+app/modules/demo_module/tools/math_tools.py       5      1    80%   11
+app/schemas/__init__.py                           0      0   100%
+app/services/__init__.py                          0      0   100%
+app/utils/__init__.py                             0      0   100%
+app/utils/core/__init__.py                        0      0   100%
+app/utils/core/agent_integration.py             120    120     0%   8-273
+app/utils/core/agent_intelligence.py            173    173     0%   8-357
+app/utils/core/ai_provider_manager.py            99     99     0%   1-143
+app/utils/core/api_key_manager.py                72     72     0%   1-81
+app/utils/core/aux_model_enhanced.py            158    158     0%   8-415
+app/utils/core/chat_db_utils.py                  50     50     0%   1-53
+app/utils/core/chat_web_logic.py                206    206     0%   1-256
+app/utils/core/config_loader.py                  39     39     0%   1-39
+app/utils/core/context_selector.py              117    117     0%   1-163
+app/utils/core/file_processing_utils.py         217    217     0%   1-292
+app/utils/core/logging.py                        13     13     0%   1-13
+app/utils/core/mcp_handler.py                  1752   1752     0%   1-2193
+app/utils/core/metrics_utils.py                  11     11     0%   1-26
+app/utils/core/optimization.py                  253    253     0%   1-373
+app/utils/core/optimization_utils.py            136    136     0%   1-167
+app/utils/core/prompt_loader.py                  12     12     0%   1-14
+app/utils/core/settings_logic.py                215    215     0%   1-295
+app/utils/core/streaming.py                      19     19     0%   1-22
+app/utils/core/tool_config_utils.py              25     25     0%   1-37
+app/utils/core/tools.py                         367    367     0%   1-519
+app/utils/core/ui_utils.py                       66     66     0%   1-77
+app/utils/flask/__init__.py                       0      0   100%
+app/utils/flask/optimization.py                  22     22     0%   1-27
+---------------------------------------------------------------------------
+TOTAL                                          4343   4258     2%
+============================== 2 passed in 6.10s ===============================
+
+If tests are missing, please write new tests in the tests/ directory. If code is broken, fix the app/ modules.

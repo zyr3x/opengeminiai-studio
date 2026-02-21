@@ -221,6 +221,7 @@ def chat_api():
                             "Content-Type": "application/json",
                             "Authorization": f"Bearer {api_key}"
                         }
+                        print("UPSTREAM OPENAI REQUEST DATA:", json.dumps(request_data, indent=2))
                         response = requests.post(
                             f"{base_url}/chat/completions",
                             headers=headers,
@@ -351,6 +352,7 @@ def chat_api():
                 if enable_native_tools:
                     GEMINI_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:generateContent"
                     try:
+                        print("UPSTREAM GEMINI NATIVE TOOLS REQUEST:", json.dumps(request_data, indent=2))
                         response = utils.make_request_with_retry(url=GEMINI_URL, headers=headers, json_data=request_data, stream=False, timeout=300)
                         response_data = response.json()
                         final_tool_call_response = response_data
@@ -368,6 +370,7 @@ def chat_api():
                 else:
                     GEMINI_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:streamGenerateContent"
                     try:
+                        print("UPSTREAM GEMINI STREAM REQUEST:", json.dumps(request_data, indent=2))
                         response = utils.make_request_with_retry(url=GEMINI_URL, headers=headers, json_data=request_data, stream=True, timeout=300)
                     except Exception as e:
                         yield f"ERROR: Error from upstream Gemini API: {e}"

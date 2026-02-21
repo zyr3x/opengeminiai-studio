@@ -11,6 +11,7 @@ export interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
     content: string;
     changes?: any[];
+    timestamp?: number;
 }
 
 export interface Conversation {
@@ -18,6 +19,7 @@ export interface Conversation {
     title: string;
     messages: ChatMessage[];
     timestamp: number;
+    model: string;
     draftInput: string;
     draftAttachments: Attachment[];
 }

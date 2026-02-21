@@ -1,0 +1,43 @@
+{
+    "name": "web_ui",
+    "version": "1.0.0",
+    "enabled": true,
+    "blueprints": [
+        {
+            "module_path": "app.modules.web_ui.routes",
+            "blueprint_name": "web_ui_bp",
+            "url_prefix": ""
+        },
+        {
+            "module_path": "app.modules.web_ui.chat_routes",
+            "blueprint_name": "web_ui_chat_bp",
+            "url_prefix": ""
+        },
+        {
+            "module_path": "app.modules.web_ui.logs",
+            "blueprint_name": "logs_bp",
+            "url_prefix": ""
+        },
+        {
+            "module_path": "app.modules.web_ui.mcp_settings",
+            "blueprint_name": "mcp_settings_bp",
+            "url_prefix": ""
+        },
+        {
+            "module_path": "app.modules.web_ui.metrics",
+            "blueprint_name": "metrics_bp",
+            "url_prefix": ""
+        },
+        {
+            "module_path": "app.modules.web_ui.prompt_settings",
+            "blueprint_name": "prompt_settings_bp",
+            "url_prefix": ""
+        },
+        {
+            "module_path": "app.modules.web_ui.settings",
+            "blueprint_name": "settings_bp",
+            "url_prefix": ""
+        }
+    ],
+    "mcp_tools": []
+}

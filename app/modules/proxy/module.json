@@ -1,0 +1,13 @@
+{
+    "name": "proxy",
+    "version": "1.0.0",
+    "enabled": true,
+    "blueprints": [
+        {
+            "module_path": "app.modules.proxy.routes",
+            "blueprint_name": "proxy_bp",
+            "url_prefix": "/v1"
+        }
+    ],
+    "mcp_tools": []
+}

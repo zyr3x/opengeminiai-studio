@@ -17,7 +17,7 @@ from app.utils.core.ai_provider_manager import ai_provider_manager
 import traceback
 from app.utils.core import file_processing_utils
 proxy_bp = Blueprint('proxy', __name__)
-@proxy_bp.route('/v1/chat/completions', methods=['POST'])
+@proxy_bp.route('/chat/completions', methods=['POST'])
 def chat_completions():
     if not config.API_KEY:
         return jsonify({"error": {"message": "API key not configured. Please set it on the root page.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
@@ -40,6 +40,11 @@ def chat_completions():
             disable_mcp_tools = True
             profile_selected_mcp_tools = []
 
+        project_context_tools_requested = False
+        project_context_root = None
+        processed_messages = []
+        processed_code_paths = set()
+
         if messages:
             full_prompt_text = " ".join(
                 [m.get('content') for m in messages if isinstance(m.get('content'), str)]
@@ -56,11 +61,6 @@ def chat_completions():
 
             if override_config['profile_selected_mcp_tools']:
                 profile_selected_mcp_tools = override_config['profile_selected_mcp_tools']
-
-            project_context_tools_requested = False
-            project_context_root = None
-            processed_messages = []
-            processed_code_paths = set()
 
             for message in messages:
                 content = message.get('content')
@@ -656,7 +656,7 @@ def chat_completions():
         error_message = f"An error occurred: {str(e)}"
         error_response = {"error": {"message": error_message, "type": "server_error", "code": "500"}}
         return jsonify(error_response), 500
-@proxy_bp.route('/v1/models', methods=['GET'])
+@proxy_bp.route('/models', methods=['GET'])
 def list_models():
     if not config.API_KEY:
         return jsonify({"error": {"message": "API key not configured.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
@@ -743,7 +743,7 @@ def list_models():
 
     except Exception as e:
         return jsonify({"error": f"Internal server error: {e}"}), 500
-@proxy_bp.route('/v1/system_prompts', methods=['GET'])
+@proxy_bp.route('/system_prompts', methods=['GET'])
 def list_system_prompts():
     try:
         from app.utils.core.prompt_loader import load_default_system_prompts

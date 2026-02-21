@@ -44,16 +44,20 @@
             });
         }
     </script>
+    <!-- Module Hooks: base_head -->
+    {{ render_hooks('base_head') | safe }}
 </head>
 
 <body class="d-flex flex-column min-vh-100">
+    <!-- Module Hooks: base_body_start -->
+    {{ render_hooks('base_body_start') | safe }}
     <!-- Navbar -->
     <nav class="navbar navbar-expand-md fixed-top shadow-sm">
         <div class="container">
             <a class="navbar-brand" href="/">
                 <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="OpenGeminiAI Studio Logo" height="30"
                     class="me-2">
-                OpenGeminiAI Studio <small class="text-muted">v3.3</small>
+                OpenGeminiAI Studio <small class="text-muted">v4.0</small>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
                 aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -98,6 +102,8 @@
                             </label>
                         </div>
                     </li>
+                    <!-- Module Hooks: base_navbar_main -->
+                    {{ render_hooks('base_navbar_main') | safe }}
                 </ul>
             </div>
         </div>
@@ -114,6 +120,8 @@
     <footer class="footer mt-auto py-3 bg-body">
         <div class="container text-center">
             <span class="text-muted">© {{ current_year }} OpenGeminiAI Studio. All rights reserved.</span><br>
+            <!-- Module Hooks: base_footer -->
+            {{ render_hooks('base_footer') | safe }}
         </div>
     </footer>
 
@@ -144,6 +152,9 @@
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
     <script src="{{ url_for('static', filename='js/logs.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    <!-- Module Hooks: base_scripts -->
+    {{ render_hooks('base_scripts') | safe }}
 </body>
 
 </html>

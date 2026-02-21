@@ -1,0 +1,15 @@
+{
+    "name": "demo_module",
+    "version": "1.0.0",
+    "enabled": true,
+    "blueprints": [
+        {
+            "module_path": "app.modules.demo_module.routes",
+            "blueprint_name": "demo_bp",
+            "url_prefix": "/demo"
+        }
+    ],
+    "mcp_tools": [
+        "app.modules.demo_module.tools.math_tools"
+    ]
+}

@@ -8,9 +8,6 @@ services:
     env_file:
       - .env
     environment:
-      # Set ASYNC_MODE=true to enable async mode (recommended for production)
-      # Set ASYNC_MODE=false or omit for sync mode (default)
-      - ASYNC_MODE=${ASYNC_MODE:-false}
       # Configure Git to skip strict host checking (avoids interactive prompts inside container)
       - GIT_SSH_COMMAND=ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no
     restart: unless-stopped
@@ -18,11 +15,11 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-       - ${PROJECTS_PATH}:${PROJECTS_PATH}
-       - ./:/app/
-       - ${DOCKER_SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock
-       # Mount SSH key from host to container (read-only)
-       - ${SSH_KEY_PATH}:/root/.ssh/id_rsa:ro
+      - ${PROJECTS_PATH}:${PROJECTS_PATH}
+      - ./:/app/
+      - ${DOCKER_SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock
+      # Mount SSH key from host to container (read-only)
+      - ${SSH_KEY_PATH}:/root/.ssh/id_rsa:ro
     logging:
       driver: "json-file"
       options:

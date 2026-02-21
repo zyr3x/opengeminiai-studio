@@ -1,98 +1,163 @@
 <!-- Documentation Section -->
 <div id="documentation" class="content-section">
     <h1 class="my-4">📚 Documentation</h1>
-     <p class="lead">Dive into the details of OpenGeminiAI Studio v3.3: learn how to set up, configure, and maximize the utility of this high-performance, AI-driven software development agent and proxy for Google's Gemini API.</p>
+    <p class="lead">Dive into the details of OpenGeminiAI Studio v4.0: learn how to set up, configure, and maximize the
+        utility of this high-performance, AI-driven software development agent and proxy for Google's Gemini API.</p>
 
-    <h2 class="mt-4">🚀 What's New in V3.3 - Drafts, Regeneration & Project Prompts</h2>
-    <p>Version 3.3 brings significant usability improvements to the JetBrains plugin (v1.4.0) and the core proxy, focusing on state persistence and project-specific customization.</p>
+    <h2 class="mt-4">🚀 What's New in V4.0 - Unified Architecture & Autoloader</h2>
+    <p>Version 3.3 brings significant usability improvements to the JetBrains plugin (v1.4.0) and the core proxy,
+        focusing on state persistence and project-specific customization.</p>
     <ul>
-        <li><strong>💾 Draft Persistence (Plugin):</strong> Never lose your work again. Chat inputs and attachments are now automatically saved and restored, even if you close the IDE or switch projects.</li>
-        <li><strong>🔄 Message Regeneration (Plugin):</strong> Not happy with an answer? One-click regenerate assistant responses to get a better result.</li>
-        <li><strong>📂 Project-Specific Prompts:</strong> Customize the AI's behavior for each project by adding <code>chat.md</code>, <code>commit.md</code>, <code>edit.md</code>, or <code>title.md</code> to the <code>.opengemini/prompts/</code> directory in your project root.</li>
-        <li><strong>🛠️ Manual MCP Tool Selection:</strong> Explicitly select which MCP tools (built-in or server-based) to enable for a specific chat session, giving you granular control over the agent's capabilities.</li>
-        <li><strong>📝 Enhanced Commit Generation:</strong> New modal dialog for selecting commits and configurable limits for file count and context size to handle large changesets gracefully.</li>
+        <li><strong>💾 Draft Persistence (Plugin):</strong> Never lose your work again. Chat inputs and attachments are
+            now automatically saved and restored, even if you close the IDE or switch projects.</li>
+        <li><strong>🔄 Message Regeneration (Plugin):</strong> Not happy with an answer? One-click regenerate assistant
+            responses to get a better result.</li>
+        <li><strong>📂 Project-Specific Prompts:</strong> Customize the AI's behavior for each project by adding
+            <code>chat.md</code>, <code>commit.md</code>, <code>edit.md</code>, or <code>title.md</code> to the
+            <code>.opengemini/prompts/</code> directory in your project root.</li>
+        <li><strong>🛠️ Manual MCP Tool Selection:</strong> Explicitly select which MCP tools (built-in or server-based)
+            to enable for a specific chat session, giving you granular control over the agent's capabilities.</li>
+        <li><strong>📝 Enhanced Commit Generation:</strong> New modal dialog for selecting commits and configurable
+            limits for file count and context size to handle large changesets gracefully.</li>
     </ul>
 
     <h2 class="mt-4">🚀 What's New in V3.2 - OpenRouter Integration & JetBrains Plugin</h2>
-    <p>Version 3.2 is a major update focusing on <b>provider diversity</b> and <b>IDE integration</b>. We've added native support for OpenRouter, allowing you to seamlessly switch between the world's most powerful LLMs.</p>
+    <p>Version 3.2 is a major update focusing on <b>provider diversity</b> and <b>IDE integration</b>. We've added
+        native support for OpenRouter, allowing you to seamlessly switch between the world's most powerful LLMs.</p>
     <ul>
-        <li><strong>🌐 First-Class OpenRouter Support (NEW):</strong> The secondary provider system is now optimized for OpenRouter.
+        <li><strong>🌐 First-Class OpenRouter Support (NEW):</strong> The secondary provider system is now optimized for
+            OpenRouter.
             <ul>
-                <li><strong>🎯 Unified API:</strong> Access <b>Claude 3.7</b>, <b>GPT-4o</b>, <b>Llama 3</b>, and hundreds of other models through a single interface.</li>
-                <li><strong>⚡ Optimized Routing:</strong> Automatically benefit from OpenRouter's lowest-latency and lowest-cost routing.</li>
-                <li><strong>📊 Identity Headers:</strong> Sends <code>X-Title</code> and <code>HTTP-Referer</code> for proper tracking on OpenRouter's activity rankings.</li>
+                <li><strong>🎯 Unified API:</strong> Access <b>Claude 3.7</b>, <b>GPT-4o</b>, <b>Llama 3</b>, and
+                    hundreds of other models through a single interface.</li>
+                <li><strong>⚡ Optimized Routing:</strong> Automatically benefit from OpenRouter's lowest-latency and
+                    lowest-cost routing.</li>
+                <li><strong>📊 Identity Headers:</strong> Sends <code>X-Title</code> and <code>HTTP-Referer</code> for
+                    proper tracking on OpenRouter's activity rankings.</li>
             </ul>
         </li>
-        <li><strong>🔌 JetBrains IDE Plugin (NEW):</strong> A new native plugin for IntelliJ, PyCharm, and other JetBrains IDEs.
+        <li><strong>🔌 JetBrains IDE Plugin (NEW):</strong> A new native plugin for IntelliJ, PyCharm, and other
+            JetBrains IDEs.
             <ul>
-                <li><strong>✍️ AI-Powered Commit Messages:</strong> Generate conventional commit messages directly from your Git staged changes.</li>
-                <li><strong>💻 Integrated Chat & Quick Edit:</strong> The agentic power of OpenGeminiAI is now a side panel in your code editor.</li>
+                <li><strong>✍️ AI-Powered Commit Messages:</strong> Generate conventional commit messages directly from
+                    your Git staged changes.</li>
+                <li><strong>💻 Integrated Chat & Quick Edit:</strong> The agentic power of OpenGeminiAI is now a side
+                    panel in your code editor.</li>
             </ul>
         </li>
-        <li><strong>📝 Fuzzy Patching (REPLACED):</strong> Replaced standard patch application with a robust <b>fuzzy matching</b> algorithm for higher success rates on edited codebases.</li>
+        <li><strong>📝 Fuzzy Patching (REPLACED):</strong> Replaced standard patch application with a robust <b>fuzzy
+                matching</b> algorithm for higher success rates on edited codebases.</li>
     </ul>
 
     <h2 class="mt-4">🚀 What's New in V3.1 - Enhanced Development Flow</h2>
-    <p>Version 3.1 refines the development experience, making the AI agent even more integrated and efficient in your coding workflow.</p>
+    <p>Version 3.1 refines the development experience, making the AI agent even more integrated and efficient in your
+        coding workflow.</p>
     <ul>
-        <li><strong>✍️ Quick Edit Mode (NEW):</strong> Empower the AI to directly suggest and apply code modifications using a patch-based format. When enabled with `code_path=` context, the AI will output patches that are automatically applied to your files, streamlining the iterative development and bug-fixing process.</li>
-        <li><strong>📝 Improved Patch Application (NEW):</strong> The system's patch application now provides clearer feedback on success or failure, with better error handling and auto-fix suggestions in case of issues, ensuring more reliable code modifications.</li>
-               <li><strong>💬 System Prompt Override (NEW):</strong> Users can now override the active system prompt directly within a message using the `system_prompt=` command, allowing for dynamic persona and instruction changes mid-conversation.</li>
-               <li><strong>🌐 PWA Support (NEW):</strong> Added Progressive Web App (PWA) support, enabling users to install the web UI as a desktop application with offline capabilities via a Service Worker and Manifest.</li>
-               <li><strong>🎥 Veo Video Generation (NEW):</strong> Enhanced media generation capabilities now include support for Veo video generation, alongside updated defaults for image generation models for better performance and quality.</li>
+        <li><strong>✍️ Quick Edit Mode (NEW):</strong> Empower the AI to directly suggest and apply code modifications
+            using a patch-based format. When enabled with `code_path=` context, the AI will output patches that are
+            automatically applied to your files, streamlining the iterative development and bug-fixing process.</li>
+        <li><strong>📝 Improved Patch Application (NEW):</strong> The system's patch application now provides clearer
+            feedback on success or failure, with better error handling and auto-fix suggestions in case of issues,
+            ensuring more reliable code modifications.</li>
+        <li><strong>💬 System Prompt Override (NEW):</strong> Users can now override the active system prompt directly
+            within a message using the `system_prompt=` command, allowing for dynamic persona and instruction changes
+            mid-conversation.</li>
+        <li><strong>🌐 PWA Support (NEW):</strong> Added Progressive Web App (PWA) support, enabling users to install
+            the web UI as a desktop application with offline capabilities via a Service Worker and Manifest.</li>
+        <li><strong>🎥 Veo Video Generation (NEW):</strong> Enhanced media generation capabilities now include support
+            for Veo video generation, alongside updated defaults for image generation models for better performance and
+            quality.</li>
     </ul>
 
     <h2 class="mt-4">🚀 What's New in V3.0 - The Agentic Developer Update</h2>
-    <p>Version 3.0 transforms OpenGeminiAI Studio into a powerful <strong>AI-driven software developer</strong>. With an expanded toolkit, deeper project understanding, and new cognitive abilities, it can now take on complex development tasks with greater autonomy and intelligence.</p>
+    <p>Version 3.0 transforms OpenGeminiAI Studio into a powerful <strong>AI-driven software developer</strong>. With an
+        expanded toolkit, deeper project understanding, and new cognitive abilities, it can now take on complex
+        development tasks with greater autonomy and intelligence.</p>
     <ul>
-        <li><strong>🧠 Agent Intelligence & Self-Reflection:</strong> The agent can now create multi-step plans, validate its actions, learn from errors, and suggest recovery options, making it a more reliable and autonomous developer.</li>
-        <li><strong>🤖 Enhanced Auxiliary Model:</strong> Instead of simple truncation, a secondary AI model analyzes, summarizes, and extracts key information from large tool outputs, providing cleaner context to the main model and saving on token costs.</li>
-        <li><strong>🛠️ Full Agentic Capabilities:</strong> The AI can now write, modify, and create files, execute shell commands (for tests, builds, scripts), and perform full git operations.</li>
-        <li><strong>🎭 9 Specialized Agent Modes:</strong> Choose the right AI persona for your task, from `feature` development and `fix` for bugs to `review`, `test`, and `documentation`.</li>
-        <li><strong>🔬 Advanced Code Analysis:</strong> The toolkit has been expanded to 24 built-in tools for surgical code inspection and manipulation.</li>
-        <li><strong>🔐 Enhanced Security & Control:</strong> The <code>ALLOWED_CODE_PATHS</code> setting allows you to sandbox the AI's file system access to specific project directories.</li>
+        <li><strong>🧠 Agent Intelligence & Self-Reflection:</strong> The agent can now create multi-step plans,
+            validate its actions, learn from errors, and suggest recovery options, making it a more reliable and
+            autonomous developer.</li>
+        <li><strong>🤖 Enhanced Auxiliary Model:</strong> Instead of simple truncation, a secondary AI model analyzes,
+            summarizes, and extracts key information from large tool outputs, providing cleaner context to the main
+            model and saving on token costs.</li>
+        <li><strong>🛠️ Full Agentic Capabilities:</strong> The AI can now write, modify, and create files, execute
+            shell commands (for tests, builds, scripts), and perform full git operations.</li>
+        <li><strong>🎭 9 Specialized Agent Modes:</strong> Choose the right AI persona for your task, from `feature`
+            development and `fix` for bugs to `review`, `test`, and `documentation`.</li>
+        <li><strong>🔬 Advanced Code Analysis:</strong> The toolkit has been expanded to 24 built-in tools for surgical
+            code inspection and manipulation.</li>
+        <li><strong>🔐 Enhanced Security & Control:</strong> The <code>ALLOWED_CODE_PATHS</code> setting allows you to
+            sandbox the AI's file system access to specific project directories.</li>
     </ul>
 
     <div class="alert alert-info">
         <h5><i class="material-icons">bolt</i> Performance Upgrade (v2.5)</h5>
         <p class="mb-0">
-            The proxy features an <strong>async/await architecture</strong> for 3-5x performance improvements on concurrent workloads.
+            The proxy features an <strong>async/await architecture</strong> for 3-5x performance improvements on
+            concurrent workloads.
             Enable with <code>ASYNC_MODE=true</code> in your .env file or run <code>python run.py</code>.
         </p>
     </div>
 
     <h2 class="mt-4">✨ What It Does</h2>
     <ul>
-        <li><b>OpenAI API Compatibility:</b> Accepts requests on <code>/v1/chat/completions</code> and <code>/v1/models</code>, transforming them for the Gemini API.</li>
-        <li><b>🚀 High Performance (NEW):</b> Async architecture with HTTP connection pooling, parallel tool execution, and smart caching delivers 3-5x speed improvement.</li>
-        <li><b>Streaming & History:</b> Handles streaming responses with word-boundary buffering (no broken words!) and automatically truncates conversation history to fit context windows.</li>
+        <li><b>OpenAI API Compatibility:</b> Accepts requests on <code>/v1/chat/completions</code> and
+            <code>/v1/models</code>, transforming them for the Gemini API.</li>
+        <li><b>🚀 High Performance (NEW):</b> Async architecture with HTTP connection pooling, parallel tool execution,
+            and smart caching delivers 3-5x speed improvement.</li>
+        <li><b>Streaming & History:</b> Handles streaming responses with word-boundary buffering (no broken words!) and
+            automatically truncates conversation history to fit context windows.</li>
         <li><b>🆕 Dual Path Mode (NEW):</b> Two distinct modes for working with code:
             <ul>
-                <li><b><code>code_path=</code></b> - Recursively loads all code files as text context (up to 4MB) for review and analysis. No tools, just pure code context.</li>
-                <li><b><code>project_path=</code></b> - Activates full AI agent mode with 24 built-in development tools for navigation, analysis, modification, execution, and git operations. Perfect for actual development work.</li>
+                <li><b><code>code_path=</code></b> - Recursively loads all code files as text context (up to 4MB) for
+                    review and analysis. No tools, just pure code context.</li>
+                <li><b><code>project_path=</code></b> - Activates full AI agent mode with 24 built-in development tools
+                    for navigation, analysis, modification, execution, and git operations. Perfect for actual
+                    development work.</li>
             </ul>
         </li>
-        <li><b>Multimodal Support:</b> Supports image, audio, and PDF file embedding directly from local paths (e.g., <code>image_path=...</code>, <code>pdf_path=...</code>, <code>audio_path=...</code>).</li>
-        <li><b>Built-in Development Tools:</b> 24 tools including file operations, code search, patch application, command execution (pytest, awk, sed, grep, npm), and full git integration.</li>
-        <li><b>Function Calling:</b> Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for advanced, structured function calling. <b>Tool selection is highly configurable:</b> profiles (System Prompts/Overrides) can explicitly select or disable specific MCP functions/tools, overriding the default context-aware selection logic. Native Google tools (Search, URL Context) can also be enabled via profiles.</li>
-        <li><b>Image Generation:</b> Includes a dedicated UI and API endpoint for generating images with compatible models.</li>
-        <li><b>Advanced Prompt Control:</b> Lets you define and apply both system-level prompts and dynamic prompt overrides based on keywords.</li>
-        <li><b>Multi-Chat UI:</b> The web interface supports multiple, persistent chat sessions, each with its own history and file storage.</li>
-        <li><b>Efficient Caching:</b> Caches model lists, model-specific details (like token limits), tool outputs, and prompt cache entries to reduce upstream API calls.</li>
-        <li><b>Integrated Developer Toolkit:</b> The Docker container includes a ready-to-use development environment with <b>Node.js 22+</b> and the <b>Docker CLI</b>. This enables direct execution of `npx mcp-tools` for testing function calls and allows scripts inside the container to manage the host's Docker environment via the mounted Docker socket.</li>
+        <li><b>Multimodal Support:</b> Supports image, audio, and PDF file embedding directly from local paths (e.g.,
+            <code>image_path=...</code>, <code>pdf_path=...</code>, <code>audio_path=...</code>).</li>
+        <li><b>Built-in Development Tools:</b> 24 tools including file operations, code search, patch application,
+            command execution (pytest, awk, sed, grep, npm), and full git integration.</li>
+        <li><b>Function Calling:</b> Integrates with external tools via the Multi-Tool Communication Protocol (MCP) for
+            advanced, structured function calling. <b>Tool selection is highly configurable:</b> profiles (System
+            Prompts/Overrides) can explicitly select or disable specific MCP functions/tools, overriding the default
+            context-aware selection logic. Native Google tools (Search, URL Context) can also be enabled via profiles.
+        </li>
+        <li><b>Image Generation:</b> Includes a dedicated UI and API endpoint for generating images with compatible
+            models.</li>
+        <li><b>Advanced Prompt Control:</b> Lets you define and apply both system-level prompts and dynamic prompt
+            overrides based on keywords.</li>
+        <li><b>Multi-Chat UI:</b> The web interface supports multiple, persistent chat sessions, each with its own
+            history and file storage.</li>
+        <li><b>Efficient Caching:</b> Caches model lists, model-specific details (like token limits), tool outputs, and
+            prompt cache entries to reduce upstream API calls.</li>
+        <li><b>Integrated Developer Toolkit:</b> The Docker container includes a ready-to-use development environment
+            with <b>Node.js 22+</b> and the <b>Docker CLI</b>. This enables direct execution of `npx mcp-tools` for
+            testing function calls and allows scripts inside the container to manage the host's Docker environment via
+            the mounted Docker socket.</li>
     </ul>
 
     <h2 class="mt-4">🌐 Web Interface</h2>
-    <p>The proxy includes a comprehensive web interface at the root URL (<code>/</code>) for configuration and testing.</p>
+    <p>The proxy includes a comprehensive web interface at the root URL (<code>/</code>) for configuration and testing.
+    </p>
     <ul>
-        <li><strong>Chat:</strong> An advanced interface for testing models. Features include multi-chat management, conversation history, file uploads, a dedicated image generation mode, system prompts, and manual tool selection for function calls.</li>
-        <li><strong>Configuration:</strong> Set your Gemini API Key and Upstream URL. Manage context settings (selective context, relevance scoring, recent message retention) and security restrictions (allowed code paths for builtin tools). Configure debugging options. Changes are saved to the <code>.env</code> file.</li>
-        <li><strong>Prompts:</strong> Create, edit, and manage libraries of reusable prompt overrides and system prompts.</li>
-        <li><strong>MCP:</strong> Configure MCP (Multi-Tool Communication Protocol) tools for function calling and test them.</li>
+        <li><strong>Chat:</strong> An advanced interface for testing models. Features include multi-chat management,
+            conversation history, file uploads, a dedicated image generation mode, system prompts, and manual tool
+            selection for function calls.</li>
+        <li><strong>Configuration:</strong> Set your Gemini API Key and Upstream URL. Manage context settings (selective
+            context, relevance scoring, recent message retention) and security restrictions (allowed code paths for
+            builtin tools). Configure debugging options. Changes are saved to the <code>.env</code> file.</li>
+        <li><strong>Prompts:</strong> Create, edit, and manage libraries of reusable prompt overrides and system
+            prompts.</li>
+        <li><strong>MCP:</strong> Configure MCP (Multi-Tool Communication Protocol) tools for function calling and test
+            them.</li>
         <li><strong>Documentation:</strong> View API endpoint details and setup instructions.</li>
     </ul>
     <p><em>Screenshot of the Web Interface:</em></p>
-    <img src="/static/img/placeholder_web_ui.png" class="img-fluid rounded shadow-sm" alt="OpenGeminiAI Studio Web Interface">
+    <img src="/static/img/placeholder_web_ui.png" class="img-fluid rounded shadow-sm"
+        alt="OpenGeminiAI Studio Web Interface">
 
     <h2 class="mt-4">🚀 How to Use</h2>
 
@@ -114,21 +179,25 @@
     <p>The server will start on <code>http://0.0.0.0:8080</code> by default.</p>
 
     <div class="alert alert-success mt-3">
-        <strong>💡 Pro Tip:</strong> Use <code>ASYNC_MODE=true</code> for 3-5x better performance with concurrent requests!
+        <strong>💡 Pro Tip:</strong> Use <code>ASYNC_MODE=true</code> for 3-5x better performance with concurrent
+        requests!
     </div>
 
 
     <h3 class="mt-4">2. Configure JetBrains AI Assistant</h3>
     <p>To use this proxy with JetBrains IDEs:</p>
     <ol>
-        <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code> > <code>Models</code>).</li>
+        <li>Open AI Assistant settings (<code>Settings</code> > <code>Tools</code> > <code>AI Assistant</code> >
+            <code>Models</code>).</li>
         <li>Select the "OpenAI API" service.</li>
         <li>Set the <b>Server URL</b> to: <code>http://&lt;your-server-ip-or-localhost&gt;:8080/v1/</code></li>
         <li>The model list will be fetched automatically. You can leave it as default or choose a specific one.</li>
     </ol>
-    <p class="alert alert-info"><b>Note:</b> The path must end with <code>/v1/</code> because the IDE will append <code>/chat/completions</code> or <code>/models</code> to it.</p>
+    <p class="alert alert-info"><b>Note:</b> The path must end with <code>/v1/</code> because the IDE will append
+        <code>/chat/completions</code> or <code>/models</code> to it.</p>
     <p class="mt-3"><em>Screenshot of JetBrains AI Assistant settings:</em></p>
-    <img src="/static/img/placeholder_jetbrains_config.png" class="img-fluid rounded shadow-sm" alt="JetBrains AI Assistant Configuration">
+    <img src="/static/img/placeholder_jetbrains_config.png" class="img-fluid rounded shadow-sm"
+        alt="JetBrains AI Assistant Configuration">
 
     <h3 class="mt-4">3. Configure Native JetBrains Plugin 🆕</h3>
     <p>For the best experience, use the dedicated OpenGeminiAI Studio plugin for JetBrains IDEs:</p>
@@ -138,10 +207,12 @@
         <li>Configure the models and system prompts for Chat, Quick Edit, and Git Commit features.</li>
     </ol>
     <p class="mt-3"><em>Screenshot of Native Plugin configuration:</em></p>
-    <img src="/static/img/placeholder_jetbrains_plugin.png" class="img-fluid rounded shadow-sm" alt="Native JetBrains Plugin Configuration">
+    <img src="/static/img/placeholder_jetbrains_plugin.png" class="img-fluid rounded shadow-sm"
+        alt="Native JetBrains Plugin Configuration">
 
     <h3 class="mt-4">4. Dual Path Mode: Two Ways to Work with Code 🆕</h3>
-    <p>Version 3.0 introduces two distinct modes for working with code projects. Choose the right mode for your workflow!</p>
+    <p>Version 3.0 introduces two distinct modes for working with code projects. Choose the right mode for your
+        workflow!</p>
 
     <div class="row mt-4">
         <div class="col-md-6">
@@ -151,7 +222,8 @@
                     <small>Code Context Loading (Read-Only)</small>
                 </div>
                 <div class="card-body">
-                    <p><strong>Purpose:</strong> Recursively loads all code files as text context for review and analysis.</p>
+                    <p><strong>Purpose:</strong> Recursively loads all code files as text context for review and
+                        analysis.</p>
                     <p><strong>Features:</strong></p>
                     <ul class="mb-2">
                         <li>✅ Loads ALL files recursively</li>
@@ -180,7 +252,8 @@
                     <small>AI Agent Mode (Full Development)</small>
                 </div>
                 <div class="card-body">
-                    <p><strong>Purpose:</strong> Activates AI agent with 24 development tools for comprehensive project work.</p>
+                    <p><strong>Purpose:</strong> Activates AI agent with 24 development tools for comprehensive project
+                        work.</p>
                     <p><strong>Features:</strong></p>
                     <ul class="mb-2">
                         <li>✅ Shows project structure</li>
@@ -323,7 +396,8 @@
         <div class="card-body">
             <p><strong>Prompt:</strong></p>
             <pre><code class="language-bash">"Fix the SQL injection in user login: project_path=~/webapp"</code></pre>
-            <p><strong>Result:</strong> AI uses tools to search code, analyze vulnerabilities, patch files, and run tests</p>
+            <p><strong>Result:</strong> AI uses tools to search code, analyze vulnerabilities, patch files, and run
+                tests</p>
         </div>
     </div>
 
@@ -335,7 +409,7 @@
             <p><strong>Result:</strong> AI creates new files, modifies routes, writes tests, runs pytest</p>
         </div>
     </div>
-    
+
     <div class="card">
         <div class="card-header"><strong>Example 4:</strong> Mixed Workflow</div>
         <div class="card-body">
@@ -348,7 +422,8 @@
     </div>
 
     <h4 class="mt-4">🎭 9 Specialized Agent Modes</h4>
-    <p>To guide the AI's approach, you can invoke one of nine specialized agent modes. Each mode provides a specific system prompt and workflow tailored to the task.</p>
+    <p>To guide the AI's approach, you can invoke one of nine specialized agent modes. Each mode provides a specific
+        system prompt and workflow tailored to the task.</p>
     <ul class="small">
         <li><code>feature</code> - New feature development with strict planning workflow</li>
         <li><code>fix</code> - Methodical bug hunting and fixing</li>
@@ -374,15 +449,19 @@ code_path=. ignore_dir=docs|examples|legacy
 
 # Same syntax for project_path
 project_path=. ignore_type=cache</code></pre>
-    
-    <p><strong>Default Ignores:</strong> <code>.git</code>, <code>node_modules</code>, <code>__pycache__</code>, <code>venv</code>, <code>build</code>, <code>dist</code>, <code>*.pyc</code>, <code>*.log</code>, minified files, lock files, and more.</p>
-    
+
+    <p><strong>Default Ignores:</strong> <code>.git</code>, <code>node_modules</code>, <code>__pycache__</code>,
+        <code>venv</code>, <code>build</code>, <code>dist</code>, <code>*.pyc</code>, <code>*.log</code>, minified
+        files, lock files, and more.</p>
+
     <div class="alert alert-success mt-3">
         <strong>📖 Complete Guide:</strong> See PATH_SYNTAX_GUIDE.md for comprehensive documentation with more examples.
     </div>
 
     <h4 class="mt-4">Multimodal Files (image, pdf, audio)</h4>
-    <p>Specify the path to the file using <code>image_path=</code>, <code>pdf_path=</code>, or <code>audio_path=</code>. The proxy will read the file, encode it, and include it as a multimodal part in the request to the Gemini API.</p>
+    <p>Specify the path to the file using <code>image_path=</code>, <code>pdf_path=</code>, or <code>audio_path=</code>.
+        The proxy will read the file, encode it, and include it as a multimodal part in the request to the Gemini API.
+    </p>
     <pre><code class="language-bash"># Example prompts sent to the proxy:
 "Please describe this image: image_path=/Users/me/Pictures/diagram.png"
 "Summarize this document: pdf_path=~/Documents/report.pdf"</code></pre>
@@ -391,14 +470,17 @@ project_path=. ignore_type=cache</code></pre>
     <h2 class="mt-4">⚙️ Configuration</h2>
     <p>The proxy can be configured through:</p>
     <ul>
-        <li><strong>Web Interface:</strong> The Configuration tab provides an easy way to manage API keys, context settings, and debugging options.</li>
-        <li><strong>Environment Variables:</strong> Set <code>API_KEY</code>, <code>UPSTREAM_URL</code>, and other settings.</li>
-        <li><strong>Configuration Files:</strong> <code>.env</code> file for environment variables, <code>var/config/</code> for MCP and prompt configurations.</li>
+        <li><strong>Web Interface:</strong> The Configuration tab provides an easy way to manage API keys, context
+            settings, and debugging options.</li>
+        <li><strong>Environment Variables:</strong> Set <code>API_KEY</code>, <code>UPSTREAM_URL</code>, and other
+            settings.</li>
+        <li><strong>Configuration Files:</strong> <code>.env</code> file for environment variables,
+            <code>var/config/</code> for MCP and prompt configurations.</li>
     </ul>
 
     <h3 class="mt-3">🧠 Context Management Settings</h3>
     <p>Control how conversation history is processed and sent to the model:</p>
-    
+
     <div class="table-responsive">
         <table class="table table-bordered">
             <thead class="table-light">
@@ -412,29 +494,37 @@ project_path=. ignore_type=cache</code></pre>
                 <tr>
                     <td><code>SELECTIVE_CONTEXT_ENABLED</code></td>
                     <td><code>true</code></td>
-                    <td>When enabled, uses relevance scoring to intelligently select the most pertinent messages from conversation history instead of sending all messages. This helps optimize token usage and improve response quality.</td>
+                    <td>When enabled, uses relevance scoring to intelligently select the most pertinent messages from
+                        conversation history instead of sending all messages. This helps optimize token usage and
+                        improve response quality.</td>
                 </tr>
                 <tr>
                     <td><code>CONTEXT_MIN_RELEVANCE_SCORE</code></td>
                     <td><code>0.3</code></td>
-                    <td>Minimum relevance threshold (0.0-1.0) for including a message in context. Higher values (e.g., 0.5-0.7) mean stricter filtering, only keeping highly relevant messages. Lower values (e.g., 0.1-0.3) are more permissive.</td>
+                    <td>Minimum relevance threshold (0.0-1.0) for including a message in context. Higher values (e.g.,
+                        0.5-0.7) mean stricter filtering, only keeping highly relevant messages. Lower values (e.g.,
+                        0.1-0.3) are more permissive.</td>
                 </tr>
                 <tr>
                     <td><code>CONTEXT_ALWAYS_KEEP_RECENT</code></td>
                     <td><code>15</code></td>
-                    <td>Number of most recent messages to always include in context, regardless of their relevance score. This ensures continuity in the conversation even if recent messages don't score highly.</td>
+                    <td>Number of most recent messages to always include in context, regardless of their relevance
+                        score. This ensures continuity in the conversation even if recent messages don't score highly.
+                    </td>
                 </tr>
             </tbody>
         </table>
     </div>
-    
+
     <div class="alert alert-info">
-        <strong>💡 Tip:</strong> These settings can be easily adjusted through the <strong>Configuration</strong> page in the Web UI under the "Context Management" section. Changes are saved to the <code>.env</code> file and take effect immediately.
+        <strong>💡 Tip:</strong> These settings can be easily adjusted through the <strong>Configuration</strong> page
+        in the Web UI under the "Context Management" section. Changes are saved to the <code>.env</code> file and take
+        effect immediately.
     </div>
 
     <h3 class="mt-3">🔒 Security Settings</h3>
     <p>Control access restrictions for builtin development tools:</p>
-    
+
     <div class="table-responsive">
         <table class="table table-bordered">
             <thead class="table-light">
@@ -449,7 +539,9 @@ project_path=. ignore_type=cache</code></pre>
                     <td><code>ALLOWED_CODE_PATHS</code></td>
                     <td>Empty (unrestricted)</td>
                     <td>
-                        Comma-separated list of root directories that builtin tools can access. When set, tools like <code>list_files</code>, <code>get_file_content</code>, <code>create_file</code>, <code>execute_command</code>, etc., will only work within these directories.
+                        Comma-separated list of root directories that builtin tools can access. When set, tools like
+                        <code>list_files</code>, <code>get_file_content</code>, <code>create_file</code>,
+                        <code>execute_command</code>, etc., will only work within these directories.
                         <br><br>
                         <strong>Example:</strong> <code>/home/user/projects,/opt/workspace,/var/www</code>
                         <br><br>
@@ -468,7 +560,9 @@ project_path=. ignore_type=cache</code></pre>
                     <td><code>MAX_CODE_INJECTION_SIZE_KB</code></td>
                     <td><code>4096</code></td>
                     <td>
-                        Maximum total size in kilobytes for files loaded via <code>code_path=</code> (default is 4MB). This prevents excessive token usage from very large codebases or directories. Can be configured on the main page.
+                        Maximum total size in kilobytes for files loaded via <code>code_path=</code> (default is 4MB).
+                        This prevents excessive token usage from very large codebases or directories. Can be configured
+                        on the main page.
                     </td>
                 </tr>
             </tbody>
@@ -476,7 +570,10 @@ project_path=. ignore_type=cache</code></pre>
     </div>
 
     <div class="alert alert-warning">
-        <strong>⚠️ Important:</strong> This setting affects all 24 builtin development tools. When <code>project_path=</code> or <code>code_path=</code> is used, tools will only access files within the configured allowed directories. This provides an additional security layer beyond the standard project root restriction.
+        <strong>⚠️ Important:</strong> This setting affects all 24 builtin development tools. When
+        <code>project_path=</code> or <code>code_path=</code> is used, tools will only access files within the
+        configured allowed directories. This provides an additional security layer beyond the standard project root
+        restriction.
     </div>
 
     <h3 class="mt-3">🤖 Agent Intelligence & Enhanced Aux Model Settings</h3>
