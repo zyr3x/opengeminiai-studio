@@ -67,3 +67,41 @@ async def get_mcp_definition_for_prompt():
             })
             
     return jsonify({"functionDeclarations": declarations_list})
+
+@mcp_settings_bp.route('/api/mcp/servers', methods=['GET'])
+def get_mcp_servers_api():
+    config_data = {}
+    import os, json
+    if os.path.exists(mcp_handler.MCP_CONFIG_FILE):
+        try:
+            with open(mcp_handler.MCP_CONFIG_FILE, 'r') as f:
+                config_data = json.load(f)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    return jsonify(config_data.get("mcpServers", {}))
+
+@mcp_settings_bp.route('/api/mcp/servers', methods=['POST'])
+def save_mcp_servers_api():
+    new_servers = request.json
+    if not isinstance(new_servers, dict):
+        return jsonify({"error": "Invalid payload format, expected a dictionary of servers"}), 400
+    
+    import os, json
+    config_data = {}
+    if os.path.exists(mcp_handler.MCP_CONFIG_FILE):
+        try:
+            with open(mcp_handler.MCP_CONFIG_FILE, 'r') as f:
+                config_data = json.load(f)
+        except Exception:
+            pass
+            
+    config_data["mcpServers"] = new_servers
+    
+    try:
+        os.makedirs(os.path.dirname(mcp_handler.MCP_CONFIG_FILE), exist_ok=True)
+        with open(mcp_handler.MCP_CONFIG_FILE, 'w') as f:
+            json.dump(config_data, f, indent=4)
+        mcp_handler.load_mcp_config()
+        return jsonify({"success": True, "message": "MCP servers updated successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

@@ -37,6 +37,11 @@
             "module_path": "app.modules.web_ui.settings",
             "blueprint_name": "settings_bp",
             "url_prefix": ""
+        },
+        {
+            "module_path": "app.modules.web_ui.devops",
+            "blueprint_name": "devops_bp",
+            "url_prefix": ""
         }
     ],
     "mcp_tools": []

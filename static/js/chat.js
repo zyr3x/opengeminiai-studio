@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const newChatBtnMobile = document.getElementById('new-chat-btn-mobile'); // Mobile new chat button
     const deleteChatBtnUniversal = document.getElementById('delete-chat-btn-universal'); // Universal delete chat button
     const renameChatBtn = document.getElementById('rename-chat-btn');
+    const exportChatBtn = document.getElementById('export-chat-btn');
     const generationTypeSelect = document.getElementById('generation-type-select');
     const el = document.querySelector('#mcp-tools-select');
     const chatSidebar = document.getElementById('chat-sidebar');
@@ -193,15 +194,66 @@ document.addEventListener('DOMContentLoaded', function () {
     function addCopyButtonsToCodeBlocks(container) {
         const codeBlocks = container.querySelectorAll('pre:not(:has(code.language-mermaid))');
         codeBlocks.forEach(pre => {
+            const codeEl = pre.querySelector('code');
+            if (!codeEl) return;
+            const codeText = codeEl.innerText;
+
+            // Try to extract filepath (e.g., "# filepath: /path" or "// filepath: /path")
+            let filepath = null;
+            const firstLine = codeText.split('\n')[0].trim();
+            const pathMatch = firstLine.match(/^(?:\/\/#|#|\/\/)\s*filepath:\s*(.+)$/i) || firstLine.match(/^(?:\/\/#|#|\/\/)\s*file:\s*(.+)$/i);
+            if (pathMatch && pathMatch[1]) {
+                filepath = pathMatch[1].trim();
+            }
+
+            const headerContainer = document.createElement('div');
+            headerContainer.className = 'd-flex justify-content-end mb-2 gap-2 position-absolute top-0 end-0 p-2';
+            headerContainer.style.zIndex = '10';
+
+            // Push pre content down if header is added
+            pre.style.position = 'relative';
+            pre.style.paddingTop = '2.5rem';
+
+            if (filepath) {
+                const diffBtn = document.createElement('button');
+                diffBtn.className = 'btn btn-sm btn-outline-success diff-code-btn';
+                diffBtn.innerHTML = '<span class="material-icons fs-6">difference</span> Diff & Approve';
+                diffBtn.title = `Apply changes to ${filepath}`;
+
+                diffBtn.addEventListener('click', async () => {
+                    diffBtn.disabled = true;
+                    diffBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
+
+                    try {
+                        const response = await fetch(`/api/fs/read?path=${encodeURIComponent(filepath)}`);
+                        let originalContent = '';
+                        if (response.ok) {
+                            const data = await response.json();
+                            originalContent = data.content || '';
+                        } // If 404, it might be a new file, leave originalContent empty
+
+                        // Show modal
+                        showDiffModal(filepath, originalContent, codeText);
+                    } catch (err) {
+                        console.error("Error fetching original file:", err);
+                        alert("Could not fetch the original file for comparison.");
+                    } finally {
+                        diffBtn.disabled = false;
+                        diffBtn.innerHTML = '<span class="material-icons fs-6">difference</span> Diff & Approve';
+                        // Keep a reference to the button on the modal to update it later
+                        document.getElementById('diff-modal').dataset.sourceButtonId = diffBtn.id = 'diff-btn-' + Date.now();
+                    }
+                });
+                headerContainer.appendChild(diffBtn);
+            }
+
             const copyBtn = document.createElement('button');
             copyBtn.className = 'btn btn-sm btn-outline-primary copy-code-btn';
             copyBtn.innerHTML = '<span class="material-icons fs-6">content_copy</span> Copy';
-            pre.style.position = 'relative';
-            pre.appendChild(copyBtn);
 
             copyBtn.addEventListener('click', () => {
-                const code = pre.querySelector('code').innerText;
-                navigator.clipboard.writeText(code).then(() => {
+                const codeToCopy = codeEl.innerText;
+                navigator.clipboard.writeText(codeToCopy).then(() => {
                     copyBtn.innerHTML = '<span class="material-icons fs-6">done</span> Copied!';
                     setTimeout(() => {
                         copyBtn.innerHTML = '<span class="material-icons fs-6">content_copy</span> Copy';
@@ -211,8 +263,108 @@ document.addEventListener('DOMContentLoaded', function () {
                     copyBtn.textContent = 'Error';
                 });
             });
+            headerContainer.appendChild(copyBtn);
+
+            pre.appendChild(headerContainer);
         });
     }
+
+    // Modal display logic
+    function showDiffModal(filepath, originalContent, newContent) {
+        const targetElement = document.getElementById('diff-container');
+        const modalEl = document.getElementById('diff-modal');
+        const modalTitle = document.getElementById('diffModalLabel');
+        const diffApproveBtn = document.getElementById('diff-approve-btn');
+
+        modalTitle.textContent = `Review Changes: ${filepath}`;
+        targetElement.innerHTML = ''; // Clear previous
+
+        // Generate Unified Diff
+        const diffString = Diff.createTwoFilesPatch(
+            filepath, filepath,
+            originalContent, newContent,
+            'Original', 'Modified Code',
+            { context: 3 }
+        );
+
+        // Render Diff2Html
+        const diff2htmlUi = new Diff2HtmlUI(targetElement, diffString, {
+            drawFileList: false,
+            matching: 'lines',
+            outputFormat: 'side-by-side',
+            renderNothingWhenEmpty: false
+        });
+        diff2htmlUi.draw();
+        diff2htmlUi.highlightCode();
+
+        // Setup Approve Handler
+        diffApproveBtn.onclick = async () => {
+            diffApproveBtn.disabled = true;
+            diffApproveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+            try {
+                const response = await fetch('/api/fs/write', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: filepath, content: newContent })
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to apply changes.');
+                }
+
+                // transform original button to "Undo"
+                const sourceBtnId = modalEl.dataset.sourceButtonId;
+                if (sourceBtnId) {
+                    const sourceBtn = document.getElementById(sourceBtnId);
+                    if (sourceBtn) {
+                        sourceBtn.className = 'btn btn-sm btn-outline-warning diff-code-btn';
+                        sourceBtn.innerHTML = '<span class="material-icons fs-6">undo</span> Undo ↺';
+                        sourceBtn.title = `Revert changes to ${filepath}`;
+
+                        // Re-bind to Undo logic
+                        sourceBtn.onclick = async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (confirm(`Revert changes made to ${filepath}?`)) {
+                                sourceBtn.disabled = true;
+                                sourceBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Reverting...';
+                                try {
+                                    const revRes = await fetch('/api/fs/revert', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ path: filepath })
+                                    });
+                                    if (!revRes.ok) throw new Error("Failed to revert");
+                                    sourceBtn.className = 'btn btn-sm btn-outline-success diff-code-btn';
+                                    sourceBtn.innerHTML = '<span class="material-icons fs-6">difference</span> Diff & Approve';
+                                    alert("Changes reverted successfully.");
+                                } catch (e) {
+                                    alert(`Error undoing: ${e.message}`);
+                                    sourceBtn.disabled = false;
+                                    sourceBtn.innerHTML = '<span class="material-icons fs-6">undo</span> Undo ↺';
+                                }
+                            }
+                        };
+                    }
+                }
+
+                // Hide modal on success
+                const bsModal = bootstrap.Modal.getInstance(modalEl);
+                bsModal.hide();
+
+            } catch (e) {
+                alert(`Error: ${e.message}`);
+            } finally {
+                diffApproveBtn.disabled = false;
+                diffApproveBtn.innerHTML = 'Approve Changes';
+            }
+        };
+
+        // Show modal via bootstrap API
+        const bsModal = new bootstrap.Modal(modalEl);
+        bsModal.show();
+    }
+
 
     function renderMermaidDiagrams(container) {
         if (window.mermaid) {
@@ -384,6 +536,7 @@ document.addEventListener('DOMContentLoaded', function () {
     async function loadChat(chatId) {
         if (!chatId) {
             if (deleteChatBtnUniversal) deleteChatBtnUniversal.style.display = 'none';
+            if (exportChatBtn) exportChatBtn.style.display = 'none';
             return;
         }
         currentChatId = chatId;
@@ -392,6 +545,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (deleteChatBtnUniversal) {
             deleteChatBtnUniversal.style.display = 'flex'; // Show the button when a chat is loaded
+        }
+        if (exportChatBtn) {
+            exportChatBtn.style.display = 'flex';
         }
 
         // Highlight active chat in sidebar (Desktop view)
@@ -447,6 +603,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (chats.length === 0) {
                 if (deleteChatBtnUniversal) deleteChatBtnUniversal.style.display = 'none';
+                if (exportChatBtn) exportChatBtn.style.display = 'none';
                 await createNewChat(); // Will recall loadChats
             } else {
                 const listGroup = document.createElement('div');
@@ -543,6 +700,48 @@ document.addEventListener('DOMContentLoaded', function () {
                     console.error('Error renaming chat:', error);
                     alert(`Could not rename chat: ${error.message}`);
                 }
+            }
+        });
+    }
+
+    if (exportChatBtn) {
+        exportChatBtn.addEventListener('click', async () => {
+            if (!currentChatId) return;
+
+            exportChatBtn.disabled = true;
+            exportChatBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            try {
+                // Fetch the original messages array from the backend to get the pristine text 
+                // rather than trying to reverse-engineer HTML to markdown.
+                const response = await fetch(`/api/chats/${currentChatId}/messages`);
+                if (!response.ok) throw new Error('Failed to load messages for export');
+                const messages = await response.json();
+
+                let markdown = `# Chat: ${chatTitle.textContent}\n\n`;
+
+                messages.forEach(msg => {
+                    const roleName = msg.role === 'user' ? '**You:**' : '**Assistant:**';
+                    markdown += `${roleName}\n\n${msg.content}\n\n---\n\n`;
+                });
+
+                const blob = new Blob([markdown], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const safeTitle = chatTitle.textContent.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                a.download = `chat_${safeTitle}.md`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+            } catch (err) {
+                console.error("Export failed:", err);
+                alert("Could not export chat to markdown.");
+            } finally {
+                exportChatBtn.disabled = false;
+                exportChatBtn.innerHTML = '<span class="material-icons fs-6">download</span>';
             }
         });
     }

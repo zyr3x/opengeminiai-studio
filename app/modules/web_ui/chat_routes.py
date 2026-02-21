@@ -444,3 +444,97 @@ def serve_upload(filepath):
         return send_from_directory(os.path.dirname(safe_path), os.path.basename(safe_path))
     except FileNotFoundError:
         return "File not found", 404
+
+def get_safe_path(requested_path):
+    """Ensure the requested path is within the project root."""
+    if not requested_path:
+        return None
+    
+    # Resolve the absolute path of the project root
+    project_root = os.path.abspath(config.PROJECT_ROOT) if hasattr(config, 'PROJECT_ROOT') else os.path.abspath(os.getcwd())
+    
+    # Resolve the absolute path of the requested path
+    if os.path.isabs(requested_path):
+        safe_path = os.path.abspath(requested_path)
+    else:
+        safe_path = os.path.abspath(os.path.join(project_root, requested_path))
+    
+    # Check if the resolved path starts with the project root
+    if not safe_path.startswith(project_root):
+        return None
+        
+    return safe_path
+
+@web_ui_chat_bp.route('/api/fs/read', methods=['GET'])
+def fs_read_file():
+    filepath = request.args.get('path')
+    if not filepath:
+        return jsonify({"error": "Path parameter is required"}), 400
+        
+    safe_path = get_safe_path(filepath)
+    if not safe_path:
+        return jsonify({"error": "Invalid path or permission denied"}), 403
+        
+    if not os.path.exists(safe_path) or not os.path.isfile(safe_path):
+        return jsonify({"error": "File not found"}), 404
+        
+    try:
+        with open(safe_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return jsonify({"content": content})
+    except UnicodeDecodeError:
+        return jsonify({"error": "File is not standard text (encoding error)"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@web_ui_chat_bp.route('/api/fs/write', methods=['POST'])
+def fs_write_file():
+    data = request.json
+    filepath = data.get('path')
+    content = data.get('content')
+    
+    if not filepath or content is None:
+        return jsonify({"error": "Path and content are required"}), 400
+        
+    safe_path = get_safe_path(filepath)
+    if not safe_path:
+        return jsonify({"error": "Invalid path or permission denied"}), 403
+        
+    try:
+        # Create backup if file exists
+        if os.path.exists(safe_path) and os.path.isfile(safe_path):
+            backup_path = safe_path + '.bak'
+            import shutil
+            shutil.copy2(safe_path, backup_path)
+            
+        # Write new content
+        os.makedirs(os.path.dirname(safe_path), exist_ok=True)
+        with open(safe_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+            
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@web_ui_chat_bp.route('/api/fs/revert', methods=['POST'])
+def fs_revert_file():
+    data = request.json
+    filepath = data.get('path')
+    
+    if not filepath:
+        return jsonify({"error": "Path is required"}), 400
+        
+    safe_path = get_safe_path(filepath)
+    if not safe_path:
+        return jsonify({"error": "Invalid path or permission denied"}), 403
+        
+    backup_path = safe_path + '.bak'
+    if not os.path.exists(backup_path):
+        return jsonify({"error": "No backup found to revert"}), 404
+        
+    try:
+        import shutil
+        shutil.copy2(backup_path, safe_path)
+        return jsonify({"success": True})
+    except Exception as e:
+         return jsonify({"error": str(e)}), 500
