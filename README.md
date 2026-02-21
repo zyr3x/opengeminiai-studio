@@ -1,4 +1,4 @@
-# OpenGeminiAI Studio V3.3
+# OpenGeminiAI Studio V4.0
 
 [![Project Logo](static/img/logo.svg)](http://localhost:8080/)
 
@@ -17,11 +17,14 @@ In a world of AI coding assistants, OpenGeminiAI Studio stands out by combining 
 -   **Total Control & Privacy:** Host it on your own machine. Sandbox the AI's access to specific project directories for complete peace of mind.
 -   **Cost-Effective:** Leverage powerful optimization features like selective context, prompt caching, and tool output summarization to significantly reduce token usage.
 
-## 🚀 What's New in V3.3 - Drafts, Regeneration & Project Prompts
+## 🚀 What's New in V4.0 - VS Code Parity, FastMCP & Web UI
+Version 4.0 is a massive update that brings full feature parity between IDEs, modernizes the tool architecture, and introduces a beautiful web interface.
 
-Version 3.3 brings significant usability improvements to the JetBrains plugin (v1.4.0) and the core proxy, focusing on state persistence and project-specific customization.
-
--   **💾 Draft Persistence (Plugin):** Never lose your work again. Chat inputs and attachments are now automatically saved and restored, even if you close the IDE or switch projects.
+-   **✨ VS Code Parity:** The VS Code extension now perfectly matches the JetBrains plugin's premium "Firm" UI, including Draft Persistence, Message Regeneration, Quick Edit patch application, and Project-Specific Prompts.
+-   **🔌 FastMCP Architecture:** Complete refactor of the underlying MCP (Multi-Tool Communication Protocol) handler. We've replaced monolithic logic with a dynamic `FastMCP` architecture for more robust and reliable tool execution.
+-   **🌐 Beautiful Web UI:** A brand new, Firm-styled frontend web interface. Includes a real-time Markdown editor, Token Counters, multi-chat management, and dedicated MCP tool configuration panels.
+-   **🔄 Automated Coverage Loop:** Introduced a powerful `coverage_loop.sh` and `bugfix_loop.sh` system that allows the AI to autonomously monitor its own logs, write tests, and fix bugs in a continuous TDD loop.
+-   **⚡ Performance & Stability:** Improved async handling for streaming responses and better error recovery during complex chain-of-thought Agent interactions.
 -   **🔄 Message Regeneration (Plugin):** Not happy with an answer? One-click regenerate assistant responses to get a better result.
 -   **📂 Project-Specific Prompts:** Customize the AI's behavior for each project by adding `chat.md`, `commit.md`, `edit.md`, or `title.md` to the `.opengemini/prompts/` directory in your project root.
 -   **🛠️ Manual MCP Tool Selection:** Explicitly select which MCP tools (built-in or server-based) to enable for a specific chat session, giving you granular control over the agent's capabilities.
