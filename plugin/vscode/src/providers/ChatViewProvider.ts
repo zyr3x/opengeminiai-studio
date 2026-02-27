@@ -21,12 +21,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         availableTools: null
     };
 
-    constructor(private context: vscode.ExtensionContext) {
+    constructor(private context: vscode.ExtensionContext, private outputChannel?: vscode.OutputChannel) {
+        this.log("Initializing ChatViewProvider...");
         this.loadConversations();
         const savedState = context.globalState.get<Partial<AppState>>('appState', {});
         this.appState = { ...this.appState, ...savedState };
 
         this.registerCommands();
+    }
+
+    private log(message: string) {
+        if (this.outputChannel) {
+            this.outputChannel.appendLine(`[${new Date().toLocaleTimeString()}] ${message}`);
+        }
+        console.log(message);
     }
 
     private registerCommands() {
@@ -51,6 +59,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.refreshBackendData();
 
         webviewView.webview.onDidReceiveMessage(async (m) => {
+            this.log(`Received message from webview: ${m.type}`);
             switch (m.type) {
                 case 'init': this.updateUI(); break;
                 case 'send': await this.handleSend(m.text, m.attachments); break;
@@ -59,6 +68,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 case 'newChat': this.createNewChat(); break;
                 case 'deleteChat': this.deleteChat(m.id); break;
                 case 'loadChat': this.loadChat(m.id); break;
+                case 'requestRename': this.handleRequestRename(m.id, m.currentTitle); break;
+                case 'renameChat': this.renameChat(m.id, m.title); break;
                 case 'saveDraft': this.saveDraft(m.text, m.attachments); break;
                 case 'applyChange': await this.applyFileChange(m.path, m.content); break;
                 case 'undoChange': await this.undoFileChange(m.path); break;
@@ -96,16 +107,26 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         await this.streamResponse(chat);
     }
 
-    private async refreshBackendData() {
+    private async refreshBackendData(retries = 3) {
         try {
             const [models, tools] = await Promise.all([
                 ApiClient.getModels(),
                 ApiClient.getMcpTools()
             ]);
-            if (models) this.appState.availableModels = models;
+            if (models && models.length > 0) {
+                this.appState.availableModels = models;
+                if (!this.appState.availableModels.includes(this.appState.model)) {
+                    this.appState.model = this.appState.availableModels[0];
+                }
+            }
             this.appState.availableTools = tools;
             this.updateUI();
-        } catch { }
+        } catch (err) {
+            this.log(`Failed to refresh backend data: ${err}`);
+            if (retries > 0) {
+                setTimeout(() => this.refreshBackendData(retries - 1), 5000);
+            }
+        }
     }
 
     private async handleGenerateCommit() {
@@ -130,7 +151,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const { execSync } = require('child_process');
             const workspace = vscode.workspace.workspaceFolders?.[0];
             if (workspace) {
-                return execSync('git diff --cached', { cwd: workspace.uri.fsPath }).toString();
+                // Use 2>/dev/null to suppress fatal error if not a git repo
+                return execSync('git diff --cached 2>/dev/null', { cwd: workspace.uri.fsPath }).toString();
             }
         } catch { }
         return null;
@@ -368,6 +390,25 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.updateUI();
     }
 
+    private async handleRequestRename(id: string, currentTitle: string) {
+        const title = await vscode.window.showInputBox({
+            prompt: 'Enter new chat title',
+            value: currentTitle
+        });
+        if (title) {
+            this.renameChat(id, title);
+        }
+    }
+
+    private renameChat(id: string, title: string) {
+        const chat = this.conversations.find(c => c.id === id);
+        if (chat) {
+            chat.title = title;
+            this.saveChat(chat);
+            this.updateUI();
+        }
+    }
+
     private saveDraft(text: string, attachments: Attachment[]) {
         const chat = this.conversations.find(c => c.id === this.currentId);
         if (chat) {
@@ -399,7 +440,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private updateUI() { this._view?.webview.postMessage({ type: 'render', chats: this.conversations, currentId: this.currentId, state: this.appState }); }
+    private updateUI() {
+        this.log(`Updating UI (currentId: ${this.currentId}, conversations: ${this.conversations.length})`);
+        this._view?.webview.postMessage({ type: 'render', chats: this.conversations, currentId: this.currentId, state: this.appState });
+    }
 
     // --- File-Based Storage Implementation ---
     private getStorageDir(): string | null {
@@ -470,7 +514,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     <div id="history-sidebar" class="history-sidebar">
         <div class="header">
             <span>Conversations</span>
-            <button class="icon-btn">✕</button>
+            <button class="icon-btn close-sidebar-btn">✕</button>
         </div>
         <div class="history-header">
             <input type="text" id="history-search" class="search-bar" placeholder="Search history...">
@@ -494,10 +538,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     <div id="input-area" class="input-area">
         <div class="input-container">
             <div id="attachments-list" class="attachments-list"></div>
-            <textarea id="input-box" placeholder="Ask AI... (Drag & Drop files)" rows="1"></textarea>
+            <textarea id="chat-input" placeholder="Ask AI... (Drag & Drop files)" rows="1"></textarea>
             <div class="controls">
                 <div class="left-controls">
                     <button class="icon-btn" id="attach-btn" title="Add Context">📎</button>
+                    <button class="icon-btn" id="tools-btn" title="MCP Tools">🛠️</button>
                     <select id="mode-select">
                         <option value="Chat">Chat</option>
                         <option value="QuickEdit">Quick Edit</option>

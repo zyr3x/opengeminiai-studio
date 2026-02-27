@@ -5,6 +5,9 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { McpToolsResponse } from '../model';
 
+// Use Node.js adapter for stability in VS Code environment
+(axios.defaults as any).adapter = 'http';
+
 export class ApiClient {
     private static getBaseUrl(): string {
         const config = vscode.workspace.getConfiguration('opengeminiai');
@@ -98,7 +101,8 @@ To apply changes, output a single JSON block formatted as follows at the END of 
         try {
             const workspace = vscode.workspace.workspaceFolders?.[0];
             if (workspace) {
-                return execSync('git rev-parse --abbrev-ref HEAD', { cwd: workspace.uri.fsPath }).toString().trim();
+                // Use 2>/dev/null to suppress fatal error if not a git repo
+                return execSync('git rev-parse --abbrev-ref HEAD 2>/dev/null', { cwd: workspace.uri.fsPath }).toString().trim();
             }
         } catch { }
         return 'Unknown';
@@ -106,7 +110,7 @@ To apply changes, output a single JSON block formatted as follows at the END of 
 
     static async getModels(): Promise<string[]> {
         try {
-            const res = await axios.get(`${this.getBaseUrl()}/v1/models`, { timeout: 3000 });
+            const res = await axios.get(`${this.getBaseUrl()}/v1/models`, { timeout: 10000 });
             if (res.data && res.data.data) {
                 return res.data.data.map((m: any) => m.id);
             }
@@ -116,14 +120,14 @@ To apply changes, output a single JSON block formatted as follows at the END of 
 
     static async getSystemPrompts(): Promise<Record<string, { prompt: string }> | null> {
         try {
-            const res = await axios.get(`${this.getBaseUrl()}/v1/system_prompts`, { timeout: 3000 });
+            const res = await axios.get(`${this.getBaseUrl()}/v1/system_prompts`, { timeout: 10000 });
             return res.data;
         } catch { return null; }
     }
 
     static async getMcpTools(): Promise<McpToolsResponse | null> {
         try {
-            const res = await axios.get(`${this.getBaseUrl()}/api/mcp/list`, { timeout: 3000 });
+            const res = await axios.get(`${this.getBaseUrl()}/api/mcp/list`, { timeout: 10000 });
             return res.data;
         } catch { return null; }
     }

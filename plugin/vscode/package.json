@@ -139,77 +139,75 @@
     "configuration": {
       "title": "OpenGeminiAI Studio",
       "properties": {
-        "properties": {
-          "opengeminiai.serverUrl": {
-            "type": "string",
-            "default": "http://localhost:8080",
-            "description": "Base URL for the OpenGeminiAI Proxy"
-          },
-          "opengeminiai.defaultChatModel": {
-            "type": "string",
-            "default": "gemini-2.5-flash",
-            "description": "Default model for Chat mode"
-          },
-          "opengeminiai.defaultQuickEditModel": {
-            "type": "string",
-            "default": "gemini-2.5-flash",
-            "description": "Default model for Quick Edit mode"
-          },
-          "opengeminiai.defaultCommitModel": {
-            "type": "string",
-            "default": "gemini-2.5-flash",
-            "description": "Default model for Commit Message generation"
-          },
-          "opengeminiai.defaultTitleModel": {
-            "type": "string",
-            "default": "gemini-2.5-flash",
-            "description": "Default model for Chat Title generation"
-          },
-          "opengeminiai.chatPromptKey": {
-            "type": "string",
-            "default": "Default",
-            "description": "System Prompt key for Chat mode"
-          },
-          "opengeminiai.quickEditPromptKey": {
-            "type": "string",
-            "default": "Default",
-            "description": "System Prompt key for Quick Edit mode"
-          },
-          "opengeminiai.commitPromptKey": {
-            "type": "string",
-            "default": "Default",
-            "description": "System Prompt key for Commit Generation"
-          },
-          "opengeminiai.ignoredDirectories": {
-            "type": "string",
-            "default": "__pycache__, node_modules, .git, .idea, .vscode, venv, .venv, env, build, target, out, dist, coverage, .gradle, .DS_Store, vendor, bin, obj, .nuxt, .next",
-            "description": "Comma-separated list of directory names to ignore"
-          },
-          "opengeminiai.ignoredExtensions": {
-            "type": "string",
-            "default": "pyc, pyo, pyd, class, o, so, dll, exe, dylib, jar, war, ear, zip, tar, gz, 7z, rar, iso, img, db, sqlite",
-            "description": "Comma-separated list of file extensions to ignore"
-          },
-          "opengeminiai.commitMaxFiles": {
-            "type": "number",
-            "default": 30,
-            "description": "Maximum changes to include in Commit Generation"
-          },
-          "opengeminiai.commitMaxContextLength": {
-            "type": "number",
-            "default": 30000,
-            "description": "Maximum characters of diff context for Commit Generation"
-          },
-          "opengeminiai.toolsMode": {
-            "type": "string",
-            "enum": [
-              "Auto",
-              "Manual",
-              "Disabled"
-            ],
-            "default": "Auto",
-            "description": "MCP Tools selection mode"
-          }
+        "opengeminiai.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:8080",
+          "description": "Base URL for the OpenGeminiAI Proxy"
+        },
+        "opengeminiai.defaultChatModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash",
+          "description": "Default model for Chat mode"
+        },
+        "opengeminiai.defaultQuickEditModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash",
+          "description": "Default model for Quick Edit mode"
+        },
+        "opengeminiai.defaultCommitModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash",
+          "description": "Default model for Commit Message generation"
+        },
+        "opengeminiai.defaultTitleModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash",
+          "description": "Default model for Chat Title generation"
+        },
+        "opengeminiai.chatPromptKey": {
+          "type": "string",
+          "default": "Default",
+          "description": "System Prompt key for Chat mode"
+        },
+        "opengeminiai.quickEditPromptKey": {
+          "type": "string",
+          "default": "Default",
+          "description": "System Prompt key for Quick Edit mode"
+        },
+        "opengeminiai.commitPromptKey": {
+          "type": "string",
+          "default": "Default",
+          "description": "System Prompt key for Commit Generation"
+        },
+        "opengeminiai.ignoredDirectories": {
+          "type": "string",
+          "default": "__pycache__, node_modules, .git, .idea, .vscode, venv, .venv, env, build, target, out, dist, coverage, .gradle, .DS_Store, vendor, bin, obj, .nuxt, .next",
+          "description": "Comma-separated list of directory names to ignore"
+        },
+        "opengeminiai.ignoredExtensions": {
+          "type": "string",
+          "default": "pyc, pyo, pyd, class, o, so, dll, exe, dylib, jar, war, ear, zip, tar, gz, 7z, rar, iso, img, db, sqlite",
+          "description": "Comma-separated list of file extensions to ignore"
+        },
+        "opengeminiai.commitMaxFiles": {
+          "type": "number",
+          "default": 30,
+          "description": "Maximum changes to include in Commit Generation"
+        },
+        "opengeminiai.commitMaxContextLength": {
+          "type": "number",
+          "default": 30000,
+          "description": "Maximum characters of diff context for Commit Generation"
+        },
+        "opengeminiai.toolsMode": {
+          "type": "string",
+          "enum": [
+            "Auto",
+            "Manual",
+            "Disabled"
+          ],
+          "default": "Auto",
+          "description": "MCP Tools selection mode"
         }
       }
     }

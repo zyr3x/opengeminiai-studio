@@ -22,6 +22,54 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
+}
+
+/* Sidebar Sidebar */
+.history-sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 260px;
+    height: 100%;
+    background: var(--bg-color);
+    border-right: 1px solid var(--border-color);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+}
+
+.history-sidebar.open {
+    transform: translateX(0);
+}
+
+.history-header {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.search-bar {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--input-bg);
+    color: var(--input-fg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+    outline: none;
+}
+
+.search-bar:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+.history-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
 }
 
 /* Header */
@@ -253,6 +301,10 @@ select {
     cursor: pointer;
 }
 
+select:hover {
+    background: var(--vscode-dropdown-listBackground);
+}
+
 .send-btn {
     background: var(--button-bg);
     color: var(--button-fg);
@@ -318,6 +370,36 @@ select {
     opacity: 1;
 }
 
+/* Drag & Drop Overlay */
+.drag-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    pointer-events: none;
+}
+
+.drag-overlay.active {
+    display: flex;
+}
+
+.drag-overlay-content {
+    background: var(--button-bg);
+    color: var(--button-fg);
+    padding: 20px 40px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
 .action-icon {
     cursor: pointer;
     font-size: 14px;
@@ -367,4 +449,83 @@ select {
 .stop-btn {
     background: var(--vscode-errorForeground) !important;
     color: white !important;
+}
+
+/* History Actions */
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-bottom: 2px;
+}
+
+.history-item .history-actions {
+    display: none;
+    gap: 4px;
+}
+
+.history-item:hover .history-actions {
+    display: flex;
+}
+
+.history-item.active {
+    background: var(--hover-bg);
+    font-weight: 500;
+}
+
+.action-icon {
+    font-size: 12px;
+    opacity: 0.6;
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-icon:hover {
+    opacity: 1;
+    background: var(--hover-bg);
+}
+
+/* Menus */
+.menu {
+    position: absolute;
+    background: var(--vscode-menu-background);
+    color: var(--vscode-menu-foreground);
+    border: 1px solid var(--vscode-menu-border);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    display: none;
+    z-index: 1000;
+    padding: 4px;
+    min-width: 150px;
+}
+
+.menu-item {
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.1s;
+}
+
+.menu-item:hover {
+    background: var(--vscode-menu-selectionBackground);
+    color: var(--vscode-menu-selectionForeground);
+}
+
+.menu-item.active {
+    font-weight: 600;
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.menu-separator {
+    height: 1px;
+    background: var(--vscode-menu-separatorBackground);
+    margin: 4px 0;
 }

@@ -29,7 +29,8 @@ export function activate(context: vscode.ExtensionContext) {
     }));
 
     // 3. Register Chat Provider
-    const chatProvider = new ChatViewProvider(context);
+    const outputChannel = vscode.window.createOutputChannel("OpenGeminiAI");
+    const chatProvider = new ChatViewProvider(context, outputChannel);
 
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider('opengeminiai.chatView', chatProvider)
