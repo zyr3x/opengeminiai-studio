@@ -1,9 +1,11 @@
+import httpx
+import asyncio
+import fnmatch
 import json
 import os
-import requests
-import fnmatch
+import time
 from flask import Blueprint, request, jsonify, Response, send_from_directory
-from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
+from httpx import HTTPStatusError, RequestError
 from app.config import config
 from app.utils.core import mcp_handler, tools as utils, logging, chat_db_utils
 from app.db import UPLOAD_FOLDER
@@ -50,7 +52,8 @@ def delete_message(message_id):
         return jsonify({'error': str(e)}), 500
 
 @web_ui_chat_bp.route('/api/models', methods=['GET'])
-def list_models():
+async def list_models():
+    import fnmatch
     if not config.API_KEY:
         return jsonify({"error": {"message": "API key not configured.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:
@@ -63,44 +66,46 @@ def list_models():
         try:
             params = {"key": config.API_KEY}
             GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
-            response = requests.get(GEMINI_MODELS_URL, params=params, timeout=10)
-            response.raise_for_status()
-            gemini_models_data = response.json()
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(GEMINI_MODELS_URL, params=params)
+                response.raise_for_status()
+                gemini_models_data = response.json()
 
-            for model in gemini_models_data.get("models", []):
-                if "generateContent" in model.get("supportedGenerationMethods", []):
-                    openai_models_list.append({
-                        "id": model["name"].split("/")[-1], "object": "model",
-                        "created": 1677649553, "owned_by": "google", "permission": []
-                    })
+                for model in gemini_models_data.get("models", []):
+                    if "generateContent" in model.get("supportedGenerationMethods", []):
+                        openai_models_list.append({
+                            "id": model["name"].split("/")[-1], "object": "model",
+                            "created": 1677649553, "owned_by": "google", "permission": []
+                        })
         except Exception as e:
             utils.log(f"Error fetching Gemini models: {e}")
 
         # 2. Fetch OpenAI Models from ALL configured providers
         providers = ai_provider_manager.get_all_providers_data().get('providers', {}).values()
         
-        for provider in providers:
-            if provider.get('api_key') and provider.get('base_url'):
-                try:
-                    OPENAI_MODELS_URL = f"{provider['base_url']}/models"
-                    headers = {"Authorization": f"Bearer {provider['api_key']}"}
-                    response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
-                    if response.status_code == 200:
-                        openai_models_data = response.json()
-                        for model in openai_models_data.get("data", []):
-                            model_id = model.get("id")
-                            openai_models_list.append({
-                                "id": model_id, "object": "model",
-                                "created": model.get("created", 1677649553),
-                                "owned_by": model.get("owned_by", "openai-compatible"),
-                                "permission": []
-                            })
-                            # Register mapping
-                            ai_provider_manager.register_model(model_id, provider.get('id'))
-                    else:
-                        utils.log(f"Error fetching OpenAI models from {provider.get('name')}: Status {response.status_code}")
-                except Exception as e:
-                    utils.log(f"Error fetching OpenAI models from {provider.get('name')}: {e}")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for provider in providers:
+                if provider.get('api_key') and provider.get('base_url'):
+                    try:
+                        OPENAI_MODELS_URL = f"{provider['base_url']}/models"
+                        headers = {"Authorization": f"Bearer {provider['api_key']}"}
+                        response = await client.get(OPENAI_MODELS_URL, headers=headers)
+                        if response.status_code == 200:
+                            openai_models_data = response.json()
+                            for model in openai_models_data.get("data", []):
+                                model_id = model.get("id")
+                                openai_models_list.append({
+                                    "id": model_id, "object": "model",
+                                    "created": model.get("created", 1677649553),
+                                    "owned_by": model.get("owned_by", "openai-compatible"),
+                                    "permission": []
+                                })
+                                # Register mapping
+                                ai_provider_manager.register_model(model_id, provider.get('id'))
+                        else:
+                            utils.log(f"Error fetching OpenAI models from {provider.get('name')}: Status {response.status_code}")
+                    except Exception as e:
+                        utils.log(f"Error fetching OpenAI models from {provider.get('name')}: {e}")
 
         # Deduplicate
         seen_ids = set()
@@ -134,16 +139,16 @@ def list_models():
         return jsonify({"error": f"Internal server error: {e}"}), 500
 
 @web_ui_chat_bp.route('/api/generate_image', methods=['POST'])
-def generate_image_api():
-    form = request.form
+async def generate_image_api():
+    form = await request.form
     chat_id = form.get('chat_id', type=int)
     model = form.get('model', 'gemini-1.5-pro-latest')
     prompt = form.get('prompt', '')
     generation_type = form.get('generation_type', 'image')
-    result, status_code = chat_web_logic.generate_image_logic(chat_id, model, prompt, generation_type)
+    result, status_code = await chat_web_logic.generate_image_logic(chat_id, model, prompt, generation_type)
     return jsonify(result), status_code
 @web_ui_chat_bp.route('/chat_api', methods=['POST'])
-def chat_api():
+async def chat_api():
     if not config.API_KEY:
         return jsonify({"error": "API key not configured."}), 401
 
@@ -169,7 +174,7 @@ def chat_api():
             provider = utils.get_provider_for_model(model)
 
         if provider == 'openai':
-            def generate_openai():
+            async def generate_openai():
                 # Reconstruct OpenAI style messages from gemini_contents
                 # This is an approximation as gemini_contents are already converted.
                 # Ideally we should use raw input but it was processed.
@@ -216,55 +221,54 @@ def chat_api():
                         base_url = provider_conf.get('base_url') if provider_conf else config.OPENAI_BASE_URL
                         api_key = provider_conf.get('api_key') if provider_conf else config.OPENAI_API_KEY
 
-                        import requests
                         headers = {
                             "Content-Type": "application/json",
                             "Authorization": f"Bearer {api_key}"
                         }
                         print("UPSTREAM OPENAI REQUEST DATA:", json.dumps(request_data, indent=2))
-                        response = requests.post(
-                            f"{base_url}/chat/completions",
-                            headers=headers,
-                            json=request_data,
-                            stream=True,
-                            timeout=300
-                        )
-                        response.raise_for_status()
+                        
+                        async with httpx.AsyncClient(timeout=300.0) as client:
+                            async with client.stream(
+                                "POST",
+                                f"{base_url}/chat/completions",
+                                headers=headers,
+                                json=request_data
+                            ) as response:
+                                response.raise_for_status()
+
+                                tool_calls = []
+                                current_tool_call = None
+                                full_response_text = ""
+
+                                async for line in response.aiter_lines():
+                                    if not line: continue
+                                    if line.startswith('data: '):
+                                        if line == 'data: [DONE]': break
+                                        try:
+                                            chunk = json.loads(line[6:])
+                                            delta = chunk['choices'][0]['delta']
+
+                                            if 'content' in delta and delta['content']:
+                                                text = delta['content']
+                                                full_response_text += text
+                                                yield text
+
+                                            if 'tool_calls' in delta:
+                                                for tc in delta['tool_calls']:
+                                                    if tc.get('id'):
+                                                        if current_tool_call: tool_calls.append(current_tool_call)
+                                                        current_tool_call = {
+                                                            'id': tc['id'],
+                                                            'function': {'name': tc['function'].get('name', ''), 'arguments': tc['function'].get('arguments', '')},
+                                                            'type': 'function'
+                                                        }
+                                                    elif current_tool_call:
+                                                        if 'name' in tc['function']: current_tool_call['function']['name'] += tc['function']['name']
+                                                        if 'arguments' in tc['function']: current_tool_call['function']['arguments'] += tc['function']['arguments']
+                                        except: pass
                     except Exception as e:
                         yield f"ERROR: OpenAI Provider Error: {e}"
                         return
-
-                    tool_calls = []
-                    current_tool_call = None
-                    full_response_text = ""
-
-                    for line in response.iter_lines():
-                        if not line: continue
-                        decoded_line = line.decode('utf-8')
-                        if decoded_line.startswith('data: '):
-                            if decoded_line == 'data: [DONE]': break
-                            try:
-                                chunk = json.loads(decoded_line[6:])
-                                delta = chunk['choices'][0]['delta']
-
-                                if 'content' in delta and delta['content']:
-                                    text = delta['content']
-                                    full_response_text += text
-                                    yield text
-
-                                if 'tool_calls' in delta:
-                                    for tc in delta['tool_calls']:
-                                        if tc.get('id'):
-                                            if current_tool_call: tool_calls.append(current_tool_call)
-                                            current_tool_call = {
-                                                'id': tc['id'],
-                                                'function': {'name': tc['function'].get('name', ''), 'arguments': tc['function'].get('arguments', '')},
-                                                'type': 'function'
-                                            }
-                                        elif current_tool_call:
-                                            if 'name' in tc['function']: current_tool_call['function']['name'] += tc['function']['name']
-                                            if 'arguments' in tc['function']: current_tool_call['function']['arguments'] += tc['function']['arguments']
-                            except: pass
 
                     if current_tool_call: tool_calls.append(current_tool_call)
 
@@ -286,7 +290,7 @@ def chat_api():
                         except:
                             func_args = {}
 
-                        output = mcp_handler.execute_mcp_tool(func_name, func_args, project_context_root)
+                        output = await asyncio.to_thread(mcp_handler.execute_mcp_tool, func_name, func_args, project_context_root)
                         response_payload = json.loads(output) if isinstance(output, str) and output.startswith('{') else {"content": str(output)}
                         tool_response_parts.append({"functionResponse": {"name": func_name, "response": response_payload}})
 
@@ -300,15 +304,16 @@ def chat_api():
                     if tool_response_parts:
                         utils.add_message_to_db(chat_id, 'tool', tool_response_parts)
 
-            return Response(generate_openai(), mimetype='text/event-stream')
+            from app.utils.core.streaming import async_to_sync_generator
+            return Response(async_to_sync_generator(generate_openai()), mimetype='text/event-stream')
 
-        def generate():
+        async def generate():
             headers = {'Content-Type': 'application/json', 'X-goog-api-key': config.API_KEY}
             current_contents = gemini_contents.copy()
             final_tool_call_response = {}
 
             while True:
-                token_limit = utils.get_model_input_limit(model, config.API_KEY, config.UPSTREAM_URL)
+                token_limit = await utils.get_model_input_limit(model, config.API_KEY, config.UPSTREAM_URL)
                 safe_limit = int(token_limit * utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
 
                 current_query = ""
@@ -371,33 +376,40 @@ def chat_api():
                     GEMINI_URL = f"{config.UPSTREAM_URL}/v1beta/models/{model}:streamGenerateContent"
                     try:
                         print("UPSTREAM GEMINI STREAM REQUEST:", json.dumps(request_data, indent=2))
-                        response = utils.make_request_with_retry(url=GEMINI_URL, headers=headers, json_data=request_data, stream=True, timeout=300)
+                        async with httpx.AsyncClient(timeout=300.0) as client:
+                            async with client.stream(
+                                "POST",
+                                GEMINI_URL,
+                                headers=headers,
+                                json=request_data
+                            ) as response:
+                                response.raise_for_status()
+
+                                buffer, decoder = "", json.JSONDecoder()
+                                async for chunk in response.aiter_text():
+                                    buffer += chunk
+                                    while True:
+                                        try:
+                                            json_data, end_index = decoder.raw_decode(buffer)
+                                            buffer = buffer[end_index:]
+
+                                            responses = json_data if isinstance(json_data, list) else [json_data]
+
+                                            for response_item in responses:
+                                                if 'error' in response_item:
+                                                    yield "ERROR: " + json.dumps(response_item['error'])
+                                                    return
+                                                parts = response_item.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+                                                model_response_parts.extend(parts)
+                                                if 'usageMetadata' in response_item: final_tool_call_response = response_item
+                                                for part in parts:
+                                                    if 'text' in part: yield part['text']
+                                                    if 'functionCall' in part: tool_calls.append(part['functionCall'])
+                                        except json.JSONDecodeError:
+                                            break
                     except Exception as e:
                         yield f"ERROR: Error from upstream Gemini API: {e}"
                         return
-
-                    buffer, decoder = "", json.JSONDecoder()
-                    for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
-                        buffer += chunk
-                        while True:
-                            try:
-                                json_data, end_index = decoder.raw_decode(buffer)
-                                buffer = buffer[end_index:]
-
-                                responses = json_data if isinstance(json_data, list) else [json_data]
-
-                                for response_item in responses:
-                                    if 'error' in response_item:
-                                        yield "ERROR: " + json.dumps(response_item['error'])
-                                        return
-                                    parts = response_item.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-                                    model_response_parts.extend(parts)
-                                    if 'usageMetadata' in response_item: final_tool_call_response = response_item
-                                    for part in parts:
-                                        if 'text' in part: yield part['text']
-                                        if 'functionCall' in part: tool_calls.append(part['functionCall'])
-                            except json.JSONDecodeError:
-                                break
 
                 if not any('text' in p for p in model_response_parts) and not tool_calls and current_contents[-1].get('role') == 'tool':
                     final_text = utils.format_tool_output_for_display(current_contents[-1].get('parts', []))
@@ -419,10 +431,10 @@ def chat_api():
                 tool_response_parts = []
                 for tool_call in tool_calls:
                     function_name, args = tool_call.get("name"), tool_call.get("args")
-                    output = mcp_handler.execute_mcp_tool(function_name, args, project_context_root)
+                    output = await asyncio.to_thread(mcp_handler.execute_mcp_tool, function_name, args, project_context_root)
                     from app.utils.core.optimization_utils import estimate_tokens, MAX_TOOL_OUTPUT_TOKENS
                     if project_context_root and config.AGENT_AUX_MODEL_ENABLED and isinstance(output, str) and estimate_tokens(output) > MAX_TOOL_OUTPUT_TOKENS:
-                        output = utils.summarize_with_aux_model(output, function_name)
+                        output = await utils.summarize_with_aux_model(output, function_name)
                     response_payload = json.loads(output) if isinstance(output, str) and output.startswith('{') else {"content": str(output)}
                     tool_response_parts.append({"functionResponse": {"name": function_name, "response": response_payload}})
 
@@ -430,7 +442,8 @@ def chat_api():
                     utils.add_message_to_db(chat_id, 'tool', tool_response_parts)
                 current_contents.append({"role": "tool", "parts": tool_response_parts})
 
-        return Response(generate(), mimetype='text/event-stream')
+        from app.utils.core.streaming import async_to_sync_generator
+        return Response(async_to_sync_generator(generate()), mimetype='text/event-stream')
     except Exception as e:
         logging.log(f"An error occurred in chat API: {str(e)}")
         return jsonify({"error": f"An error occurred in chat API: {str(e)}"}), 500

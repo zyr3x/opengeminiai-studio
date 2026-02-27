@@ -176,7 +176,7 @@ class AuxModelEnhanced:
         
         return False
     
-    def process_with_aux(
+    async def process_with_aux(
         self, 
         tool_name: str, 
         content: str,
@@ -223,7 +223,7 @@ class AuxModelEnhanced:
         )
         
         try:
-            result = self._call_aux_model(prompt, strategy_config)
+            result = await self._call_aux_model(prompt, strategy_config)
             
             # Cache result
             self.cache.set(tool_name, content, strategy, result)
@@ -254,10 +254,11 @@ class AuxModelEnhanced:
             log(f"❌ Aux model error: {e}")
             return content, {'used_aux': False, 'reason': 'error', 'error': str(e)}
     
-    def _call_aux_model(self, prompt: str, strategy_config: Dict) -> str:
+    async def _call_aux_model(self, prompt: str, strategy_config: Dict) -> str:
         """Make actual API call to aux model"""
-        from app.utils.core.tools import make_request_with_retry, get_provider_for_model
-        import requests
+        from app.utils.core.tools import make_async_request_with_retry, get_provider_for_model
+        import httpx
+        import asyncio
 
         provider = get_provider_for_model(config.AGENT_AUX_MODEL_NAME)
 
@@ -273,15 +274,15 @@ class AuxModelEnhanced:
                 "max_tokens": strategy_config['max_output']
             }
             try:
-                response = requests.post(
-                    f"{config.OPENAI_BASE_URL}/chat/completions",
-                    headers=headers,
-                    json=request_data,
-                    timeout=120
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data['choices'][0]['message']['content']
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    response = await client.post(
+                        f"{config.OPENAI_BASE_URL}/chat/completions",
+                        headers=headers,
+                        json=request_data
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    return data['choices'][0]['message']['content']
             except Exception as e:
                 raise ValueError(f"OpenAI API Error: {e}")
         
@@ -300,7 +301,7 @@ class AuxModelEnhanced:
             }
         }
         
-        response = make_request_with_retry(
+        response = await make_async_request_with_retry(
             url=GEMINI_URL,
             headers=headers,
             json_data=request_data,
@@ -400,7 +401,7 @@ def get_aux_model() -> AuxModelEnhanced:
     return _aux_model_instance
 
 
-def process_tool_output_with_aux(
+async def process_tool_output_with_aux(
     tool_name: str,
     content: str,
     task_context: str = None
@@ -412,4 +413,4 @@ def process_tool_output_with_aux(
         result, metadata = process_tool_output_with_aux('list_files', large_output)
     """
     aux = get_aux_model()
-    return aux.process_with_aux(tool_name, content, task_context=task_context)
+    return await aux.process_with_aux(tool_name, content, task_context=task_context)

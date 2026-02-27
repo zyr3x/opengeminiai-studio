@@ -2,7 +2,7 @@ import hashlib
 import json
 import time
 import threading
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from datetime import date
 from app.db import get_db_connection
 from functools import wraps
@@ -367,6 +367,26 @@ def clear_expired_contexts():
         ]
         for key in expired:
             del _cached_contexts[key]
+async def execute_tools_parallel_async(tool_calls: List[Dict], project_root_override: str | None = None) -> List[Tuple[Dict, str]]:
+    if not tool_calls:
+        return []
+    
+    import asyncio
+    from app.utils.core import mcp_handler
+
+    async def run_tool(tool_call):
+        try:
+            name = tool_call.get('name')
+            args = tool_call.get('args', {})
+            # Execute synchronous tool in a thread
+            result = await asyncio.to_thread(mcp_handler.execute_mcp_tool, name, args, project_root_override)
+            return (tool_call, result)
+        except Exception as e:
+            return (tool_call, f"Error executing {tool_call.get('name')}: {e}")
+
+    tasks = [run_tool(tc) for tc in tool_calls]
+    return await asyncio.gather(*tasks)
+
 def cleanup_resources():
     close_http_session()
     shutdown_tool_executor()

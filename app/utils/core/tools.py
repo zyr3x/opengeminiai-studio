@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import httpx
 import base64
 import re
 import time
@@ -131,7 +132,7 @@ def _process_image_url(image_url: dict) -> dict | None:
     except Exception as e:
         log(f"Error processing image URL {url}: {e}")
         return None
-def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> int:
+async def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> int:
     if model_name in model_info_cache:
         return model_info_cache[model_name].get("inputTokenLimit", 8192)
 
@@ -139,12 +140,13 @@ def get_model_input_limit(model_name: str, api_key: str, upstream_url: str) -> i
         log(f"Cache miss for {model_name}. Fetching model details from API...")
         GEMINI_MODEL_INFO_URL = f"{upstream_url}/v1beta/models/{model_name}"
         params = {"key": api_key}
-        response = requests.get(GEMINI_MODEL_INFO_URL, params=params)
-        response.raise_for_status()
-        model_info = response.json()
-        model_info_cache[model_name] = model_info
-        return model_info.get("inputTokenLimit", 8192)
-    except requests.exceptions.RequestException as e:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(GEMINI_MODEL_INFO_URL, params=params)
+            response.raise_for_status()
+            model_info = response.json()
+            model_info_cache[model_name] = model_info
+            return model_info.get("inputTokenLimit", 8192)
+    except Exception as e:
         log(f"Error fetching model details for {model_name}: {e}. Using default limit of 8192.")
         return 8192
 
@@ -156,7 +158,7 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
 
     log(f"Estimated token count ({estimated_tokens}) exceeds limit ({limit}). Truncating...")
     from app import config as app_config
-    if current_query and app_config.config.SELECTIVE_CONTEXT_ENABLED:
+    if current_query and app_config.SELECTIVE_CONTEXT_ENABLED:
         try:
             from app.utils.core import context_selector
 
@@ -194,6 +196,49 @@ def truncate_contents(contents: list, limit: int, current_query: str = None) -> 
     return truncated_contents
 def pretty_json(data):
     return json.dumps(data, indent=2, ensure_ascii=False, default=str)
+async def make_async_request_with_retry(url: str, headers: dict, json_data: dict, stream: bool = False, timeout: int = 300):
+    from app.config import config
+    from app.utils.core.api_key_manager import api_key_manager
+    import httpx
+    import asyncio
+
+    rotation_attempts = 0
+    last_exception = None
+    current_key_id = api_key_manager.get_active_key_id()
+
+    while rotation_attempts < config.MAX_KEY_ROTATION_ATTEMPTS:
+        try:
+            async with httpx.AsyncClient(timeout=float(timeout)) as client:
+                if stream:
+                    # Note: caller must handle the async context of the stream
+                    return await client.stream("POST", url, headers=headers, json=json_data)
+                else:
+                    response = await client.post(url, headers=headers, json=json_data)
+                    response.raise_for_status()
+                    return response
+        except (httpx.HTTPStatusError, httpx.RequestError) as e:
+            last_exception = e
+            status_code = e.response.status_code if hasattr(e, 'response') and e.response else None
+            if status_code in [401, 429]:
+                log(f"Async request with key '{current_key_id}' failed with status {status_code}. Rotating... (Attempt {rotation_attempts + 1})")
+            else:
+                raise
+        except Exception as e:
+            last_exception = e
+            log(f"Async request with key '{current_key_id}' failed: {e}. Rotating... (Attempt {rotation_attempts + 1})")
+
+        rotation_attempts += 1
+        if rotation_attempts >= config.MAX_KEY_ROTATION_ATTEMPTS:
+            break
+
+        new_key_value, new_key_id = api_key_manager.get_next_key_value_and_id(current_key_id)
+        if new_key_value and new_key_id:
+            headers['X-goog-api-key'] = new_key_value
+            current_key_id = new_key_id
+        else:
+            break
+
+    raise last_exception
 def make_request_with_retry(url: str, headers: dict, json_data: dict, stream: bool = False, timeout: int = 300) -> requests.Response:
     from app.config import config
     from app.utils.core.api_key_manager import api_key_manager
@@ -418,7 +463,7 @@ def prepare_message_parts_for_gemini(db_parts_json: str) -> list:
     return reconstructed_parts
 
 
-def summarize_with_aux_model(content: str, tool_name: str, task_context: str = None) -> str:
+async def summarize_with_aux_model(content: str, tool_name: str, task_context: str = None) -> str:
     """
     Summarize tool output using auxiliary model (legacy interface)
     
@@ -436,7 +481,7 @@ def summarize_with_aux_model(content: str, tool_name: str, task_context: str = N
         from app.utils.core.aux_model_enhanced import get_aux_model
         
         aux = get_aux_model()
-        processed, metadata = aux.process_with_aux(tool_name, content, task_context=task_context)
+        processed, metadata = await aux.process_with_aux(tool_name, content, task_context=task_context)
         
         if metadata.get('used_aux'):
             tokens_saved = metadata.get('tokens_saved', 0)
@@ -468,7 +513,7 @@ def summarize_with_aux_model(content: str, tool_name: str, task_context: str = N
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1024}
         }
-        response = make_request_with_retry(
+        response = await make_async_request_with_retry(
             url=GEMINI_URL,
             headers=headers,
             json_data=request_data,

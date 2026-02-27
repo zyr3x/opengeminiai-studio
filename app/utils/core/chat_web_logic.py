@@ -2,15 +2,16 @@ import base64
 import json
 import os
 import mimetypes
-import requests
-from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
+import httpx
+import asyncio
+from httpx import HTTPStatusError, RequestError
 from werkzeug.utils import secure_filename
 from app.config import config
 from app.db import get_db_connection, UPLOAD_FOLDER
 from app.utils.core import chat_db_utils, file_processing_utils, logging, mcp_handler
 from app.utils.core import tool_config_utils
 from app.utils.core import tools as utils
-def generate_image_logic(chat_id, model, prompt, generation_type='image'):
+async def generate_image_logic(chat_id, model, prompt, generation_type='image'):
     if not config.API_KEY:
         return {"error": "API key not configured."}, 401
     if not all([chat_id, model, prompt]):
@@ -49,7 +50,7 @@ def generate_image_logic(chat_id, model, prompt, generation_type='image'):
             request_data["generationConfig"] = {
                 "temperature": 1.0,
             }
-        response = utils.make_request_with_retry(
+        response = await utils.make_async_request_with_retry(
             url=MEDIA_GEN_URL,
             headers=headers,
             json_data=request_data,
@@ -69,11 +70,11 @@ def generate_image_logic(chat_id, model, prompt, generation_type='image'):
             if uri_part:
                 try:
                     mime_type = uri_part['fileData']['mimeType']
-                    media_url = uri_part['fileData']['fileUri']
-                    media_response = requests.get(media_url, timeout=120)
-                    media_response.raise_for_status()
-                    media_data = media_response.content
-                except (RequestException, HTTPError) as e:
+                    async with httpx.AsyncClient(timeout=120.0) as client:
+                        media_response = await client.get(media_url)
+                        media_response.raise_for_status()
+                        media_data = media_response.content
+                except Exception as e:
                     logging.log(f"Failed to download media from URI {uri_part.get('fileData', {}).get('fileUri')}: {e}")
                     media_data = None
         if not media_data or not mime_type:

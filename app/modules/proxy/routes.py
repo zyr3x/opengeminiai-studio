@@ -1,10 +1,12 @@
+import httpx
+import asyncio
+import fnmatch
 import json
 import os
 import time
-import fnmatch
-import requests
+import traceback
 from flask import Blueprint, request, jsonify, Response
-from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
+from httpx import HTTPStatusError, RequestError
 
 from app.config import config
 from app.utils.flask import optimization
@@ -18,7 +20,7 @@ import traceback
 from app.utils.core import file_processing_utils
 proxy_bp = Blueprint('proxy', __name__)
 @proxy_bp.route('/chat/completions', methods=['POST'])
-def chat_completions():
+async def chat_completions():
     if not config.API_KEY:
         return jsonify({"error": {"message": "API key not configured. Please set it on the root page.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:
@@ -108,7 +110,9 @@ def chat_completions():
             base_url = provider_conf.get('base_url') if provider_conf else config.OPENAI_BASE_URL
             api_key = provider_conf.get('api_key') if provider_conf else config.OPENAI_API_KEY
             
-            def generate_openai():
+            stream = openai_request.get('stream', False)
+            
+            async def generate_openai():
                 current_messages = messages.copy()
                 # Inject system prompt if needed
                 if project_system_context_text:
@@ -124,129 +128,81 @@ def chat_completions():
 
                     # Tools setup for OpenAI
                     openai_tools = []
-                    mcp_declarations_to_use = None
-                    builtin_tools = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
+                    builtin_tool_names = list(mcp_handler.BUILTIN_FUNCTIONS.keys())
                     if not disable_mcp_tools:
                         if explicit_mcp_tools:
-                            # Priority 1: Explicitly requested tools via API
-                            mcp_declarations_to_use = mcp_handler.get_openai_compatible_tools(explicit_mcp_tools)
-                            utils.log(f"Using explicit MCP tools from request: {explicit_mcp_tools}")
+                            openai_tools.extend(mcp_handler.get_openai_compatible_tools(explicit_mcp_tools))
                         elif project_context_tools_requested:
-                            # Priority 2: Project context tools
-                            mcp_declarations_to_use = mcp_handler.get_openai_compatible_tools(builtin_tools)
-                            utils.log(f"Project context activated via project_path=. Forcing use of built-in tools: {builtin_tools}")
+                            openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tool_names))
                         elif profile_selected_mcp_tools:
-                            # Priority 3: Profile selected tools
-                            mcp_declarations_to_use = mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools)
-                            utils.log(
-                                f"Using MCP tools defined by prompt override profile: {profile_selected_mcp_tools}")
+                            openai_tools.extend(mcp_handler.get_openai_compatible_tools(profile_selected_mcp_tools))
                         else:
-                            mcp_declarations_to_use = mcp_handler.create_tool_declarations(full_prompt_text)
-                            utils.log(f"MCP tools enabled. Using context-aware selection based on prompt.")
-
-                    if mcp_declarations_to_use:
-                        openai_tools.extend(mcp_declarations_to_use)
-
-                    if enable_native_tools:
-                        pass # Native tools are Gemini specific
+                            openai_tools.extend(mcp_handler.get_openai_compatible_tools(builtin_tool_names))
 
                     if openai_tools:
                         request_data["tools"] = openai_tools
                         request_data["tool_choice"] = "auto"
 
-                    try:
-                        headers = {
-                            "Content-Type": "application/json",
-                            "Authorization": f"Bearer {api_key}",
-                            # OpenRouter specific headers
-                            "HTTP-Referer": "https://github.com/zyr3x/opengeminiai-studio",
-                            "X-Title": "OpenGeminiAI Studio"
-                        }
-
-                        # Force stream options to get token usage back from OpenRouter
-                        request_data["stream"] = True
-                        request_data["stream_options"] = {"include_usage": True}
-
-                        utils.debug(f"Outgoing OpenRouter Request Data: {utils.pretty_json(request_data)}")
-
-                        response = requests.post(
-                            f"{base_url}/chat/completions",
-                            headers=headers,
-                            json=request_data,
-                            stream=True,
-                            timeout=300
-                        )
-                        response.raise_for_status()
-                    except Exception as e:
-                        err_msg = f"OpenAI Provider Error ({base_url}): {e}"
-                        utils.log(err_msg)
-                        error_chunk = {
-                            "id": f"chatcmpl-{os.urandom(12).hex()}",
-                            "object": "chat.completion.chunk",
-                            "created": int(time.time()),
-                            "model": COMPLETION_MODEL,
-                            "choices": [{"index": 0, "delta": {"content": err_msg}, "finish_reason": "stop"}]
-                        }
-                        yield f"data: {json.dumps(error_chunk)}\n\n"
-                        yield "data: [DONE]\n\n"
-                        return
+                    utils.debug(f"Outgoing OpenRouter Request Data: {utils.pretty_json(request_data)}")
 
                     tool_calls = []
                     current_tool_call = None
                     full_response_text = ""
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {api_key}"
+                    }
 
-                    for line in response.iter_lines():
-                        if not line: continue
-                        decoded_line = line.decode('utf-8')
-                        if decoded_line.startswith('data: '):
-                            if decoded_line == 'data: [DONE]': break
-                            try:
-                                chunk = json.loads(decoded_line[6:])
+                    try:
+                        async with httpx.AsyncClient(timeout=300.0) as client:
+                            async with client.stream(
+                                "POST", f"{base_url}/chat/completions",
+                                headers=headers, json=request_data
+                            ) as response:
+                                response.raise_for_status()
                                 
-                                # Track token usage from OpenAI/OpenRouter responses
-                                if 'usage' in chunk and chunk['usage']:
-                                    usage = chunk['usage']
-                                    prompt_tokens = usage.get('prompt_tokens', 0)
-                                    completion_tokens = usage.get('completion_tokens', 0)
-                                    if prompt_tokens > 0 or completion_tokens > 0:
-                                        # Record using the active provider's API key and model
-                                        record_token_usage(api_key, COMPLETION_MODEL, prompt_tokens, completion_tokens)
-
-                                choices = chunk.get('choices', [])
-                                if not choices:
-                                    continue
+                                async for line in response.aiter_lines():
+                                    if not line or not line.startswith('data: '): continue
+                                    if line == 'data: [DONE]': break
                                     
-                                delta = choices[0].get('delta', {})
-                                finish_reason = choices[0].get('finish_reason')
+                                    
+                                    try:
+                                        chunk = json.loads(line[6:])
+                                        
+                                        if 'usage' in chunk and chunk['usage']:
+                                            usage = chunk['usage']
+                                            record_token_usage(api_key, COMPLETION_MODEL, usage.get('prompt_tokens', 0), usage.get('completion_tokens', 0))
 
-                                if 'content' in delta and delta['content']:
-                                    content_chunk = delta['content']
-                                    full_response_text += content_chunk
-                                    # Yield text content immediately
-                                    yield f"data: {json.dumps(chunk)}\n\n"
-                                elif finish_reason and finish_reason != 'tool_calls':
-                                    yield f"data: {json.dumps(chunk)}\n\n"
+                                        choices = chunk.get('choices', [])
+                                        if not choices: continue
+                                        
+                                        delta = choices[0].get('delta', {})
+                                        finish_reason = choices[0].get('finish_reason')
 
-                                if 'tool_calls' in delta:
-                                    for tc in delta['tool_calls']:
-                                        if tc.get('id'):
-                                            if current_tool_call:
-                                                tool_calls.append(current_tool_call)
-                                            current_tool_call = {
-                                                'id': tc['id'],
-                                                'function': {
-                                                    'name': tc['function'].get('name', ''),
-                                                    'arguments': tc['function'].get('arguments', '')
-                                                },
-                                                'type': 'function'
-                                            }
-                                        elif current_tool_call:
-                                            if 'name' in tc['function']:
-                                                current_tool_call['function']['name'] += tc['function']['name']
-                                            if 'arguments' in tc['function']:
-                                                current_tool_call['function']['arguments'] += tc['function']['arguments']
-                            except Exception:
-                                pass
+                                        if 'content' in delta and delta['content']:
+                                            full_response_text += delta['content']
+                                            yield f"data: {json.dumps(chunk)}\n\n"
+                                        elif finish_reason and finish_reason != 'tool_calls':
+                                            yield f"data: {json.dumps(chunk)}\n\n"
+
+                                        if 'tool_calls' in delta:
+                                            for tc in delta['tool_calls']:
+                                                if tc.get('id'):
+                                                    if current_tool_call: tool_calls.append(current_tool_call)
+                                                    current_tool_call = {'id': tc['id'], 'function': {'name': tc['function'].get('name', ''), 'arguments': tc['function'].get('arguments', '')}, 'type': 'function'}
+                                                elif current_tool_call:
+                                                    if 'name' in tc['function']: current_tool_call['function']['name'] += tc['function']['name']
+                                                    if 'arguments' in tc['function']: current_tool_call['function']['arguments'] += tc['function']['arguments']
+                                    except json.JSONDecodeError:
+                                        continue
+
+                    except Exception as e:
+                        err_msg = f"OpenAI Provider Error ({base_url}): {e}"
+                        utils.log(err_msg)
+                        error_chunk = {"id": f"chatcmpl-{os.urandom(12).hex()}", "object": "chat.completion.chunk", "created": int(time.time()), "model": COMPLETION_MODEL, "choices": [{"index": 0, "delta": {"content": err_msg}, "finish_reason": "stop"}]}
+                        yield f"data: {json.dumps(error_chunk)}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
 
                     if current_tool_call:
                         tool_calls.append(current_tool_call)
@@ -257,26 +213,54 @@ def chat_completions():
 
                     # Process tool calls
                     current_messages.append({"role": "assistant", "content": full_response_text, "tool_calls": tool_calls})
-
                     for tool_call in tool_calls:
                         func_name = tool_call['function']['name']
-                        func_args_str = tool_call['function']['arguments']
                         try:
-                            func_args = json.loads(func_args_str)
+                            func_args = json.loads(tool_call['function']['arguments'])
                         except:
                             func_args = {}
 
                         utils.log(f"Executing tool: {func_name}")
-                        tool_result = mcp_handler.execute_mcp_tool(func_name, func_args, project_context_root)
+                        tool_result = await asyncio.to_thread(mcp_handler.execute_mcp_tool, func_name, func_args, project_context_root)
+                        current_messages.append({"role": "tool", "tool_call_id": tool_call['id'], "name": func_name, "content": str(tool_result)})
 
-                        current_messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call['id'],
-                            "name": func_name,
-                            "content": str(tool_result)
-                        })
-
-            return Response(generate_openai(), mimetype='text/event-stream')
+            if stream:
+                from app.utils.core.streaming import async_to_sync_generator
+                return Response(async_to_sync_generator(generate_openai()), mimetype='text/event-stream')
+            else:
+                # Non-streaming OpenAI: collect all content
+                full_content = ""
+                last_chunk = None
+                it = generate_openai().__aiter__()
+                while True:
+                    try:
+                        chunk_str = await it.__anext__()
+                        if chunk_str.startswith('data: '):
+                            if chunk_str == 'data: [DONE]\n\n': break
+                            chunk_data = json.loads(chunk_str[6:-2])
+                            last_chunk = chunk_data
+                            delta = chunk_data['choices'][0]['delta']
+                            if 'content' in delta:
+                                full_content += delta['content']
+                    except StopAsyncIteration:
+                        break
+                
+                if last_chunk:
+                    # Construct non-streaming response
+                    openai_response = {
+                        "id": last_chunk.get("id"),
+                        "object": "chat.completion",
+                        "created": last_chunk.get("created"),
+                        "model": COMPLETION_MODEL,
+                        "choices": [{
+                            "index": 0,
+                            "message": {"role": "assistant", "content": full_content},
+                            "finish_reason": "stop"
+                        }],
+                        "usage": last_chunk.get("usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
+                    }
+                    return jsonify(openai_response)
+                return jsonify({"error": "No response from upstream"}), 500
 
         system_instruction = None
 
@@ -358,12 +342,14 @@ def chat_completions():
 
                     content['parts'] = merged_parts
 
-        token_limit = utils.get_model_input_limit(COMPLETION_MODEL, config.API_KEY, config.UPSTREAM_URL)
+        token_limit = await utils.get_model_input_limit(COMPLETION_MODEL, config.API_KEY, config.UPSTREAM_URL)
         safe_limit = int(token_limit * utils.TOKEN_ESTIMATE_SAFETY_MARGIN)
+        stream = openai_request.get('stream', False)
+        final_usage_metadata = {}
 
-        def generate():
+        async def generate():
+            nonlocal final_usage_metadata
             current_contents = gemini_contents.copy()
-            final_usage_metadata = {}
 
             while True:
                 original_message_count = len(current_contents)
@@ -459,14 +445,80 @@ def chat_completions():
 
                 response = None
                 try:
-                    response = utils.make_request_with_retry(
-                        url=GEMINI_STREAMING_URL,
-                        headers=headers,
-                        json_data=request_data,
-                        stream=True,
-                        timeout=300
-                    )
-                except (HTTPError, ConnectionError, Timeout, RequestException) as e:
+                    async with httpx.AsyncClient(timeout=300.0) as client:
+                        async with client.stream(
+                            "POST",
+                            GEMINI_STREAMING_URL,
+                            headers=headers,
+                            json=request_data
+                        ) as response:
+                            response.raise_for_status()
+
+                            buffer = ""
+                            tool_calls = []
+                            model_response_parts = []
+                            decoder = json.JSONDecoder()
+
+                            async for chunk in response.aiter_text():
+                                buffer += chunk
+                                while True:
+                                    start_index = buffer.find('{')
+                                    if start_index == -1:
+                                        if len(buffer) > 65536: buffer = buffer[-32768:]
+                                        break
+                                    buffer = buffer[start_index:]
+                                    try:
+                                        json_data, end_index = decoder.raw_decode(buffer)
+                                        buffer = buffer[end_index:]
+                                        if not isinstance(json_data, dict): continue
+
+                                        if 'error' in json_data:
+                                            error_message = "Error from upstream Gemini API: " + json.dumps(json_data['error'])
+                                            utils.log(error_message)
+                                            error_chunk = {
+                                                "id": f"chatcmpl-{os.urandom(12).hex()}",
+                                                "object": "chat.completion.chunk",
+                                                "created": int(time.time()),
+                                                "model": COMPLETION_MODEL,
+                                                "choices": [{"index": 0, "delta": {"content": error_message}, "finish_reason": "stop"}]
+                                            }
+                                            yield f"data: {json.dumps(error_chunk)}\n\n"
+                                            yield "data: [DONE]\n\n"
+                                            return
+
+                                        if 'usageMetadata' in json_data:
+                                            final_usage_metadata.update(json_data['usageMetadata'])
+
+                                        candidates = json_data.get('candidates', [{}])
+                                        if not candidates: continue
+                                        
+                                        parts = candidates[0].get('content', {}).get('parts', [])
+
+                                        if not parts and 'usageMetadata' in json_data:
+                                            continue
+                                        else:
+                                            model_response_parts.extend(parts)
+                                            text_content = ""
+                                            for part in parts:
+                                                if 'text' in part:
+                                                    text_content += part['text']
+                                                if 'functionCall' in part:
+                                                    tool_calls.append(part['functionCall'])
+
+                                                if text_content:
+                                                    chunk_response = {
+                                                        "id": f"chatcmpl-{os.urandom(12).hex()}",
+                                                        "object": "chat.completion.chunk",
+                                                        "created": int(time.time()),
+                                                        "model": COMPLETION_MODEL,
+                                                        "choices": [{"index": 0, "delta": {"content": text_content}, "finish_reason": None}]
+                                                    }
+                                                    utils.debug(f"Active Proxy Response Chunk: {utils.pretty_json(chunk_response)}")
+                                                    yield f"data: {json.dumps(chunk_response)}\n\n"
+                                    except json.JSONDecodeError:
+                                        if len(buffer) > 65536: buffer = buffer[-32768:]
+                                        break
+                except Exception as e:
                     error_message = f"Error from upstream Gemini API: {e}"
                     utils.log(error_message)
                     error_chunk = {
@@ -479,71 +531,6 @@ def chat_completions():
                     yield f"data: {json.dumps(error_chunk)}\n\n"
                     yield "data: [DONE]\n\n"
                     return
-
-                buffer = ""
-                tool_calls = []
-                model_response_parts = []
-                decoder = json.JSONDecoder()
-
-                for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
-                    buffer += chunk
-                    while True:
-                        start_index = buffer.find('{')
-                        if start_index == -1:
-                            if len(buffer) > 65536: buffer = buffer[-32768:]
-                            break
-                        buffer = buffer[start_index:]
-                        try:
-                            json_data, end_index = decoder.raw_decode(buffer)
-                            buffer = buffer[end_index:]
-                            if not isinstance(json_data, dict): continue
-
-                            if 'error' in json_data:
-                                error_message = "Error from upstream Gemini API: " + json.dumps(json_data['error'])
-                                utils.log(error_message)
-                                error_chunk = {
-                                    "id": f"chatcmpl-{os.urandom(12).hex()}",
-                                    "object": "chat.completion.chunk",
-                                    "created": int(time.time()),
-                                    "model": COMPLETION_MODEL,
-                                    "choices": [{"index": 0, "delta": {"content": error_message}, "finish_reason": "stop"}]
-                                }
-                                yield f"data: {json.dumps(error_chunk)}\n\n"
-                                yield "data: [DONE]\n\n"
-                                return
-
-                            if 'usageMetadata' in json_data:
-                                final_usage_metadata.update(json_data['usageMetadata'])
-
-                            candidates = json_data.get('candidates', [{}])
-                            if not candidates: continue
-                            
-                            parts = candidates[0].get('content', {}).get('parts', [])
-
-                            if not parts and 'usageMetadata' in json_data:
-                                continue
-                            else:
-                                model_response_parts.extend(parts)
-                                text_content = ""
-                                for part in parts:
-                                    if 'text' in part:
-                                        text_content += part['text']
-                                    if 'functionCall' in part:
-                                        tool_calls.append(part['functionCall'])
-
-                                if text_content:
-                                    chunk_response = {
-                                        "id": f"chatcmpl-{os.urandom(12).hex()}",
-                                        "object": "chat.completion.chunk",
-                                        "created": int(time.time()),
-                                        "model": COMPLETION_MODEL,
-                                        "choices": [{"index": 0, "delta": {"content": text_content}, "finish_reason": None}]
-                                    }
-                                    utils.debug(f"Active Proxy Response Chunk: {utils.pretty_json(chunk_response)}")
-                                    yield f"data: {json.dumps(chunk_response)}\n\n"
-                        except json.JSONDecodeError:
-                            if len(buffer) > 65536: buffer = buffer[-32768:]
-                            break
                 is_after_tool_call = current_contents and current_contents[-1].get('role') == 'tool'
                 has_text_in_model_response = any('text' in p for p in model_response_parts)
 
@@ -584,14 +571,14 @@ def chat_completions():
                             'args': tool_call.get("args")
                         })
 
-                    results = optimization.execute_tools_parallel(parallel_calls, project_context_root)
+                    results = await optimization.execute_tools_parallel_async(parallel_calls, project_context_root)
 
                     for tool_call_data, output in results:
                         function_name = tool_call_data['name']
 
                         from app.utils.core.optimization_utils import estimate_tokens, MAX_TOOL_OUTPUT_TOKENS
                         if project_context_root and config.AGENT_AUX_MODEL_ENABLED and isinstance(output, str) and estimate_tokens(output) > MAX_TOOL_OUTPUT_TOKENS:
-                            output = utils.summarize_with_aux_model(output, function_name)
+                            output = await utils.summarize_with_aux_model(output, function_name)
 
                         response_payload = {}
                         if output is not None:
@@ -620,11 +607,11 @@ def chat_completions():
                         feedback_message = f"🔍 Assistant is using tool: {function_name}({args_str})"
                         utils.log(feedback_message)
 
-                        output = mcp_handler.execute_mcp_tool(function_name, tool_args, project_context_root)
+                        output = await asyncio.to_thread(mcp_handler.execute_mcp_tool, function_name, tool_args, project_context_root)
 
                         from app.utils.core.optimization_utils import estimate_tokens, MAX_TOOL_OUTPUT_TOKENS
                         if project_context_root and config.AGENT_AUX_MODEL_ENABLED and isinstance(output, str) and estimate_tokens(output) > MAX_TOOL_OUTPUT_TOKENS:
-                            output = utils.summarize_with_aux_model(output, function_name)
+                            output = await utils.summarize_with_aux_model(output, function_name)
 
                         response_payload = {}
                         if output is not None:
@@ -667,7 +654,49 @@ def chat_completions():
             utils.debug(f"Final Proxy Response Chunk: {utils.pretty_json(final_chunk)}")
             yield "data: [DONE]\n\n"
 
-        return Response(generate(), mimetype='text/event-stream')
+        if stream:
+            from app.utils.core.streaming import async_to_sync_generator
+            return Response(async_to_sync_generator(generate()), mimetype='text/event-stream')
+        else:
+            # Non-streaming Gemini: collect chunks
+            full_content = ""
+            last_chunk = None
+            it = generate().__aiter__()
+            while True:
+                try:
+                    chunk_str = await it.__anext__()
+                    if chunk_str.startswith('data: '):
+                        if chunk_str == 'data: [DONE]\n\n': break
+                        chunk_data = json.loads(chunk_str[6:-2])
+                        last_chunk = chunk_data
+                        delta = chunk_data['choices'][0]['delta']
+                        if 'content' in delta:
+                            full_content += delta['content']
+                except StopAsyncIteration:
+                    break
+            
+            if last_chunk:
+                input_tokens = final_usage_metadata.get('promptTokenCount', 0)
+                output_tokens = final_usage_metadata.get('candidatesTokenCount', 0)
+                
+                openai_response = {
+                    "id": last_chunk.get("id"),
+                    "object": "chat.completion",
+                    "created": last_chunk.get("created"),
+                    "model": COMPLETION_MODEL,
+                    "choices": [{
+                        "index": 0,
+                        "message": {"role": "assistant", "content": full_content},
+                        "finish_reason": "stop"
+                    }],
+                    "usage": {
+                        "prompt_tokens": input_tokens,
+                        "completion_tokens": output_tokens,
+                        "total_tokens": input_tokens + output_tokens
+                    }
+                }
+                return jsonify(openai_response)
+            return jsonify({"error": "No response from Gemini upstream"}), 500
 
     except Exception as e:
         utils.log(f"An error occurred during chat completion: {e}\n{traceback.format_exc()}")
@@ -675,7 +704,8 @@ def chat_completions():
         error_response = {"error": {"message": error_message, "type": "server_error", "code": "500"}}
         return jsonify(error_response), 500
 @proxy_bp.route('/models', methods=['GET'])
-def list_models():
+async def list_models():
+    import fnmatch
     if not config.API_KEY:
         return jsonify({"error": {"message": "API key not configured.", "type": "invalid_request_error", "code": "api_key_not_set"}}), 401
     try:
@@ -688,48 +718,50 @@ def list_models():
         try:
             params = {"key": config.API_KEY}
             GEMINI_MODELS_URL = f"{config.UPSTREAM_URL}/v1beta/models"
-            response = requests.get(GEMINI_MODELS_URL, params=params, timeout=10)
-            response.raise_for_status()
-            gemini_models_data = response.json()
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(GEMINI_MODELS_URL, params=params)
+                response.raise_for_status()
+                gemini_models_data = response.json()
 
-            for model in gemini_models_data.get("models", []):
-                if "generateContent" in model.get("supportedGenerationMethods", []):
-                    openai_models_list.append({
-                        "id": model["name"].split("/")[-1], "object": "model",
-                        "created": 1677649553, "owned_by": "google", "permission": []
-                    })
+                for model in gemini_models_data.get("models", []):
+                    if "generateContent" in model.get("supportedGenerationMethods", []):
+                        openai_models_list.append({
+                            "id": model["name"].split("/")[-1], "object": "model",
+                            "created": 1677649553, "owned_by": "google", "permission": []
+                        })
         except Exception as e:
             utils.log(f"Error fetching Gemini models: {e}")
 
         # 2. Fetch OpenAI/OpenRouter Models from ALL configured providers
         providers = ai_provider_manager.get_all_providers_data().get('providers', {}).values()
         
-        for provider in providers:
-            if provider.get('api_key') and provider.get('base_url'):
-                try:
-                    OPENAI_MODELS_URL = f"{provider['base_url']}/models"
-                    headers = {
-                        "Authorization": f"Bearer {provider['api_key']}",
-                        "HTTP-Referer": "https://github.com/zyr3x/opengeminiai-studio",
-                        "X-Title": "OpenGeminiAI Studio"
-                    }
-                    response = requests.get(OPENAI_MODELS_URL, headers=headers, timeout=10)
-                    if response.status_code == 200:
-                        openai_models_data = response.json()
-                        for model in openai_models_data.get("data", []):
-                            model_id = model.get("id")
-                            openai_models_list.append({
-                                "id": model_id, "object": "model",
-                                "created": model.get("created", 1677649553),
-                                "owned_by": model.get("owned_by", "openai-compatible"),
-                                "permission": []
-                            })
-                            # Register model mapping to this provider
-                            ai_provider_manager.register_model(model_id, provider.get('id'))
-                    else:
-                        utils.log(f"Error fetching models from {provider.get('name')}: Status {response.status_code}")
-                except Exception as e:
-                    utils.log(f"Error fetching models from {provider.get('name')}: {e}")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for provider in providers:
+                if provider.get('api_key') and provider.get('base_url'):
+                    try:
+                        OPENAI_MODELS_URL = f"{provider['base_url']}/models"
+                        headers = {
+                            "Authorization": f"Bearer {provider['api_key']}",
+                            "HTTP-Referer": "https://github.com/zyr3x/opengeminiai-studio",
+                            "X-Title": "OpenGeminiAI Studio"
+                        }
+                        response = await client.get(OPENAI_MODELS_URL, headers=headers)
+                        if response.status_code == 200:
+                            openai_models_data = response.json()
+                            for model in openai_models_data.get("data", []):
+                                model_id = model.get("id")
+                                openai_models_list.append({
+                                    "id": model_id, "object": "model",
+                                    "created": model.get("created", 1677649553),
+                                    "owned_by": model.get("owned_by", "openai-compatible"),
+                                    "permission": []
+                                })
+                                # Register model mapping to this provider
+                                ai_provider_manager.register_model(model_id, provider.get('id'))
+                        else:
+                            utils.log(f"Error fetching models from {provider.get('name')}: Status {response.status_code}")
+                    except Exception as e:
+                        utils.log(f"Error fetching models from {provider.get('name')}: {e}")
 
         # Deduplicate models (case-sensitive)
         seen_ids = set()
