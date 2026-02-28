@@ -396,39 +396,88 @@ function scrollToBottom() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+// Paste Handler for File Attachments
+chatInput.addEventListener('paste', (e) => {
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
+
+    const files = [];
+
+    // 1. Try to get actual file objects (may have .path in some environments)
+    if (clipboardData.files && clipboardData.files.length > 0) {
+        for (let i = 0; i < clipboardData.files.length; i++) {
+            const f = clipboardData.files[i];
+            if (f.path) files.push(f.path);
+        }
+    }
+
+    // 2. If no files with paths found, check text/plain for path-like strings
+    // (Common when copying files in VS Code or some OS configurations)
+    if (files.length === 0) {
+        const text = clipboardData.getData('text/plain');
+        if (text && (text.includes('/') || text.includes('\\')) && text.length < 500) {
+            // Check if it looks like a path (starts with / or has drive letter)
+            if (text.startsWith('/') || /^[a-zA-Z]:\\/.test(text)) {
+                console.log('Main: Detected path-like string in paste:', text);
+                files.push(text.trim());
+            }
+        }
+    }
+
+    if (files.length > 0) {
+        vscode.postMessage({ type: 'filesDropped', paths: files });
+    }
+});
+
 // Drag & Drop
 const dropOverlay = document.createElement('div');
 dropOverlay.className = 'drag-overlay';
 dropOverlay.innerHTML = '<div class="drag-overlay-content">Drop files to attach</div>';
 document.body.appendChild(dropOverlay);
 
-window.addEventListener('dragenter', () => dropOverlay.classList.add('active'));
+window.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dropOverlay.classList.add('active');
+});
+
 window.addEventListener('dragleave', (e) => {
     if (e.clientX === 0 || e.clientY === 0) dropOverlay.classList.remove('active');
 });
+
+window.addEventListener('dragover', e => e.preventDefault());
+
 window.addEventListener('drop', (e) => {
     e.preventDefault();
     dropOverlay.classList.remove('active');
 
+    console.log('Main: Drop event detected');
     const files = [];
-    if (e.dataTransfer.items) {
-        for (let i = 0; i < e.dataTransfer.items.length; i++) {
-            const item = e.dataTransfer.items[i];
-            if (item.kind === 'file') {
-                const f = item.getAsFile();
-                // VS Code webview specific: dropped files from explorer often have a .path property
-                if (f && f.path) files.push(f.path);
-            }
-        }
-    } else if (e.dataTransfer.files) {
+
+    // 1. Try to get paths from dataTransfer.files
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         for (let i = 0; i < e.dataTransfer.files.length; i++) {
             const f = e.dataTransfer.files[i];
             if (f.path) files.push(f.path);
         }
     }
 
-    if (files.length) {
+    // 2. Try to get paths from dataTransfer.items or strings
+    if (files.length === 0) {
+        // Dragging from VS Code Explorer often provides paths in text/plain
+        const text = e.dataTransfer.getData('text/plain');
+        if (text) {
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+            for (const line of lines) {
+                if (line.startsWith('/') || /^[a-zA-Z]:\\/.test(line)) {
+                    files.push(line);
+                }
+            }
+        }
+    }
+
+    if (files.length > 0) {
         vscode.postMessage({ type: 'filesDropped', paths: files });
+    } else {
+        console.warn('Main: No file paths found in drop event.');
     }
 });
-window.addEventListener('dragover', e => e.preventDefault());

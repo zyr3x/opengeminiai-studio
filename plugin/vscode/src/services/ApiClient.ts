@@ -101,8 +101,11 @@ To apply changes, output a single JSON block formatted as follows at the END of 
         try {
             const workspace = vscode.workspace.workspaceFolders?.[0];
             if (workspace) {
-                // Use 2>/dev/null to suppress fatal error if not a git repo
-                return execSync('git rev-parse --abbrev-ref HEAD 2>/dev/null', { cwd: workspace.uri.fsPath }).toString().trim();
+                // Use stdio: 'ignore' to suppress fatal error if not a git repo
+                return execSync('git rev-parse --abbrev-ref HEAD', {
+                    cwd: workspace.uri.fsPath,
+                    stdio: ['ignore', 'pipe', 'ignore']
+                }).toString().trim();
             }
         } catch { }
         return 'Unknown';

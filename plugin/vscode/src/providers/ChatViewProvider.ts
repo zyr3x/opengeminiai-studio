@@ -151,8 +151,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const { execSync } = require('child_process');
             const workspace = vscode.workspace.workspaceFolders?.[0];
             if (workspace) {
-                // Use 2>/dev/null to suppress fatal error if not a git repo
-                return execSync('git diff --cached 2>/dev/null', { cwd: workspace.uri.fsPath }).toString();
+                // Use stdio: 'ignore' to suppress fatal error if not a git repo
+                return execSync('git diff --cached', {
+                    cwd: workspace.uri.fsPath,
+                    stdio: ['ignore', 'pipe', 'ignore']
+                }).toString();
             }
         } catch { }
         return null;
