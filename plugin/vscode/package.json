@@ -4,6 +4,7 @@
   "description": "AI Coding Assistant powered by OpenGemini Studio",
   "version": "1.0.0",
   "publisher": "opengeminiai",
+  "icon": "logo.png",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -37,7 +38,7 @@
         {
           "type": "webview",
           "id": "opengeminiai.chatView",
-          "name": "OG Studio"
+          "name": "Studio"
         }
       ]
     },

@@ -202,6 +202,7 @@ function renderAttachments() {
 window.removeAttachment = (index) => {
     attachments.splice(index, 1);
     renderAttachments();
+    updateTokenCount();
 };
 
 // --- Interactions ---
@@ -218,6 +219,23 @@ chatInput.addEventListener('keydown', (e) => {
     e.target.style.height = e.target.scrollHeight + 'px';
 });
 
+chatInput.addEventListener('input', () => {
+    updateTokenCount();
+});
+
+function updateTokenCount() {
+    const text = chatInput.value || '';
+    // Very rough heuristic: 1 token approx 4 chars
+    const tokens = Math.ceil(text.length / 4);
+    const attachmentCount = attachments.length;
+
+    let label = `~${tokens} tokens`;
+    if (attachmentCount > 0) {
+        label += ` (+${attachmentCount} files)`;
+    }
+    tokenCountLabel.innerText = label;
+}
+
 function sendMessage() {
     if (!chatInput) return;
     const text = chatInput.value ? chatInput.value.trim() : '';
@@ -233,6 +251,7 @@ function sendMessage() {
     chatInput.style.height = 'auto';
     attachments = [];
     renderAttachments();
+    updateTokenCount();
 }
 
 function updateSendButtonState() {

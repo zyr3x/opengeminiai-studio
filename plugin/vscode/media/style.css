@@ -278,6 +278,23 @@ textarea {
     width: 100%;
 }
 
+.token-count {
+    font-size: 10px;
+    color: var(--fg-color);
+    opacity: 0.5;
+    margin-right: 8px;
+    font-family: var(--vscode-editor-font-family);
+    pointer-events: none;
+    user-select: none;
+}
+
+.controls-right {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+}
+
 .controls {
     display: flex;
     justify-content: space-between;
