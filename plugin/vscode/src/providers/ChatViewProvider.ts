@@ -264,13 +264,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private parseChanges(msg: ChatMessage) {
-        const match = msg.content.match(/```json\s*([\s\S]*?)\s*```/);
-        if (match) {
+        const regex = /```json\s*([\s\S]*?)\s*```/g;
+        msg.content = msg.content.replace(regex, (match, p1) => {
             try {
-                const parsed = JSON.parse(match[1]);
-                if (parsed.action === 'propose_changes') msg.changes = parsed.changes;
+                const parsed = JSON.parse(p1);
+                if (parsed.action === 'propose_changes') {
+                    msg.changes = parsed.changes;
+                    return ''; // Remove the block from content
+                }
             } catch { }
-        }
+            return match;
+        }).trim();
     }
 
     private async handleShowDiff(filePath: string, newContent: string) {

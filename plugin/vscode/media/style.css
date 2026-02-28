@@ -524,6 +524,40 @@ select:hover {
     color: var(--vscode-list-activeSelectionForeground);
 }
 
+.menu-header {
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    opacity: 0.8;
+    border-bottom: 1px solid var(--vscode-menu-separatorBackground);
+    margin-bottom: 4px;
+}
+
+.menu-section-header {
+    padding: 4px 12px;
+    font-size: 10px;
+    font-weight: 600;
+    opacity: 0.5;
+    text-transform: uppercase;
+}
+
+.menu-separator {
+    height: 1px;
+    background: var(--vscode-menu-separatorBackground);
+    margin: 4px 0;
+}
+
+.tool-item {
+    margin-left: 10px;
+    font-family: var(--vscode-editor-font-family);
+}
+
+.tool-item.active {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
 .menu-separator {
     height: 1px;
     background: var(--vscode-menu-separatorBackground);

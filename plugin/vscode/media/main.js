@@ -279,27 +279,73 @@ function showToolsMenu(e) {
         document.body.appendChild(menu);
     }
 
-    const chat = chats.find(c => c.id === currentChatId);
-    // Note: State comes from ChatViewProvider via 'render' message
-    // We'll use the state passed in 'render' (state variable)
     const state = lastRenderState || {};
+    const selectedTools = state.selectedTools || [];
 
-    menu.innerHTML = `
-        <div class="menu-item ${state.toolsMode === 'Auto' ? 'active' : ''}" onclick="updateState('toolsMode', 'Auto')">Mode: Auto</div>
-        <div class="menu-item ${state.toolsMode === 'Manual' ? 'active' : ''}" onclick="updateState('toolsMode', 'Manual')">Mode: Manual</div>
-        <div class="menu-item ${state.toolsMode === 'Disabled' ? 'active' : ''}" onclick="updateState('toolsMode', 'Disabled')">Mode: Disabled</div>
+    let html = `
+        <div class="menu-header">Select Tools</div>
+        <div class="menu-item ${state.toolsMode === 'Auto' ? 'active' : ''}" onclick="updateState('toolsMode', 'Auto')">
+            ${state.toolsMode === 'Auto' ? '✓ ' : ''}Auto-Detect Tools
+        </div>
+        <div class="menu-item ${state.toolsMode === 'Disabled' ? 'active' : ''}" onclick="updateState('toolsMode', 'Disabled')">
+            ${state.toolsMode === 'Disabled' ? '✓ ' : ''}Disable Tools
+        </div>
+        <div class="menu-item ${state.toolsMode === 'Manual' ? 'active' : ''}" onclick="updateState('toolsMode', 'Manual')">
+            ${state.toolsMode === 'Manual' ? '✓ ' : ''}Manual Selection
+        </div>
     `;
 
-    if (state.toolsMode === 'Manual' && state.availableTools) {
-        menu.innerHTML += '<div class="menu-separator"></div>';
-        // Add specific tools if available
-        // This is simplified, real implementation would list tools
+    if (state.availableTools) {
+        // Built-in Tools
+        if (state.availableTools.built_in && state.availableTools.built_in.length > 0) {
+            html += '<div class="menu-separator"></div><div class="menu-section-header">Built-in Tools</div>';
+            state.availableTools.built_in.forEach(tool => {
+                const isSelected = selectedTools.includes(tool.name);
+                html += `
+                    <div class="menu-item tool-item ${isSelected ? 'active' : ''}" onclick="toggleTool('${tool.name}')">
+                        ${tool.name}
+                    </div>`;
+            });
+        }
+
+        // MCP Tools from servers
+        if (state.availableTools.servers) {
+            Object.keys(state.availableTools.servers).forEach(serverName => {
+                const server = state.availableTools.servers[serverName];
+                if (server.methods && server.methods.length > 0) {
+                    html += `<div class="menu-separator"></div><div class="menu-section-header">${serverName}</div>`;
+                    server.methods.forEach(tool => {
+                        const isSelected = selectedTools.includes(tool.name);
+                        html += `
+                            <div class="menu-item tool-item ${isSelected ? 'active' : ''}" onclick="toggleTool('${tool.name}')">
+                                ${tool.name}
+                            </div>`;
+                    });
+                }
+            });
+        }
     }
 
+    menu.innerHTML = html;
     menu.style.display = 'block';
-    menu.style.left = e.clientX + 'px';
-    menu.style.top = (e.clientY - menu.offsetHeight) + 'px';
+
+    // Position menu above button
+    const rect = document.getElementById('tools-btn').getBoundingClientRect();
+    menu.style.left = rect.left + 'px';
+    menu.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
+    menu.style.top = 'auto';
 }
+
+window.toggleTool = (toolName) => {
+    const state = lastRenderState || {};
+    let selected = [...(state.selectedTools || [])];
+    if (selected.includes(toolName)) {
+        selected = selected.filter(t => t !== toolName);
+    } else {
+        selected.push(toolName);
+    }
+    vscode.postMessage({ type: 'updateState', key: 'selectedTools', value: selected });
+};
 
 let lastRenderState = null;
 const originalRenderAll = renderAll;
