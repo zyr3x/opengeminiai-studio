@@ -192,9 +192,19 @@ function appendStreamContent(content, chatId) {
 function renderAttachments() {
     attachmentsList.innerHTML = '';
     attachments.forEach((att, index) => {
+        const ext = att.name.split('.').pop()?.toLowerCase();
+        let icon = '📄';
+        if (ext && ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) {
+            icon = '🖼️';
+        } else if (ext === 'pdf') {
+            icon = '📕';
+        } else if (att.type === 'text') {
+            icon = '📝';
+        }
+
         const chip = document.createElement('span');
         chip.className = 'attachment-chip';
-        chip.innerHTML = `<span>📄 ${att.name}</span><span class="remove-attachment" onclick="removeAttachment(${index})">✕</span>`;
+        chip.innerHTML = `<span>${icon} ${att.name}</span><span class="remove-attachment" onclick="removeAttachment(${index})">✕</span>`;
         attachmentsList.appendChild(chip);
     });
 }
@@ -267,7 +277,36 @@ function updateSendButtonState() {
 
 window.sendCtx = (option) => {
     document.getElementById('ctx-menu').style.display = 'none';
-    vscode.postMessage({ type: 'openContextDialog', option });
+    vscode.postMessage({ type: 'addContext', option });
+};
+
+window.handleMenuDrop = (e) => {
+    e.preventDefault();
+    document.getElementById('ctx-menu').style.display = 'none';
+
+    const files = [];
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        for (let i = 0; i < e.dataTransfer.files.length; i++) {
+            const f = e.dataTransfer.files[i];
+            if (f.path) files.push(f.path);
+        }
+    }
+
+    if (files.length === 0) {
+        const text = e.dataTransfer.getData('text/plain');
+        if (text) {
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+            for (const line of lines) {
+                if (line.startsWith('/') || /^[a-zA-Z]:\\/.test(line)) {
+                    files.push(line);
+                }
+            }
+        }
+    }
+
+    if (files.length > 0) {
+        vscode.postMessage({ type: 'filesDropped', paths: files });
+    }
 };
 
 document.getElementById('attach-btn').onclick = (e) => {
@@ -287,6 +326,14 @@ document.addEventListener('click', () => {
     document.getElementById('ctx-menu').style.display = 'none';
     const toolsMenu = document.getElementById('tools-menu');
     if (toolsMenu) toolsMenu.style.display = 'none';
+});
+
+// Mode Toggle logic
+document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.onclick = () => {
+        const mode = btn.getAttribute('data-mode');
+        vscode.postMessage({ type: 'updateState', key: 'mode', value: mode });
+    };
 });
 
 function showToolsMenu(e) {
@@ -374,9 +421,14 @@ function renderAllEnhanced(message) {
         return;
     }
     lastRenderState = message.state;
-    // Update mode/model selects if they exist
-    const modeSelect = document.getElementById('mode-select');
-    if (modeSelect) modeSelect.value = message.state.mode || 'Chat';
+    // Update active button state
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        if (btn.getAttribute('data-mode') === message.state.mode) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
 
     if (message.state.availableModels) {
         updateModelOptions(message.state.availableModels, message.state.model);
@@ -490,9 +542,30 @@ chatInput.addEventListener('paste', (e) => {
     }
 
     if (files.length > 0) {
-        vscode.postMessage({ type: 'filesDropped', paths: files });
+        insertFilesIntoChatInput(files);
     }
 });
+
+function insertFilesIntoChatInput(files) {
+    if (!files || files.length === 0) return;
+
+    let currentText = chatInput.value;
+    let appendText = '';
+
+    for (const p of files) {
+        const ext = p.split('.').pop()?.toLowerCase();
+        let prefix = 'code_path=';
+        if (['png', 'jpeg', 'jpg', 'webp', 'heic', 'heif'].includes(ext)) {
+            prefix = 'image_path=';
+        } else if (ext === 'pdf') {
+            prefix = 'pdf_path=';
+        }
+        appendText += (appendText || currentText ? '\n' : '') + prefix + p;
+    }
+
+    chatInput.value = currentText + appendText;
+    chatInput.dispatchEvent(new Event('input')); // trigger auto-resize
+}
 
 // Drag & Drop
 const dropOverlay = document.createElement('div');
@@ -541,7 +614,7 @@ window.addEventListener('drop', (e) => {
     }
 
     if (files.length > 0) {
-        vscode.postMessage({ type: 'filesDropped', paths: files });
+        insertFilesIntoChatInput(files);
     } else {
         console.warn('Main: No file paths found in drop event.');
     }

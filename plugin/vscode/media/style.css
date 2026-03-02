@@ -112,9 +112,37 @@ body {
     transition: all 0.2s;
 }
 
-.icon-btn:hover {
+.mode-toggle {
+    display: inline-flex;
+    background: #1e1e1e;
+    /* Darker background resembling the screenshot */
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 6px;
+    /* Pill shape */
+    padding: 2px;
+    gap: 0px;
+    /* No gap between items for the pill look */
+}
+
+.mode-btn {
+    border-radius: 4px;
+    padding: 4px 8px;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+    border: none;
+    background: transparent;
+}
+
+.mode-btn:hover {
+    opacity: 0.8;
+}
+
+.mode-btn.active {
     opacity: 1;
-    background: var(--hover-bg);
+    background: #007acc;
+    /* VS Code blue for active state */
+    color: white;
+    /* Ensure any text/icon contrast */
 }
 
 /* Chat Area */
@@ -518,7 +546,7 @@ select:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     border-radius: 6px;
     display: none;
-    z-index: 1000;
+    z-index: 9999;
     padding: 4px;
     min-width: 150px;
 }
@@ -579,4 +607,16 @@ select:hover {
     height: 1px;
     background: var(--vscode-menu-separatorBackground);
     margin: 4px 0;
+}
+
+.menu-drag-zone {
+    padding: 12px;
+    font-size: 11px;
+    text-align: center;
+    color: var(--vscode-descriptionForeground);
+    border: 1px dashed var(--vscode-menu-separatorBackground);
+    border-radius: 4px;
+    margin: 4px;
+    opacity: 0.7;
+    pointer-events: none;
 }

@@ -180,6 +180,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             attachments.forEach(a => {
                 if (a.type === 'file') {
                     fullContent += `code_path=${a.data}\n`;
+                } else if (a.type === 'image') {
+                    fullContent += `image_path=${a.data}\n`;
+                } else if (a.type === 'pdf') {
+                    fullContent += `pdf_path=${a.data}\n`;
                 } else {
                     fullContent += `\n:::CTX:${a.name}:text:::\n${a.data}\n:::END:::`;
                 }
@@ -360,11 +364,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private handleFilesDropped(paths: string[]) {
-        const attachments = paths.map(p => ({
-            type: 'file' as const,
-            name: path.basename(p),
-            data: p
-        }));
+        const attachments = paths.map(p => {
+            const ext = path.extname(p).toLowerCase();
+            let type: 'file' | 'image' | 'pdf' = 'file';
+            if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(ext)) {
+                type = 'image';
+            } else if (ext === '.pdf') {
+                type = 'pdf';
+            }
+            return {
+                type,
+                name: path.basename(p),
+                data: p
+            };
+        });
         this._view?.webview.postMessage({ type: 'addAttachments', attachments });
     }
 
@@ -440,10 +453,155 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             return;
         }
 
+        if (option === 'project_structure') {
+            const projectStructure = await this.getProjectStructure();
+            if (projectStructure) {
+                this._view?.webview.postMessage({
+                    type: 'addAttachments', attachments: [{
+                        type: 'text',
+                        name: 'Project Structure',
+                        data: projectStructure
+                    }]
+                });
+            }
+            return;
+        }
+
+        if (option === 'commits') {
+            await this.handleAttachCommits();
+            return;
+        }
+
+        if (option === 'image') {
+            const uris = await vscode.window.showOpenDialog({
+                canSelectMany: true,
+                filters: { 'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp'] }
+            });
+            if (uris) {
+                const attachments = uris.map(u => ({ type: 'image' as const, name: path.basename(u.fsPath), data: u.fsPath }));
+                this._view?.webview.postMessage({ type: 'addAttachments', attachments });
+            }
+            return;
+        }
+
+        if (option === 'pdf') {
+            const uris = await vscode.window.showOpenDialog({
+                canSelectMany: true,
+                filters: { 'PDF': ['pdf'] }
+            });
+            if (uris) {
+                const attachments = uris.map(u => ({ type: 'pdf' as const, name: path.basename(u.fsPath), data: u.fsPath }));
+                this._view?.webview.postMessage({ type: 'addAttachments', attachments });
+            }
+            return;
+        }
+
         const uris = await vscode.window.showOpenDialog({ canSelectMany: true, canSelectFolders: true });
         if (uris) {
             const attachments = uris.map(u => ({ type: 'file' as const, name: path.basename(u.fsPath), data: u.fsPath }));
             this._view?.webview.postMessage({ type: 'addAttachments', attachments });
+        }
+    }
+
+    private async getProjectStructure(): Promise<string | null> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) return null;
+
+        let structure = "";
+        for (const folder of workspaceFolders) {
+            structure += `Project Root: ${folder.uri.fsPath}\nProject Structure:\n`;
+            structure += await this.buildTree(folder.uri.fsPath, "", 0);
+        }
+        return structure;
+    }
+
+    private async buildTree(dirPath: string, prefix: string, depth: number): Promise<string> {
+        if (depth > 5) return ""; // Hard limit
+
+        let result = "";
+        try {
+            const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+
+            // Sort: directories first, then files
+            entries.sort((a, b) => {
+                if (a.isDirectory() && !b.isDirectory()) return -1;
+                if (!a.isDirectory() && b.isDirectory()) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            const ignores = ['node_modules', '.git', '.idea', 'out', 'dist', 'build', '.next', '.vscode'];
+            const filtered = entries.filter(e => !ignores.includes(e.name) && !e.name.startsWith('.'));
+
+            for (let i = 0; i < filtered.length; i++) {
+                const entry = filtered[i];
+                const isLast = i === filtered.length - 1;
+                const marker = isLast ? "└── " : "├── ";
+                result += `${prefix}${marker}${entry.name}\n`;
+
+                if (entry.isDirectory()) {
+                    const nextPrefix = prefix + (isLast ? "    " : "│   ");
+                    result += await this.buildTree(path.join(dirPath, entry.name), nextPrefix, depth + 1);
+                }
+            }
+        } catch { } // Ignore read errors
+        return result;
+    }
+
+    private async handleAttachCommits() {
+        try {
+            const { execSync } = require('child_process');
+            const workspace = vscode.workspace.workspaceFolders?.[0];
+            if (!workspace) return;
+
+            const logOutput = execSync('git log -n 50 --pretty=format:"%H|%s|%ar"', {
+                cwd: workspace.uri.fsPath,
+                encoding: 'utf8'
+            });
+
+            if (!logOutput) {
+                vscode.window.showInformationMessage("No commits found.");
+                return;
+            }
+
+            const commits: (vscode.QuickPickItem & { hash: string })[] = logOutput.split('\n').filter(Boolean).map((line: string) => {
+                const [hash, subject, timeAgo] = line.split('|');
+                return {
+                    label: `$(git-commit) ${subject}`,
+                    description: timeAgo,
+                    detail: hash,
+                    hash: hash
+                };
+            });
+
+            const selected = await vscode.window.showQuickPick(commits, {
+                canPickMany: true,
+                title: "Select Commits to Attach",
+                placeHolder: "Search commits..."
+            });
+
+            if (selected && selected.length > 0) {
+                for (const commit of selected) {
+                    try {
+                        const diffOutput = execSync(`git show ${commit.hash} --patch`, {
+                            cwd: workspace.uri.fsPath,
+                            encoding: 'utf8',
+                            maxBuffer: 1024 * 1024 * 10 // 10MB
+                        });
+
+                        this._view?.webview.postMessage({
+                            type: 'addAttachments', attachments: [{
+                                type: 'text',
+                                name: `Commit ${commit.hash.substring(0, 7)}`,
+                                data: `Commit: ${commit.hash}\nSubject: ${commit.label.replace('$(git-commit) ', '')}\n\n${diffOutput}`
+                            }]
+                        });
+                    } catch (e: any) {
+                        vscode.window.showErrorMessage(`Failed to fetch diff for commit ${commit.hash}: ${e.message}`);
+                    }
+                }
+            }
+        } catch (e: any) {
+            vscode.window.showErrorMessage(`Failed to list commits: Git may not be initialized. (${e.message})`);
         }
     }
 
@@ -550,10 +708,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 <div class="left-controls">
                     <button class="icon-btn" id="attach-btn" title="Add Context">📎</button>
                     <button class="icon-btn" id="tools-btn" title="MCP Tools">🛠️</button>
-                    <select id="mode-select">
-                        <option value="Chat">Chat</option>
-                        <option value="QuickEdit">Quick Edit</option>
-                    </select>
+                    <div id="mode-toggle" class="mode-toggle">
+                        <button class="icon-btn mode-btn active" data-mode="Chat" title="Chat" type="button">💬</button>
+                        <button class="icon-btn mode-btn" data-mode="QuickEdit" title="Quick Edit" type="button">✏️</button>
+                    </div>
                     <select id="model-select"></select>
                 </div>
                 <div class="right-controls">
@@ -564,8 +722,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     </div>
 
     <div id="ctx-menu" class="menu">
-         <div onclick="sendCtx('files')">Files and Folders</div>
-         <div onclick="sendCtx('open_files')">Add All Open Files</div>
+         <div class="menu-header">Add Context</div>
+         <div class="menu-item" onclick="sendCtx('files')">📁 Files and Folders</div>
+         <div class="menu-item" onclick="sendCtx('open_files')">📄 Add All Open Files</div>
+         <div class="menu-item" onclick="sendCtx('image')">🖼️ Add Image...</div>
+         <div class="menu-item" onclick="sendCtx('pdf')">📕 Add PDF...</div>
+         <div class="menu-separator"></div>
+         <div class="menu-item" onclick="sendCtx('project_structure')">🗂️ Project Structure</div>
+         <div class="menu-separator"></div>
+         <div class="menu-item" onclick="sendCtx('commits')">⎇ Commits</div>
     </div>
 
     <script src="${scriptUri}"></script>

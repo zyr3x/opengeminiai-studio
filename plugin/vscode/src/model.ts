@@ -1,5 +1,5 @@
 export interface Attachment {
-    type: 'file' | 'text';
+    type: 'file' | 'text' | 'image' | 'pdf';
     name: string;
     data: string; // Absolute path for file, content for text
     ignoreTypes?: string;
