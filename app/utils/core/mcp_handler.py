@@ -1539,14 +1539,16 @@ def load_mcp_config():
         except Exception as e:
             log(f"Failed to register tool '{func_name}' to FastMCP: {e}")
 
+    registered_dynamic_count = 0
     for decl in mcp_function_declarations:
         name = decl.get("name")
         desc = decl.get("description", f"Execute {name}")
         schema = mcp_function_input_schema_map.get(name, {})
         if name and mcp_function_to_tool_map.get(name) != BUILTIN_TOOL_NAME:
             register_dynamic_tool(name, desc, schema)
+            registered_dynamic_count += 1
 
-    log(f"Total function declarations loaded: {len(mcp_function_declarations)}")
+    log(f"Total function declarations loaded: {len(mcp_function_declarations)}. Dynamically added {registered_dynamic_count} to FastMCP.")
 def create_tool_declarations(prompt_text: str = ""):
     if disable_all_mcp_tools:
         log("All MCP tools are globally disabled. Returning no declarations.")

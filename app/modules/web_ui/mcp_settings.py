@@ -31,7 +31,11 @@ async def list_mcp_tools_and_methods():
         "servers": {}
     }
     
-    # We now fetch everything dynamically from FastMCP instead of hardcoded maps
+    # FastMCP state might not be fully synced in ASGI child processes. 
+    # Force a sync if we have declarations but they didn't map.
+    if hasattr(mcp, "_tools") and len(mcp._tools) < len(mcp_handler.mcp_function_declarations):
+        mcp_handler.load_mcp_config()
+        
     tools = await mcp.list_tools()
     for t in tools:
         tools_structure["built_in"].append({
@@ -41,6 +45,16 @@ async def list_mcp_tools_and_methods():
         })
              
     return jsonify(tools_structure)
+
+@mcp_settings_bp.route('/api/mcp/debug', methods=['GET'])
+async def list_mcp_tools_debug():
+    from app.core.mcp_server import mcp
+    tools = await mcp.list_tools()
+    tools_list = [{"name": t.name, "desc": t.description} for t in tools]
+    return jsonify({
+        "mcp_tools": tools_list,
+        "fastmcp_internal": getattr(mcp, "_tools", "N/A - unsupported attribute") 
+    })
 
 @mcp_settings_bp.route('/api/mcp/definition', methods=['POST'])
 async def get_mcp_definition_for_prompt():

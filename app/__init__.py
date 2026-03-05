@@ -5,7 +5,6 @@ from flask import Flask
 from .core.config import settings
 from .core.mcp_server import mcp
 from .autoloader import Autoloader
-from asgiref.wsgi import WsgiToAsgi
 
 def create_app():
     """Application factory for the OpenGeminiAI Studio unified architecture."""
@@ -17,6 +16,8 @@ def create_app():
     
     # Initialize the automated JSON module loader
     print("\n--- Initializing Modules ---")
+    from .utils.core import mcp_handler
+    mcp_handler.load_mcp_config()
     autoloader = Autoloader(app=app, mcp_server=mcp)
     autoloader.load_all()
     print("----------------------------\n")
@@ -35,6 +36,7 @@ async def run_asgi(app: Flask):
     """
     from hypercorn.asyncio import serve
     from hypercorn.config import Config as HypercornConfig
+    from asgiref.wsgi import WsgiToAsgi
     
     # Convert Flask WSGI to ASGI
     asgi_flask_app = WsgiToAsgi(app)
@@ -44,6 +46,10 @@ async def run_asgi(app: Flask):
     # as mcp tools are just registered. If we need to expose the MCP server 
     # externally via SSE, we can mount it here later.
     print(f"🚀 FastMCP Server '{mcp.name}' initialized.")
+    async def _print_tools():
+        tools = await mcp.list_tools()
+        print(f"🚀 FastMCP registered tools at boot: {[t.name for t in tools]}")
+    asyncio.create_task(_print_tools())
     
     hypercorn_config = HypercornConfig()
     hypercorn_config.bind = [f"{settings.SERVER_HOST}:{settings.SERVER_PORT}"]
