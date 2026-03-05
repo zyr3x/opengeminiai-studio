@@ -747,9 +747,11 @@ async def list_models():
 
         # 2. Fetch OpenAI/OpenRouter Models from ALL configured providers
         providers = ai_provider_manager.get_all_providers_data().get('providers', {}).values()
+        utils.log(f"Fetching models from {len(providers)} providers...")
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             for provider in providers:
+                utils.log(f"Checking provider: {provider.get('name')} ({provider.get('base_url')})")
                 if provider.get('api_key') and provider.get('base_url'):
                     try:
                         OPENAI_MODELS_URL = f"{provider['base_url']}/models"
@@ -772,10 +774,8 @@ async def list_models():
                                     "owned_by": model.get("owned_by", "openai-compatible"),
                                     "permission": []
                                 })
-                                # Register model mapping to this provider
+                                # Register mapping
                                 ai_provider_manager.register_model(model_id, provider.get('id'))
-                                if unique_model_id != model_id:
-                                    ai_provider_manager.register_model(unique_model_id, provider.get('id'))
                         else:
                             utils.log(f"Error fetching models from {provider.get('name')}: Status {response.status_code}")
                     except Exception as e:
