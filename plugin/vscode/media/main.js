@@ -645,6 +645,8 @@ function scrollToBottom() {
 
 // Paste Handler for File Attachments
 chatInput.addEventListener('paste', (e) => {
+    // If we're dragging files, let drop handle it.
+    // paste events can sometimes fire alongside drops in certain electron environments
     const clipboardData = e.clipboardData || window.clipboardData;
     if (!clipboardData) return;
 
@@ -672,29 +674,16 @@ chatInput.addEventListener('paste', (e) => {
     }
 
     if (files.length > 0) {
-        insertFilesIntoChatInput(files);
+        const uniqueFiles = [...new Set(files)];
+        insertFilesIntoChatInput(uniqueFiles);
     }
 });
 
 function insertFilesIntoChatInput(files) {
     if (!files || files.length === 0) return;
 
-    let currentText = chatInput.value;
-    let appendText = '';
-
-    for (const p of files) {
-        const ext = p.split('.').pop()?.toLowerCase();
-        let prefix = 'code_path=';
-        if (['png', 'jpeg', 'jpg', 'webp', 'heic', 'heif'].includes(ext)) {
-            prefix = 'image_path=';
-        } else if (ext === 'pdf') {
-            prefix = 'pdf_path=';
-        }
-        appendText += (appendText || currentText ? '\n' : '') + prefix + p;
-    }
-
-    chatInput.value = currentText + appendText;
-    chatInput.dispatchEvent(new Event('input')); // trigger auto-resize
+    // Instead of inserting raw text, dispatch to the provider which handles creating the attachment chips
+    vscode.postMessage({ type: 'filesDropped', paths: files });
 }
 
 // Drag & Drop
@@ -705,17 +694,27 @@ document.body.appendChild(dropOverlay);
 
 window.addEventListener('dragenter', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     dropOverlay.classList.add('active');
-});
+}, true);
 
 window.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (e.clientX === 0 || e.clientY === 0) dropOverlay.classList.remove('active');
-});
+}, true);
 
-window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+    }
+}, true);
 
 window.addEventListener('drop', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     dropOverlay.classList.remove('active');
 
     console.log('Main: Drop event detected');
@@ -730,7 +729,7 @@ window.addEventListener('drop', (e) => {
     }
 
     // 2. Try to get paths from dataTransfer.items or strings
-    if (files.length === 0) {
+    if (files.length === 0 && e.dataTransfer) {
         // Dragging from VS Code Explorer often provides paths in text/uri-list or text/plain
         const uriData = e.dataTransfer.getData('text/uri-list') || '';
         const textData = e.dataTransfer.getData('text/plain') || '';
@@ -753,8 +752,13 @@ window.addEventListener('drop', (e) => {
     }
 
     if (files.length > 0) {
-        insertFilesIntoChatInput(files);
+        const uniqueFiles = [...new Set(files)];
+        insertFilesIntoChatInput(uniqueFiles);
+        // Clear data transfer to prevent the editor's default text drop handler
+        if (e.dataTransfer) {
+            e.dataTransfer.clearData();
+        }
     } else {
         console.warn('Main: No file paths found in drop event.');
     }
-});
+}, true);

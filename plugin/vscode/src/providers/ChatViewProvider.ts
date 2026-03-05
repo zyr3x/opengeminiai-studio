@@ -311,8 +311,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 }
             }
 
-            const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath));
-            await vscode.window.showTextDocument(doc, { preview: true });
+            const uri = vscode.Uri.file(absolutePath);
+
+            // vscode.open handles both text and binary/image files natively
+            await vscode.commands.executeCommand('vscode.open', uri);
         } catch (e: any) {
             vscode.window.showErrorMessage(`Failed to open file: ${e.message}`);
         }
