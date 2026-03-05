@@ -97,14 +97,26 @@ async def chat_completions():
         COMPLETION_MODEL = openai_request.get('model', 'gemini-2.0-flash')
         
         # Determine provider: Check registration first to catch custom providers serving Gemini models
-        if ai_provider_manager.is_model_registered(COMPLETION_MODEL):
+        explicit_provider = None
+        if '::' in COMPLETION_MODEL:
+            parts = COMPLETION_MODEL.split('::', 1)
+            possible_provider = ai_provider_manager.get_provider_by_name(parts[0])
+            if possible_provider:
+                explicit_provider = possible_provider
+                COMPLETION_MODEL = parts[1]
+            elif parts[0] == 'Google':
+                COMPLETION_MODEL = parts[1]
+
+        if explicit_provider:
+            provider = 'openai'
+        elif ai_provider_manager.is_model_registered(COMPLETION_MODEL):
             provider = 'openai'
         else:
             provider = utils.get_provider_for_model(COMPLETION_MODEL)
 
         if provider == 'openai':
             # Resolve provider credentials dynamically
-            provider_conf = ai_provider_manager.get_provider_for_model(COMPLETION_MODEL)
+            provider_conf = explicit_provider if explicit_provider else ai_provider_manager.get_provider_for_model(COMPLETION_MODEL)
             
             # Fallback values from config if provider lookup fails or returns partial data
             base_url = provider_conf.get('base_url') if provider_conf else config.OPENAI_BASE_URL
@@ -725,8 +737,9 @@ async def list_models():
 
                 for model in gemini_models_data.get("models", []):
                     if "generateContent" in model.get("supportedGenerationMethods", []):
+                        model_id = model["name"].split("/")[-1]
                         openai_models_list.append({
-                            "id": model["name"].split("/")[-1], "object": "model",
+                            "id": f"Google::{model_id}", "object": "model",
                             "created": 1677649553, "owned_by": "google", "permission": []
                         })
         except Exception as e:
@@ -750,14 +763,19 @@ async def list_models():
                             openai_models_data = response.json()
                             for model in openai_models_data.get("data", []):
                                 model_id = model.get("id")
+                                provider_name = provider.get('name', 'unknown')
+                                unique_model_id = f"{provider_name}::{model_id}" if provider_name != 'unknown' else model_id
+                                
                                 openai_models_list.append({
-                                    "id": model_id, "object": "model",
+                                    "id": unique_model_id, "object": "model",
                                     "created": model.get("created", 1677649553),
                                     "owned_by": model.get("owned_by", "openai-compatible"),
                                     "permission": []
                                 })
                                 # Register model mapping to this provider
                                 ai_provider_manager.register_model(model_id, provider.get('id'))
+                                if unique_model_id != model_id:
+                                    ai_provider_manager.register_model(unique_model_id, provider.get('id'))
                         else:
                             utils.log(f"Error fetching models from {provider.get('name')}: Status {response.status_code}")
                     except Exception as e:
@@ -778,13 +796,13 @@ async def list_models():
         if config.ALLOWED_MODELS and '*' not in config.ALLOWED_MODELS:
             openai_models_list = [
                 m for m in openai_models_list
-                if any(fnmatch.fnmatch(m['id'], pattern) for pattern in config.ALLOWED_MODELS)
+                if any(fnmatch.fnmatch(m['id'].split('::', 1)[-1], pattern) for pattern in config.ALLOWED_MODELS)
             ]
 
         if config.IGNORED_MODELS:
             openai_models_list = [
                 m for m in openai_models_list
-                if not any(fnmatch.fnmatch(m['id'], pattern) for pattern in config.IGNORED_MODELS)
+                if not any(fnmatch.fnmatch(m['id'].split('::', 1)[-1], pattern) for pattern in config.IGNORED_MODELS)
             ]
 
         openai_response = {"object": "list", "data": openai_models_list}

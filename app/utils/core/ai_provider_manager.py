@@ -102,6 +102,14 @@ class AIProviderManager:
                 return self.providers_data['providers'][active_id]
             return None
 
+    def get_provider_by_name(self, name):
+        """Finds the provider config for a given provider name."""
+        with self.lock:
+            for p_id, provider in self.providers_data.get('providers', {}).items():
+                if provider.get('name') == name:
+                    return provider
+            return None
+
     def get_all_providers_data(self):
         with self.lock:
             return self.providers_data.copy()
