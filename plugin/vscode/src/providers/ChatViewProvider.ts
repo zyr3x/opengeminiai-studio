@@ -67,6 +67,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 case 'regenerate': await this.handleRegenerate(m.chatId, m.msgIndex); break;
                 case 'newChat': this.createNewChat(); break;
                 case 'deleteChat': this.deleteChat(m.id); break;
+                case 'deleteMessage': this.deleteMessage(m.chatId, m.msgIndex); break;
                 case 'loadChat': this.loadChat(m.id); break;
                 case 'requestRename': this.handleRequestRename(m.id, m.currentTitle); break;
                 case 'renameChat': this.renameChat(m.id, m.title); break;
@@ -207,6 +208,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private async streamResponse(chat: Conversation) {
         const assistantMsg: ChatMessage = { role: 'assistant', content: "", timestamp: Date.now() };
         chat.messages.push(assistantMsg);
+
+        // Let the UI know a new message was added and is starting to generate
+        this._view?.webview.postMessage({ type: 'stream', content: '', chatId: chat.id });
         this.updateUI();
 
         this.abortController = new AbortController();
@@ -455,6 +459,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.conversations = this.conversations.filter(c => c.id !== id);
         this.deleteChatFile(id);
         if (this.currentId === id) this.currentId = this.conversations[0]?.id;
+        this.updateUI();
+    }
+
+    private deleteMessage(chatId: string, msgIndex: number) {
+        const chat = this.conversations.find(c => c.id === chatId);
+        if (!chat) return;
+        chat.messages.splice(msgIndex, 1);
+        this.saveChat(chat);
         this.updateUI();
     }
 

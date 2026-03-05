@@ -505,6 +505,36 @@ select:hover {
     /* Space between paragraphs */
 }
 
+/* Generation Indicator */
+.message.generating .message-bubble::after {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 14px;
+    background-color: var(--fg-color);
+    margin-left: 4px;
+    vertical-align: middle;
+    animation: blink 1s step-end infinite;
+    opacity: 0.8;
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+/* Hide actions while generating */
+.message.generating .message-actions {
+    display: none !important;
+}
+
 /* Stop Button Style */
 .stop-btn {
     background: var(--vscode-errorForeground) !important;

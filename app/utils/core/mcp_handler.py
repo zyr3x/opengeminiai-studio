@@ -1489,6 +1489,63 @@ def load_mcp_config():
         if 'name' in decl:
             mcp_function_to_tool_map[decl['name']] = BUILTIN_TOOL_NAME
             mcp_function_input_schema_map[decl['name']] = {}
+    # --- Dynamic FastMCP Registration ---
+    from app.core.mcp_server import mcp
+    from pydantic import create_model, Field
+    from typing import Any
+    import functools
+    
+    # First, clear dynamically added tools if FastMCP supports a clear method 
+    # (Since fastmcp might persist them between reloads, we try to clear them)
+    if hasattr(mcp, "_tools"):
+        mcp._tools.clear()
+        
+    def create_pydantic_model_from_schema(name, schema):
+        fields = {}
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+        for prop_name, prop_def in properties.items():
+            prop_type = Any
+            if prop_def.get("type") == "string":
+                prop_type = str
+            elif prop_def.get("type") in ("integer", "number"):
+                prop_type = float
+            elif prop_def.get("type") == "boolean":
+                prop_type = bool
+            
+            default = ... if prop_name in required else None
+            fields[prop_name] = (prop_type, Field(default, description=prop_def.get("description", "")))
+        
+        return create_model(name, **fields)
+
+    def register_dynamic_tool(func_name, desc, schema):
+        model_name = f"{func_name}_args"
+        try:
+            DynamicArgs = create_pydantic_model_from_schema(model_name, schema)
+        except Exception as e:
+            log(f"Failed to create pydantic model for {func_name}: {e}")
+            return
+            
+        def dynamic_tool(args: DynamicArgs) -> str:
+            args_dict = args.model_dump() if hasattr(args, "model_dump") else args.dict()
+            return execute_mcp_tool(func_name, args_dict)
+            
+        dynamic_tool.__name__ = func_name
+        dynamic_tool.__doc__ = desc
+        
+        try:
+            mcp.add_tool(dynamic_tool)
+            log(f"Registered external tool '{func_name}' to FastMCP.")
+        except Exception as e:
+            log(f"Failed to register tool '{func_name}' to FastMCP: {e}")
+
+    for decl in mcp_function_declarations:
+        name = decl.get("name")
+        desc = decl.get("description", f"Execute {name}")
+        schema = mcp_function_input_schema_map.get(name, {})
+        if name and mcp_function_to_tool_map.get(name) != BUILTIN_TOOL_NAME:
+            register_dynamic_tool(name, desc, schema)
+
     log(f"Total function declarations loaded: {len(mcp_function_declarations)}")
 def create_tool_declarations(prompt_text: str = ""):
     if disable_all_mcp_tools:

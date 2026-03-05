@@ -42,6 +42,8 @@ window.addEventListener('message', event => {
             case 'endStream':
                 isGenerating = false;
                 updateSendButtonState();
+                const generatingMsgs = document.querySelectorAll('.message.generating');
+                generatingMsgs.forEach(m => m.classList.remove('generating'));
                 break;
             case 'addAttachments':
                 attachments = [...attachments, ...message.attachments];
@@ -100,7 +102,7 @@ function renderChat() {
     const chat = chats.find(c => c.id === currentChatId);
     if (!chat) return;
 
-    chat.messages.forEach(msg => {
+    chat.messages.forEach((msg, index) => {
         const msgDiv = document.createElement('div');
         msgDiv.className = `message ${msg.role}`;
 
@@ -111,7 +113,12 @@ function renderChat() {
         const displayContent = formatChatText(msg.content);
 
         // Render Markdown content
-        bubble.innerHTML = window.marked ? marked.parse(displayContent) : displayContent;
+        if (msg.role === 'assistant' && !msg.content) {
+            bubble.innerHTML = '<span class="generating-text">✨ Generating...</span>';
+            msgDiv.classList.add('generating');
+        } else {
+            bubble.innerHTML = window.marked ? marked.parse(displayContent) : displayContent;
+        }
 
         renderPathsInDOM(bubble);
 
@@ -122,11 +129,47 @@ function renderChat() {
             });
         }
 
-        // --- Change Widget Rendering ---
         if (msg.changes && msg.changes.length > 0) {
             const widget = renderChangeWidget(msg.changes);
             bubble.appendChild(widget);
         }
+
+        // --- Message Actions ---
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'message-actions';
+
+        const copyBtn = document.createElement('span');
+        copyBtn.className = 'action-icon';
+        copyBtn.title = 'Copy';
+        copyBtn.innerText = '📋';
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(msg.content);
+            copyBtn.innerText = '✅';
+            setTimeout(() => copyBtn.innerText = '📋', 2000);
+        };
+        actionsDiv.appendChild(copyBtn);
+
+        if (msg.role === 'assistant') {
+            const regenBtn = document.createElement('span');
+            regenBtn.className = 'action-icon';
+            regenBtn.title = 'Regenerate';
+            regenBtn.innerText = '🔄';
+            regenBtn.onclick = () => {
+                vscode.postMessage({ type: 'regenerate', chatId: currentChatId, msgIndex: index });
+            };
+            actionsDiv.appendChild(regenBtn);
+        }
+
+        const deleteBtn = document.createElement('span');
+        deleteBtn.className = 'action-icon';
+        deleteBtn.title = 'Delete';
+        deleteBtn.innerText = '🗑️';
+        deleteBtn.onclick = () => {
+            vscode.postMessage({ type: 'deleteMessage', chatId: currentChatId, msgIndex: index });
+        };
+        actionsDiv.appendChild(deleteBtn);
+
+        bubble.appendChild(actionsDiv);
 
         msgDiv.appendChild(bubble);
         chatContainer.appendChild(msgDiv);
@@ -290,15 +333,23 @@ function appendStreamContent(content, chatId) {
 
     // Simple streaming logic: updates the last assistant message
     // In a real robust app, we'd find the specific message ID. Here we assume last.
-    const lastMsg = chatContainer.querySelector('.message.assistant:last-child .message-bubble');
+    const lastMsg = chatContainer.querySelector('.message.assistant:last-child');
     if (lastMsg) {
-        const displayContent = formatChatText(content);
-        lastMsg.innerHTML = window.marked ? marked.parse(displayContent) : displayContent;
-
-        renderPathsInDOM(lastMsg);
-
-        // Re-highlight
-        if (window.hljs) lastMsg.querySelectorAll('pre code').forEach(hljs.highlightElement);
+        lastMsg.classList.add('generating');
+        const bubble = lastMsg.querySelector('.message-bubble');
+        if (bubble) {
+            // Remove the parsing loader if it's there
+            if (bubble.innerHTML === '<span class="generating-text">✨ Generating...</span>') {
+                bubble.innerHTML = '';
+            }
+            if (content) {
+                const displayContent = formatChatText(content);
+                bubble.innerHTML = window.marked ? marked.parse(displayContent) : displayContent;
+                renderPathsInDOM(bubble);
+                // Re-highlight
+                if (window.hljs) bubble.querySelectorAll('pre code').forEach(hljs.highlightElement);
+            }
+        }
     } else {
         // If no message bubble created yet, trigger a full re-render (fallback)
         // Or create one
