@@ -383,9 +383,24 @@ select:hover {
     gap: 6px;
 }
 
+.attachment-chip.inline-chip {
+    display: inline-flex;
+    margin: 2px 2px;
+    vertical-align: middle;
+}
+
 .remove-attachment {
     cursor: pointer;
     font-weight: bold;
+    opacity: 0.8;
+}
+
+.clickable {
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.clickable:hover {
     opacity: 0.8;
 }
 

@@ -74,6 +74,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 case 'applyChange': await this.applyFileChange(m.path, m.content); break;
                 case 'undoChange': await this.undoFileChange(m.path); break;
                 case 'showDiff': await this.handleShowDiff(m.path, m.content); break;
+                case 'openFile': await this.handleOpenFile(m.path); break;
+                case 'viewContext': await this.handleViewContext(m.name, m.content); break;
                 case 'updateState': this.updateState(m.key, m.value); break;
                 case 'addContext': this.openContextDialog(m.option); break;
                 case 'openSettings': vscode.commands.executeCommand('workbench.action.openSettings', 'opengeminiai'); break;
@@ -178,14 +180,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         if (attachments.length > 0) {
             fullContent += "\n\n";
             attachments.forEach(a => {
+                let p = a.data.split('?')[0]; // strip trailing query params like ?
                 if (a.type === 'file') {
-                    fullContent += `code_path=${a.data}\n`;
+                    fullContent += `code_path=${p}\n`;
                 } else if (a.type === 'image') {
-                    fullContent += `image_path=${a.data}\n`;
+                    fullContent += `image_path=${p}\n`;
                 } else if (a.type === 'pdf') {
-                    fullContent += `pdf_path=${a.data}\n`;
+                    fullContent += `pdf_path=${p}\n`;
                 } else {
-                    fullContent += `\n:::CTX:${a.name}:text:::\n${a.data}\n:::END:::`;
+                    fullContent += `\n:::CTX:${a.name}:text:::\n${p}\n:::END:::`;
                 }
             });
         }
@@ -297,6 +300,54 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private async handleOpenFile(filePath: string) {
+        try {
+            // Check if absolute, else make it absolute
+            let absolutePath = filePath;
+            if (!path.isAbsolute(absolutePath)) {
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                if (workspaceFolder) {
+                    absolutePath = path.join(workspaceFolder.uri.fsPath, filePath);
+                }
+            }
+
+            const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath));
+            await vscode.window.showTextDocument(doc, { preview: true });
+        } catch (e: any) {
+            vscode.window.showErrorMessage(`Failed to open file: ${e.message}`);
+        }
+    }
+
+    private async handleViewContext(name: string, content: string) {
+        try {
+            // First decode HTML entities that might have been escaped by marked if it was parsed
+            const unescapedContent = content
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&amp;/g, "&")
+                .replace(/&#39;/g, "'")
+                .replace(/&quot;/g, '"');
+
+            // Find a suitable language ID based on the name
+            let language = 'markdown'; // default
+            if (name.toLowerCase().includes('commit')) {
+                language = 'git-commit';
+            } else if (name.endsWith('.ts') || name.endsWith('.js')) {
+                language = 'typescript';
+            } else if (name.endsWith('.json')) {
+                language = 'json';
+            }
+
+            const doc = await vscode.workspace.openTextDocument({
+                content: unescapedContent,
+                language: language
+            });
+            await vscode.window.showTextDocument(doc, { preview: true });
+        } catch (e: any) {
+            vscode.window.showErrorMessage(`Failed to view context: ${e.message}`);
+        }
+    }
+
     private async applyFileChange(filePath: string, content: string) {
         try {
             const uri = vscode.Uri.file(filePath);
@@ -374,8 +425,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
             return {
                 type,
-                name: path.basename(p),
-                data: p
+                name: path.basename(p.split('?')[0]),
+                data: p.split('?')[0]
             };
         });
         this._view?.webview.postMessage({ type: 'addAttachments', attachments });
@@ -447,7 +498,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private async openContextDialog(option?: string) {
         if (option === 'open_files') {
             const attachments = vscode.workspace.textDocuments
-                .filter(d => !d.isUntitled)
+                .filter(d => !d.isUntitled && d.uri.scheme === 'file')
                 .map(d => ({ type: 'file' as const, name: path.basename(d.fileName), data: d.fileName }));
             this._view?.webview.postMessage({ type: 'addAttachments', attachments });
             return;
@@ -555,7 +606,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
             const logOutput = execSync('git log -n 50 --pretty=format:"%H|%s|%ar"', {
                 cwd: workspace.uri.fsPath,
-                encoding: 'utf8'
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore']
             });
 
             if (!logOutput) {
@@ -601,7 +653,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 }
             }
         } catch (e: any) {
-            vscode.window.showErrorMessage(`Failed to list commits: Git may not be initialized. (${e.message})`);
+            vscode.window.showErrorMessage(`Failed to list commits. This workspace might not be a git repository.`);
         }
     }
 

@@ -68,6 +68,21 @@ vscode.postMessage({ type: 'init' });
 
 // --- Rendering ---
 
+function formatChatText(text) {
+    if (!text) return text;
+    return text.replace(/:::CTX:(.*?):text:::\n([\s\S]*?)\n:::END:::/g, (match, name, content) => {
+        const id = 'ctx_' + Math.random().toString(36).substr(2, 9);
+        window.ctxData = window.ctxData || {};
+        window.ctxData[id] = { name, content };
+
+        let icon = '📋';
+        if (name.toLowerCase().includes('commit')) icon = '⎇';
+        else if (name.toLowerCase().includes('structure')) icon = '🗂️';
+
+        return `<span class="attachment-chip inline-chip border-chip clickable" title="${name}" onclick="viewContext('${id}')"><span>${icon} ${name}</span></span>`;
+    });
+}
+
 function renderAll() {
     renderHistory();
     renderChat();
@@ -80,6 +95,7 @@ function updateHeader() {
 }
 
 function renderChat() {
+    window.ctxData = {}; // Clear previous context data
     chatContainer.innerHTML = '';
     const chat = chats.find(c => c.id === currentChatId);
     if (!chat) return;
@@ -91,8 +107,13 @@ function renderChat() {
         const bubble = document.createElement('div');
         bubble.className = 'message-bubble';
 
+        // Format raw text for chips before parsing Markdown
+        const displayContent = formatChatText(msg.content);
+
         // Render Markdown content
-        bubble.innerHTML = window.marked ? marked.parse(msg.content) : msg.content;
+        bubble.innerHTML = window.marked ? marked.parse(displayContent) : displayContent;
+
+        renderPathsInDOM(bubble);
 
         // Highlight Code Blocks (if hljs exists)
         if (window.hljs) {
@@ -172,6 +193,98 @@ function renderChangeWidget(changes) {
     return widget;
 }
 
+function renderPathsInDOM(element) {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
+        acceptNode: function (node) {
+            let parent = node.parentNode;
+            while (parent && parent !== element) {
+                if (parent.nodeName === 'PRE' || parent.nodeName === 'CODE' || parent.classList.contains('attachment-chip')) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                parent = parent.parentNode;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+        }
+    }, false);
+
+    const nodesToReplace = [];
+    let node;
+    while (node = walker.nextNode()) {
+        const pathRegex = /(?:@\[(.*?)\]|(code_path|image_path|pdf_path)=([^\s\n]+))/g;
+        // Optimization: only add if there's a match
+        if (pathRegex.test(node.nodeValue)) {
+            nodesToReplace.push(node);
+        }
+    }
+
+    nodesToReplace.forEach(node => {
+        const span = document.createElement('span');
+        const pathRegex = /(?:@\[(.*?)\]|(code_path|image_path|pdf_path)=([^\s\n]+))/g;
+
+        let htmlContent = '';
+        let lastIndex = 0;
+        let match;
+
+        // Reset lastIndex for exec
+        pathRegex.lastIndex = 0;
+
+        while ((match = pathRegex.exec(node.nodeValue)) !== null) {
+            const fullPath = match[1] || match[3];
+            const type = match[2]; // e.g. code_path, image_path, pdf_path
+
+            if (!fullPath) continue;
+
+            // Append preceding text
+            htmlContent += node.nodeValue.substring(lastIndex, match.index);
+
+            // Build Chip
+            let ext = fullPath.split('.').pop();
+            ext = ext ? ext.toLowerCase() : '';
+
+            let icon = '📄';
+            if (type === 'image_path' || (ext && ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext))) {
+                icon = '🖼️';
+            } else if (type === 'pdf_path' || ext === 'pdf') {
+                icon = '📕';
+            } else {
+                icon = '📝';
+            }
+
+            const splits = fullPath.split(/[\/\\]/);
+            let fileName = splits.pop() || '';
+            fileName = fileName.split('?')[0];
+
+            htmlContent += `<span class="attachment-chip inline-chip border-chip clickable" title="${fullPath}" onclick="openAttachment('${fullPath}')"><span>${icon} ${fileName}</span></span>`;
+
+            lastIndex = pathRegex.lastIndex;
+        }
+
+        // Append remaining text
+        htmlContent += node.nodeValue.substring(lastIndex);
+        span.innerHTML = htmlContent;
+
+        // Replace original text node with our new span
+        node.parentNode.replaceChild(span, node);
+
+        // Unwrap the span if it just contains child nodes (avoid extra nesting)
+        while (span.firstChild) {
+            span.parentNode.insertBefore(span.firstChild, span);
+        }
+        span.parentNode.removeChild(span);
+    });
+}
+
+window.openAttachment = (path) => {
+    vscode.postMessage({ type: 'openFile', path });
+};
+
+window.viewContext = (id) => {
+    const data = window.ctxData && window.ctxData[id];
+    if (data) {
+        vscode.postMessage({ type: 'viewContext', name: data.name, content: data.content });
+    }
+};
+
 function appendStreamContent(content, chatId) {
     if (chatId !== currentChatId) return;
 
@@ -179,7 +292,11 @@ function appendStreamContent(content, chatId) {
     // In a real robust app, we'd find the specific message ID. Here we assume last.
     const lastMsg = chatContainer.querySelector('.message.assistant:last-child .message-bubble');
     if (lastMsg) {
-        lastMsg.innerHTML = window.marked ? marked.parse(content) : content;
+        const displayContent = formatChatText(content);
+        lastMsg.innerHTML = window.marked ? marked.parse(displayContent) : displayContent;
+
+        renderPathsInDOM(lastMsg);
+
         // Re-highlight
         if (window.hljs) lastMsg.querySelectorAll('pre code').forEach(hljs.highlightElement);
     } else {
@@ -203,13 +320,17 @@ function renderAttachments() {
         }
 
         const chip = document.createElement('span');
-        chip.className = 'attachment-chip';
-        chip.innerHTML = `<span>${icon} ${att.name}</span><span class="remove-attachment" onclick="removeAttachment(${index})">✕</span>`;
+        chip.className = 'attachment-chip clickable';
+        chip.innerHTML = `<span>${icon} ${att.name}</span><span class="remove-attachment" onclick="removeAttachment(${index}, event)">✕</span>`;
+        if (att.data) {
+            chip.onclick = () => openAttachment(att.data);
+        }
         attachmentsList.appendChild(chip);
     });
 }
 
-window.removeAttachment = (index) => {
+window.removeAttachment = (index, event) => {
+    if (event) event.stopPropagation();
     attachments.splice(index, 1);
     renderAttachments();
     updateTokenCount();
@@ -293,13 +414,22 @@ window.handleMenuDrop = (e) => {
     }
 
     if (files.length === 0) {
-        const text = e.dataTransfer.getData('text/plain');
-        if (text) {
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-            for (const line of lines) {
-                if (line.startsWith('/') || /^[a-zA-Z]:\\/.test(line)) {
-                    files.push(line);
+        const uriData = e.dataTransfer.getData('text/uri-list') || '';
+        const textData = e.dataTransfer.getData('text/plain') || '';
+        const combined = (uriData + '\n' + textData).split('\n');
+
+        for (let line of combined) {
+            line = line.trim();
+            if (!line) continue;
+
+            if (line.startsWith('file://')) {
+                let parsedPath = decodeURIComponent(line.replace('file://', '')).split('?')[0];
+                if (/^\/[a-zA-Z]:\//.test(parsedPath)) {
+                    parsedPath = parsedPath.substring(1);
                 }
+                files.push(parsedPath);
+            } else if (line.startsWith('/') || /^[a-zA-Z]:\\/.test(line)) {
+                files.push(line.split('?')[0]);
             }
         }
     }
@@ -601,14 +731,23 @@ window.addEventListener('drop', (e) => {
 
     // 2. Try to get paths from dataTransfer.items or strings
     if (files.length === 0) {
-        // Dragging from VS Code Explorer often provides paths in text/plain
-        const text = e.dataTransfer.getData('text/plain');
-        if (text) {
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-            for (const line of lines) {
-                if (line.startsWith('/') || /^[a-zA-Z]:\\/.test(line)) {
-                    files.push(line);
+        // Dragging from VS Code Explorer often provides paths in text/uri-list or text/plain
+        const uriData = e.dataTransfer.getData('text/uri-list') || '';
+        const textData = e.dataTransfer.getData('text/plain') || '';
+        const combined = (uriData + '\n' + textData).split('\n');
+
+        for (let line of combined) {
+            line = line.trim();
+            if (!line) continue;
+
+            if (line.startsWith('file://')) {
+                let parsedPath = decodeURIComponent(line.replace('file://', '')).split('?')[0];
+                if (/^\/[a-zA-Z]:\//.test(parsedPath)) {
+                    parsedPath = parsedPath.substring(1);
                 }
+                files.push(parsedPath);
+            } else if (line.startsWith('/') || /^[a-zA-Z]:\\/.test(line)) {
+                files.push(line.split('?')[0]);
             }
         }
     }

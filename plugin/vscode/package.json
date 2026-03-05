@@ -2,7 +2,7 @@
   "name": "opengeminiai-studio",
   "displayName": "OpenGeminiAI Studio",
   "description": "AI Coding Assistant powered by OpenGemini Studio",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "opengeminiai",
   "icon": "logo.png",
   "engines": {
